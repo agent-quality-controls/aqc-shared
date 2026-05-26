@@ -1,0 +1,23 @@
+[package]
+name = "aqc-clippy-toml-parser-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Typed model for clippy.toml files. Schema auto-generated from upstream Clippy source by the sibling generator crate."
+publish = false
+
+[package.metadata.guardrail3]
+shared = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

@@ -1,0 +1,20 @@
+[package]
+name = "aqc-clippy-toml-parser-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Runtime parser implementation for clippy.toml. Re-exports the generated typed schema; reconcile/write APIs land here once the engine layer is built."
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dependencies]
+aqc-clippy-toml-parser-types = { path = "../types", version = "0.1.0" }

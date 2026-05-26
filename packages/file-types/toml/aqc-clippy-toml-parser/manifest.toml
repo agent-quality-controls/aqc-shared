@@ -1,0 +1,111 @@
+# Manifest-driven verification for aqc-clippy-toml-parser.
+#
+# Used by ./verify/verify-all.sh to mechanically check that the package
+# matches this spec. Any drift between this manifest and the code is a
+# verification failure, not a "fix it later" comment.
+
+[meta]
+package = "aqc-clippy-toml-parser"
+clippy_tag = "rust-1.95.0"
+upstream_url = "https://raw.githubusercontent.com/rust-lang/rust-clippy/rust-1.95.0/clippy_config/src/conf.rs"
+
+## Layer 1: Tree Structure
+
+[[tree]]
+path = "Cargo.toml"
+description = "Facade workspace manifest"
+
+[[tree]]
+path = "crates/types/Cargo.toml"
+description = "Types crate manifest (aqc-clippy-toml-parser-types)"
+
+[[tree]]
+path = "crates/types/src/lib.rs"
+description = "Types crate entry point"
+
+[[tree]]
+path = "crates/types/src/clippy_toml.rs"
+description = "Generated typed schema (DO NOT EDIT MANUALLY)"
+
+[[tree]]
+path = "crates/runtime/Cargo.toml"
+description = "Runtime crate manifest"
+
+[[tree]]
+path = "crates/runtime/src/lib.rs"
+description = "Runtime crate entry point"
+
+[[tree]]
+path = "crates/generator/Cargo.toml"
+description = "Generator crate manifest"
+
+[[tree]]
+path = "crates/generator/src/main.rs"
+description = "Generator binary that produces clippy_toml.rs"
+
+## Layer 2: Public API
+
+[[public_api]]
+crate = "aqc-clippy-toml-parser-types"
+types = [
+  "ClippyToml",
+  "DisallowedPath",
+  "MatchLintBehaviour",
+  "PubUnderscoreFieldsBehaviour",
+  "InherentImplLintScope",
+  "SourceItemOrdering",
+  "SourceItemOrderingCategory",
+  "SourceItemOrderingModuleItemGroupings",
+  "SourceItemOrderingModuleItemKind",
+  "SourceItemOrderingTraitAssocItemKinds",
+  "SourceItemOrderingTraitAssocItemKind",
+  "SourceItemOrderingWithinModuleItemGroupings",
+]
+
+## Layer 3: Generator Contract
+
+[[generator_input]]
+source = "https://raw.githubusercontent.com/rust-lang/rust-clippy"
+file = "clippy_config/src/conf.rs"
+macro = "define_Conf!"
+version_pin = "rust-1.95.0"
+
+[[generator_output]]
+file = "crates/types/src/clippy_toml.rs"
+must_contain = [
+  "pub struct ClippyToml",
+  "impl Default for ClippyToml",
+  '#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]',
+  '#[serde(rename_all = "kebab-case")]',
+  "// Source: rust-lang/rust-clippy tag rust-1.95.0",
+]
+
+## Layer 4: Generated Code Contract
+
+[[generated_struct]]
+name = "ClippyToml"
+must_have_default_impl = true
+must_have_serde_derives = true
+field_count_min = 90
+field_count_max = 200
+
+[[generated_default_samples]]
+description = "Spot checks that defaults match Clippy's recommended values."
+examples = [
+  "cognitive_complexity_threshold: 25",
+  "too_many_arguments_threshold: 7",
+  "too_many_lines_threshold: 100",
+]
+
+## Layer 5: Verification Rules
+
+[[verification]]
+name = "workspace_builds"
+command = "cargo build --manifest-path Cargo.toml --workspace"
+expect = "exit 0"
+
+[[verification]]
+name = "generator_runs"
+command = "cargo run -p aqc-clippy-toml-parser-generator --bin generate"
+expect = "exit 0"
+expect_file = "crates/types/src/clippy_toml.rs"
