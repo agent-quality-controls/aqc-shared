@@ -69,6 +69,6 @@ fn main() {
     println!("Extracted {} fields from define_Conf!", fields.len());
 
     let generated = render::types_file(&fields, CLIPPY_TAG);
-    fs::write_file(&output_path, &generated);
-    println!("Wrote {}", output_path.display());
+    fs::write_formatted_rust(&output_path, &generated);
+    println!("Wrote {} (rustfmt applied)", output_path.display());
 }
