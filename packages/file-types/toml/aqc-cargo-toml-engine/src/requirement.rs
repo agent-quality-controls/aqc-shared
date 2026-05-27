@@ -1,8 +1,14 @@
 //! Declarative requirement and assertion types accepted by `CargoTomlEngine`.
 
+#![expect(
+    clippy::disallowed_types,
+    reason = "`Any` is used only in the `EngineRequirement::as_any` impl; the broker uses it to downcast `Box<dyn EngineRequirement>` back to this concrete `Req` type at dispatch time."
+)]
+
+use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::MergedAssertion;
+use aqc_file_engine_core::{EngineRequirement, MergedAssertion};
 
 /// Declarative requirement for the `Cargo.toml` engine.
 ///
@@ -121,4 +127,14 @@ pub enum FeatureSetAssertion {
     Contains(BTreeMap<String, BTreeSet<String>>),
     Excludes(BTreeSet<String>),
     IsExactly(BTreeMap<String, BTreeSet<String>>),
+}
+
+impl EngineRequirement for CargoTomlRequirement {
+    fn engine_id(&self) -> &'static str {
+        "aqc-cargo-toml-engine"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }

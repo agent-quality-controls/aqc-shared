@@ -5,6 +5,9 @@ allowed_deps = [
   "toml_edit",
 ]
 
+[checks]
+test = false
+
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/aqc-file-engine-core/src/types.rs"

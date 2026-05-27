@@ -1,8 +1,14 @@
 //! Declarative requirement and assertion types accepted by `ClippyTomlEngine`.
 
+#![expect(
+    clippy::disallowed_types,
+    reason = "`Any` is used only in the `EngineRequirement::as_any` impl; the broker uses it to downcast `Box<dyn EngineRequirement>` back to this concrete `Req` type at dispatch time."
+)]
+
+use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::MergedAssertion;
+use aqc_file_engine_core::{EngineRequirement, MergedAssertion};
 
 /// Declarative requirement for the `clippy.toml` engine.
 #[derive(Debug, Clone, Default)]
@@ -76,4 +82,14 @@ pub enum StringAssertion {
     OneOf(BTreeSet<String>),
     Present,
     Absent,
+}
+
+impl EngineRequirement for ClippyTomlRequirement {
+    fn engine_id(&self) -> &'static str {
+        "aqc-clippy-toml-engine"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
