@@ -1,0 +1,48 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "toml_edit",
+]
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/aqc-file-engine-core/src/types.rs"
+selector = "struct:Provenance"
+reason = "Provenance is a transparent data container; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/aqc-file-engine-core/src/types.rs"
+selector = "struct:MergedAssertion"
+reason = "MergedAssertion holds raw per-policy contributions; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/aqc-file-engine-core/src/types.rs"
+selector = "struct:EngineOutput"
+reason = "EngineOutput is the engine's return envelope; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/aqc-file-engine-core/src/types.rs"
+selector = "struct:MergeConflict"
+reason = "Error type carrying structured data; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement.rs"
+selector = "struct:CargoTomlRequirement"
+reason = "Declarative requirement struct; bulk-form field-per-target is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
+selector = "struct:ClippyTomlRequirement"
+reason = "Declarative requirement struct; bulk-form field-per-target is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
+selector = "struct:MethodBanEntry"
+reason = "Plain data record mirroring clippy's disallowed-methods entry shape."

@@ -235,12 +235,18 @@ def parse_struct_fields(body: str) -> list[tuple[str, str]]:
     # We need to keep angle brackets so generics survive — strip () but
     # keep <> by treating < and > as ordinary chars in the splitter, then
     # parse with bracket counting.
+    # Strip attribute blocks from the body before splitting. Attributes can
+    # contain string literals with `<` / `>` chars that confuse the
+    # generic-aware comma splitter, so removing them up front is more robust
+    # than trying to peel them per chunk.
+    body = _strip_attributes(body)
     fields: list[tuple[str, str]] = []
     for raw in _split_top_level_commas(body):
         line = raw.strip().rstrip(",").strip()
         if not line:
             continue
-        if line.startswith("//") or line.startswith("#["):
+        # Skip a pure comment chunk.
+        if line.startswith("//"):
             continue
         # remove visibility prefix
         line = re.sub(r"^pub(?:\([^)]*\))?\s+", "", line)
@@ -251,6 +257,46 @@ def parse_struct_fields(body: str) -> list[tuple[str, str]]:
         typ = _normalize_type(m.group(2))
         fields.append((name, typ))
     return fields
+
+
+def _strip_attributes(body: str) -> str:
+    """Remove every `#[ ... ]` attribute span from `body`.
+
+    Bracket counting respects nested `[` / `]`. String literals inside
+    attributes are handled implicitly because we never consider their
+    contents when bracket-balancing.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(body):
+        if body[i] == "#" and i + 1 < len(body) and body[i + 1] == "[":
+            end = _matching_bracket(body, i + 2)
+            if end is None:
+                # Unbalanced; bail out and keep the rest verbatim.
+                out.append(body[i:])
+                break
+            i = end + 1
+            continue
+        out.append(body[i])
+        i += 1
+    return "".join(out)
+
+
+def _matching_bracket(s: str, start: int) -> int | None:
+    """Return the index of the `]` matching the `[` at position start-1 (so
+    `start` is the first char inside). Tracks `[` / `]` only."""
+    depth = 1
+    i = start
+    while i < len(s) and depth > 0:
+        c = s[i]
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+        i += 1
+    if depth != 0:
+        return None
+    return i - 1
 
 
 def _split_top_level_commas(body: str) -> list[str]:

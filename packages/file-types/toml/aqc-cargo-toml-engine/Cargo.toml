@@ -1,0 +1,21 @@
+[package]
+name = "aqc-cargo-toml-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "FileEngine for Cargo.toml. Writes [lints.<tool>] tables via toml_edit."
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dependencies]
+aqc-file-engine-core = { path = "../../../aqc-file-engine-core" }
+toml_edit = "0.25"

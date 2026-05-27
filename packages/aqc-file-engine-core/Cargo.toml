@@ -1,0 +1,22 @@
+[package]
+name = "aqc-file-engine-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Shared framework types and FileEngine trait for aqc-{domain}-engine crates."
+publish = false
+
+[package.metadata.guardrail3]
+shared = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dependencies]
