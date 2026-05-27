@@ -1,4 +1,5 @@
-//! Reconciliation for clippy.toml's `disallowed-methods` array.
+//! Reconciliation for clippy.toml ban tables. One implementation,
+//! reused for `disallowed-methods`, `disallowed-types`, `disallowed-macros`.
 
 use std::collections::BTreeSet;
 
@@ -6,59 +7,73 @@ use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
 
 use crate::reconcile::util::all_provenances;
-use crate::requirement::{MethodBanEntry, MethodBansAssertion};
+use crate::requirement::{BanEntry, BansAssertion};
 
-/// Apply every method-ban contribution.
+/// Apply every contribution against the named ban table.
 #[expect(
     clippy::expect_used,
     reason = "or_insert(Item::Value(Value::Array(_))) guarantees as_array_mut returns Some"
 )]
-pub(crate) fn apply_method_bans(
+pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: &MergedAssertion<MethodBansAssertion>,
+    table_key: &str,
+    merged: &MergedAssertion<BansAssertion>,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = all_provenances(merged);
     let array = doc
-        .entry("disallowed-methods")
+        .entry(table_key)
         .or_insert(Item::Value(Value::Array(Array::new())))
         .as_array_mut()
-        .expect("disallowed-methods is an array");
-
+        .expect("ban table is an array");
     let mut current_paths = collect_current_paths(array);
-
     for (_, assertion) in &merged.contributions {
-        apply_one(array, &mut current_paths, assertion, &attribution, findings);
+        apply_one(
+            table_key,
+            array,
+            &mut current_paths,
+            assertion,
+            &attribution,
+            findings,
+        );
     }
-
     if let Some(exact) = is_exactly_only(merged) {
-        prune_extras(array, &exact, &attribution, findings);
+        prune_extras(table_key, array, &exact, &attribution, findings);
     }
 }
 
 /// Dispatch one assertion variant.
 fn apply_one(
+    table_key: &str,
     array: &mut Array,
     current_paths: &mut BTreeSet<String>,
-    assertion: &MethodBansAssertion,
+    assertion: &BansAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        MethodBansAssertion::Contains(wanted) | MethodBansAssertion::IsExactly(wanted) => {
-            apply_contains(array, current_paths, wanted, attribution, findings);
+        BansAssertion::Contains(wanted) | BansAssertion::IsExactly(wanted) => {
+            apply_contains(
+                table_key,
+                array,
+                current_paths,
+                wanted,
+                attribution,
+                findings,
+            );
         }
-        MethodBansAssertion::Excludes(paths) => {
-            apply_excludes(array, paths, attribution, findings);
+        BansAssertion::Excludes(paths) => {
+            apply_excludes(table_key, array, paths, attribution, findings);
         }
     }
 }
 
 /// Add any wanted entries that are not already present.
 fn apply_contains(
+    table_key: &str,
     array: &mut Array,
     current_paths: &mut BTreeSet<String>,
-    wanted: &[MethodBanEntry],
+    wanted: &[BanEntry],
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -66,12 +81,12 @@ fn apply_contains(
         if current_paths.contains(&entry.path) {
             continue;
         }
-        array.push(method_ban_value(entry));
+        array.push(ban_value(entry));
         let _ = current_paths.insert(entry.path.clone());
         findings.push(Finding::Mismatch {
-            path: format!("disallowed-methods[?path == \"{}\"]", entry.path),
+            path: format!("{table_key}[?path == \"{}\"]", entry.path),
             current: None,
-            expected: format!("path={} reason={}", entry.path, entry.reason),
+            expected: format_entry(entry),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -80,6 +95,7 @@ fn apply_contains(
 
 /// Remove any entries whose path matches any of `paths`.
 fn apply_excludes(
+    table_key: &str,
     array: &mut Array,
     paths: &BTreeSet<String>,
     attribution: &[Provenance],
@@ -90,7 +106,7 @@ fn apply_excludes(
         for i in positions.into_iter().rev() {
             let _ = array.remove(i);
             findings.push(Finding::Mismatch {
-                path: format!("disallowed-methods[?path == \"{path_to_remove}\"]"),
+                path: format!("{table_key}[?path == \"{path_to_remove}\"]"),
                 current: Some(path_to_remove.clone()),
                 expected: "absent".into(),
                 severity: Severity::Error,
@@ -100,10 +116,11 @@ fn apply_excludes(
     }
 }
 
-/// Drop on-disk entries that aren't in `exact`.
+/// Drop on-disk entries not in `exact`.
 fn prune_extras(
+    table_key: &str,
     array: &mut Array,
-    exact: &[MethodBanEntry],
+    exact: &[BanEntry],
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -119,7 +136,7 @@ fn prune_extras(
     for (i, p) in indices_to_remove.into_iter().rev() {
         let _ = array.remove(i);
         findings.push(Finding::Mismatch {
-            path: format!("disallowed-methods[?path == \"{p}\"]"),
+            path: format!("{table_key}[?path == \"{p}\"]"),
             current: Some(p),
             expected: "absent (IsExactly)".into(),
             severity: Severity::Error,
@@ -161,21 +178,35 @@ fn read_entry_path(item: &Value) -> Option<String> {
     None
 }
 
-/// Build the inline-table form of a method ban.
-fn method_ban_value(entry: &MethodBanEntry) -> Value {
-    let mut t = InlineTable::new();
-    let _ = t.insert("path", Value::from(entry.path.as_str()));
-    let _ = t.insert("reason", Value::from(entry.reason.as_str()));
-    Value::InlineTable(t)
+/// Build a TOML value for one ban entry. Uses bare string when no reason
+/// is supplied; inline-table form when there is one.
+fn ban_value(entry: &BanEntry) -> Value {
+    entry.reason.as_ref().map_or_else(
+        || Value::from(entry.path.as_str()),
+        |reason| {
+            let mut t = InlineTable::new();
+            let _ = t.insert("path", Value::from(entry.path.as_str()));
+            let _ = t.insert("reason", Value::from(reason.as_str()));
+            Value::InlineTable(t)
+        },
+    )
+}
+
+/// Human-readable rendering of a `BanEntry` for finding messages.
+fn format_entry(entry: &BanEntry) -> String {
+    entry.reason.as_ref().map_or_else(
+        || format!("path={}", entry.path),
+        |r| format!("path={} reason={r}", entry.path),
+    )
 }
 
 /// If every contribution is `IsExactly`, return the union of entries.
-fn is_exactly_only(merged: &MergedAssertion<MethodBansAssertion>) -> Option<Vec<MethodBanEntry>> {
+fn is_exactly_only(merged: &MergedAssertion<BansAssertion>) -> Option<Vec<BanEntry>> {
     let mut combined = Vec::new();
     for (_, a) in &merged.contributions {
         match a {
-            MethodBansAssertion::IsExactly(v) => combined.extend(v.iter().cloned()),
-            MethodBansAssertion::Contains(_) | MethodBansAssertion::Excludes(_) => return None,
+            BansAssertion::IsExactly(v) => combined.extend(v.iter().cloned()),
+            BansAssertion::Contains(_) | BansAssertion::Excludes(_) => return None,
         }
     }
     if combined.is_empty() {

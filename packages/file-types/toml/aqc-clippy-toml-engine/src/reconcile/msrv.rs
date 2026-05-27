@@ -1,13 +1,15 @@
 //! Reconciliation for clippy.toml's `msrv` key.
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
+use std::collections::BTreeSet;
+
+use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity, parse_version_tuple};
 use toml_edit::{DocumentMut, Item, value};
 
 use crate::reconcile::util::all_provenances;
 use crate::requirement::MsrvAssertion;
 
 /// Apply every `msrv` contribution to the document.
-pub(crate) fn apply_msrv(
+pub(crate) fn apply(
     doc: &mut DocumentMut,
     merged: &MergedAssertion<MsrvAssertion>,
     findings: &mut Vec<Finding>,
@@ -40,7 +42,7 @@ fn apply_one(
     }
 }
 
-/// Enforce `msrv == want`.
+/// `msrv == want`.
 fn apply_equals(
     doc: &mut DocumentMut,
     current: Option<&str>,
@@ -61,7 +63,7 @@ fn apply_equals(
     doc["msrv"] = value(want.to_owned());
 }
 
-/// Enforce `msrv >= min`.
+/// `msrv >= min`.
 fn apply_at_least(
     doc: &mut DocumentMut,
     current: Option<&str>,
@@ -82,10 +84,10 @@ fn apply_at_least(
     doc["msrv"] = value(min.to_owned());
 }
 
-/// Enforce `msrv ∈ allowed`.
+/// `msrv ∈ allowed`.
 fn apply_one_of(
     current: Option<&str>,
-    allowed: &std::collections::BTreeSet<String>,
+    allowed: &BTreeSet<String>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -101,7 +103,7 @@ fn apply_one_of(
     });
 }
 
-/// Enforce `msrv` is set (any value).
+/// `msrv` is set (any value).
 fn apply_present(current: Option<&str>, attribution: &[Provenance], findings: &mut Vec<Finding>) {
     if current.is_some() {
         return;
@@ -115,7 +117,7 @@ fn apply_present(current: Option<&str>, attribution: &[Provenance], findings: &m
     });
 }
 
-/// Enforce `msrv` is not set.
+/// `msrv` is not set.
 fn apply_absent(
     doc: &mut DocumentMut,
     current: Option<&str>,
@@ -135,18 +137,7 @@ fn apply_absent(
     let _ = doc.as_table_mut().remove("msrv");
 }
 
-/// Compare semver-ish dotted version strings (`1.85`, `1.85.0`). Returns
-/// `true` when `a >= b`. Treats missing parts as 0.
+/// Compare semver-ish dotted version strings.
 fn ge_version(a: &str, b: &str) -> bool {
-    parse_version(a) >= parse_version(b)
-}
-
-/// Parse a dotted version string into a tuple, treating missing parts as 0.
-fn parse_version(v: &str) -> (u64, u64, u64) {
-    let mut parts = v.split('.').map(|p| p.parse::<u64>().unwrap_or(0));
-    (
-        parts.next().unwrap_or(0),
-        parts.next().unwrap_or(0),
-        parts.next().unwrap_or(0),
-    )
+    parse_version_tuple(a) >= parse_version_tuple(b)
 }

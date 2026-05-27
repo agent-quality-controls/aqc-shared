@@ -1,5 +1,6 @@
-//! Framework data types: `Provenance`, `MergedAssertion`, `Finding`,
-//! `EngineOutput`, `EngineError`, `MergeConflict`, `Severity`.
+//! Framework data types: `Provenance`, `MergedAssertion`, `EngineOutput`, `Severity`, `PolicyId`.
+
+use crate::finding::Finding;
 
 /// Identifier for a Guardrail3 policy. Always a `String`.
 pub type PolicyId = String;
@@ -46,67 +47,3 @@ pub struct EngineOutput {
     pub expected_bytes: Vec<u8>,
     pub findings: Vec<Finding>,
 }
-
-/// A structured finding emitted by a `FileEngine`.
-#[derive(Debug, Clone)]
-pub enum Finding {
-    /// A key on disk disagrees with what the requirement asserts.
-    Mismatch {
-        path: String,
-        current: Option<String>,
-        expected: String,
-        severity: Severity,
-        attribution: Vec<Provenance>,
-    },
-    /// Reconcile knew where to write but the file role forbids it.
-    UnwritableRequiredKey {
-        path: String,
-        expected: String,
-        attribution: Vec<Provenance>,
-    },
-    /// The file violates its own schema, independent of our requirements.
-    SchemaError {
-        path: String,
-        message: String,
-        severity: Severity,
-    },
-}
-
-/// Engine-internal failure that isn't a `Finding` (e.g. parser crashed).
-#[derive(Debug)]
-pub enum EngineError {
-    Parse(String),
-    Other(String),
-}
-
-impl std::fmt::Display for EngineError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Parse(msg) => write!(f, "parse error: {msg}"),
-            Self::Other(msg) => write!(f, "engine error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for EngineError {}
-
-/// Emitted by the linter-adapter merge step when contributions for a
-/// single target are incompatible.
-#[derive(Debug, Clone)]
-pub struct MergeConflict {
-    pub target: String,
-    pub contributors: Vec<Provenance>,
-    pub detail: String,
-}
-
-impl std::fmt::Display for MergeConflict {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "merge conflict on {}: {} (contributors: {:?})",
-            self.target, self.detail, self.contributors
-        )
-    }
-}
-
-impl std::error::Error for MergeConflict {}

@@ -1,57 +1,61 @@
-//! Reconciliation logic for `CargoTomlEngine`. Walks merged assertions,
-//! applies them to a `DocumentMut`, and emits `Finding`s for disagreements.
+//! Reconcile `[lints.<tool>]` tables.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
-use toml_edit::{DocumentMut, Item, Table, value};
+use toml_edit::{Item, Table, value};
 
-use crate::requirement::{CargoTomlRequirement, LintLevelsAssertion};
+use crate::reconcile::util::{
+    all_provenances, get_or_create_nested_table_mut, get_or_create_table_mut,
+};
+use crate::requirement::LintLevelsAssertion;
 
-/// Walk every target on `requirement`, applying its assertions to `doc`.
-pub(crate) fn apply_requirement(
-    doc: &mut DocumentMut,
-    requirement: &CargoTomlRequirement,
+/// Apply every `[lints.<tool>]` contribution.
+#[expect(
+    clippy::type_complexity,
+    reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
+)]
+pub(crate) fn apply(
+    doc: &mut toml_edit::DocumentMut,
+    merged_by_tool: &BTreeMap<String, MergedAssertion<LintLevelsAssertion>>,
     findings: &mut Vec<Finding>,
 ) {
-    for (tool, merged) in &requirement.lints {
-        apply_lints_table(doc, tool, merged, findings);
+    if merged_by_tool.is_empty() {
+        return;
+    }
+    let lints_root = get_or_create_table_mut(doc, "lints");
+    for (tool, merged) in merged_by_tool {
+        apply_tool(lints_root, "lints", tool, merged, findings);
     }
 }
 
-/// Apply merged contributions for `[lints.<tool>]` to the document.
-#[expect(
-    clippy::expect_used,
-    reason = "both expects follow an or_insert(Item::Table(_)) and are infallible by construction"
-)]
-fn apply_lints_table(
-    doc: &mut DocumentMut,
+/// Apply contributions for one tool's lint table.
+pub(crate) fn apply_tool(
+    lints_root: &mut Table,
+    section_prefix: &str,
     tool: &str,
     merged: &MergedAssertion<LintLevelsAssertion>,
     findings: &mut Vec<Finding>,
 ) {
-    let lints_root = doc
-        .entry("lints")
-        .or_insert(Item::Table(Table::new()))
-        .as_table_mut()
-        .expect("lints is a table");
-    let tool_table = lints_root
-        .entry(tool)
-        .or_insert(Item::Table(Table::new()))
-        .as_table_mut()
-        .expect("lints.<tool> is a table");
-
-    for (_provenance, assertion) in &merged.contributions {
-        apply_one_assertion(tool, tool_table, merged, assertion, findings);
+    let tool_table = get_or_create_nested_table_mut(lints_root, tool);
+    for (_, assertion) in &merged.contributions {
+        apply_one(
+            section_prefix,
+            tool,
+            tool_table,
+            merged,
+            assertion,
+            findings,
+        );
     }
-
     if let Some(exact) = is_exactly_only(merged) {
-        apply_is_exactly_extras(tool, tool_table, merged, &exact, findings);
+        apply_exact_extras(section_prefix, tool, tool_table, merged, &exact, findings);
     }
 }
 
-/// Apply a single contribution's assertion to `tool_table`.
-fn apply_one_assertion(
+/// Apply a single assertion variant.
+fn apply_one(
+    section_prefix: &str,
     tool: &str,
     tool_table: &mut Table,
     merged: &MergedAssertion<LintLevelsAssertion>,
@@ -60,16 +64,17 @@ fn apply_one_assertion(
 ) {
     match assertion {
         LintLevelsAssertion::Contains(map) | LintLevelsAssertion::IsExactly(map) => {
-            apply_contains(tool, tool_table, merged, map, findings);
+            apply_contains(section_prefix, tool, tool_table, merged, map, findings);
         }
         LintLevelsAssertion::Excludes(names) => {
-            apply_excludes(tool, tool_table, merged, names, findings);
+            apply_excludes(section_prefix, tool, tool_table, merged, names, findings);
         }
     }
 }
 
-/// Apply a `Contains` / `IsExactly` mapping (per-key).
+/// `Contains` / `IsExactly` (per-key) — set each key to its required level.
 fn apply_contains(
+    section_prefix: &str,
     tool: &str,
     tool_table: &mut Table,
     merged: &MergedAssertion<LintLevelsAssertion>,
@@ -77,13 +82,13 @@ fn apply_contains(
     findings: &mut Vec<Finding>,
 ) {
     for (lint, level) in map {
-        let current_level = current_str(tool_table, lint);
-        if current_level.as_deref() == Some(level.as_str()) {
+        let current = current_str(tool_table, lint);
+        if current.as_deref() == Some(level.as_str()) {
             continue;
         }
         findings.push(Finding::Mismatch {
-            path: format!("[lints.{tool}].{lint}"),
-            current: current_level,
+            path: format!("[{section_prefix}.{tool}].{lint}"),
+            current,
             expected: level.clone(),
             severity: Severity::Error,
             attribution: contributors_for_lint(merged, lint),
@@ -92,8 +97,9 @@ fn apply_contains(
     }
 }
 
-/// Apply an `Excludes` set (each name must not be set).
+/// `Excludes` — remove any of the named keys from the table.
 fn apply_excludes(
+    section_prefix: &str,
     tool: &str,
     tool_table: &mut Table,
     merged: &MergedAssertion<LintLevelsAssertion>,
@@ -105,7 +111,7 @@ fn apply_excludes(
             continue;
         }
         findings.push(Finding::Mismatch {
-            path: format!("[lints.{tool}].{lint}"),
+            path: format!("[{section_prefix}.{tool}].{lint}"),
             current: current_str(tool_table, lint),
             expected: "absent".to_owned(),
             severity: Severity::Error,
@@ -115,8 +121,9 @@ fn apply_excludes(
     }
 }
 
-/// Remove on-disk entries that aren't covered by any `IsExactly` contribution.
-fn apply_is_exactly_extras(
+/// Drop on-disk keys not in any `IsExactly` contribution.
+fn apply_exact_extras(
+    section_prefix: &str,
     tool: &str,
     tool_table: &mut Table,
     merged: &MergedAssertion<LintLevelsAssertion>,
@@ -127,7 +134,7 @@ fn apply_is_exactly_extras(
     let allowed: BTreeSet<String> = exact.keys().cloned().collect();
     for extra in on_disk.difference(&allowed) {
         findings.push(Finding::Mismatch {
-            path: format!("[lints.{tool}].{extra}"),
+            path: format!("[{section_prefix}.{tool}].{extra}"),
             current: current_str(tool_table, extra),
             expected: "absent (IsExactly)".to_owned(),
             severity: Severity::Error,
@@ -137,12 +144,12 @@ fn apply_is_exactly_extras(
     }
 }
 
-/// Read a lint key's value as a string, if it's currently set.
+/// Read the current string value of `key` in `table`, if any.
 fn current_str(table: &Table, key: &str) -> Option<String> {
     table.get(key).and_then(Item::as_str).map(ToOwned::to_owned)
 }
 
-/// Collect provenances of every contribution that mentions `lint`.
+/// Provenances of contributions that mention `lint`.
 fn contributors_for_lint(
     merged: &MergedAssertion<LintLevelsAssertion>,
     lint: &str,
@@ -162,19 +169,15 @@ fn contributors_for_lint(
     out
 }
 
-/// Collect provenances of all contributions to this target.
+/// Provenances of all contributions to this target.
 fn contributors_for_assertion(merged: &MergedAssertion<LintLevelsAssertion>) -> Vec<Provenance> {
-    merged
-        .contributions
-        .iter()
-        .map(|(p, _)| p.clone())
-        .collect()
+    all_provenances(merged)
 }
 
-/// If every contribution is `IsExactly`, return the union of allowed keys.
+/// Union of allowed keys if every contribution is `IsExactly`; otherwise `None`.
 #[expect(
     clippy::type_complexity,
-    reason = "BTreeMap<String, String> is the natural shape for the returned mapping; aliasing it hides what it is."
+    reason = "BTreeMap<String, String> is the natural shape for the returned mapping."
 )]
 fn is_exactly_only(
     merged: &MergedAssertion<LintLevelsAssertion>,

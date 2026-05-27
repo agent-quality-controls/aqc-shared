@@ -8,8 +8,20 @@ use aqc_file_engine_core::MergedAssertion;
 #[derive(Debug, Clone, Default)]
 pub struct ClippyTomlRequirement {
     pub msrv: Option<MergedAssertion<MsrvAssertion>>,
-    pub method_bans: Option<MergedAssertion<MethodBansAssertion>>,
     pub thresholds: Option<MergedAssertion<ThresholdsAssertion>>,
+    pub disallowed_methods: Option<MergedAssertion<BansAssertion>>,
+    pub disallowed_types: Option<MergedAssertion<BansAssertion>>,
+    pub disallowed_macros: Option<MergedAssertion<BansAssertion>>,
+    #[expect(
+        clippy::type_complexity,
+        reason = "BTreeMap<setting, MergedAssertion<BoolAssertion>> is the natural keyed-by-setting shape."
+    )]
+    pub bools: BTreeMap<String, MergedAssertion<BoolAssertion>>,
+    #[expect(
+        clippy::type_complexity,
+        reason = "BTreeMap<setting, MergedAssertion<StringAssertion>> is the natural keyed-by-setting shape."
+    )]
+    pub enums: BTreeMap<String, MergedAssertion<StringAssertion>>,
 }
 
 /// What must hold about `msrv`.
@@ -22,21 +34,6 @@ pub enum MsrvAssertion {
     Absent,
 }
 
-/// What must hold about the `disallowed-methods` array.
-#[derive(Debug, Clone)]
-pub enum MethodBansAssertion {
-    Contains(Vec<MethodBanEntry>),
-    Excludes(BTreeSet<String>),
-    IsExactly(Vec<MethodBanEntry>),
-}
-
-/// One entry in `disallowed-methods`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MethodBanEntry {
-    pub path: String,
-    pub reason: String,
-}
-
 /// What must hold about clippy's numeric threshold keys
 /// (e.g. `cognitive-complexity-threshold`).
 #[derive(Debug, Clone)]
@@ -46,4 +43,37 @@ pub enum ThresholdsAssertion {
     AtLeast(BTreeMap<String, u64>),
     Present(BTreeSet<String>),
     Absent(BTreeSet<String>),
+}
+
+/// What must hold about a ban table (`disallowed-methods`, `disallowed-types`,
+/// `disallowed-macros`). Same shape for all three; reused across targets.
+#[derive(Debug, Clone)]
+pub enum BansAssertion {
+    Contains(Vec<BanEntry>),
+    Excludes(BTreeSet<String>),
+    IsExactly(Vec<BanEntry>),
+}
+
+/// One entry in a clippy ban list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BanEntry {
+    pub path: String,
+    pub reason: Option<String>,
+}
+
+/// What must hold about a boolean clippy setting.
+#[derive(Debug, Clone)]
+pub enum BoolAssertion {
+    Equals(bool),
+    Present,
+    Absent,
+}
+
+/// What must hold about a string-valued (enum-style) clippy setting.
+#[derive(Debug, Clone)]
+pub enum StringAssertion {
+    Equals(String),
+    OneOf(BTreeSet<String>),
+    Present,
+    Absent,
 }

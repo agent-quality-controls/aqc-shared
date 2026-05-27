@@ -44,5 +44,11 @@ reason = "Declarative requirement struct; bulk-form field-per-target is the API.
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
-selector = "struct:MethodBanEntry"
-reason = "Plain data record mirroring clippy's disallowed-methods entry shape."
+selector = "struct:BanEntry"
+reason = "Plain data record mirroring clippy's disallowed-methods/types/macros entry shape."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement.rs"
+selector = "struct:DependencySpec"
+reason = "Plain data record mirroring a Cargo.toml dependency entry shape."

@@ -9,7 +9,7 @@ use crate::reconcile::util::all_provenances;
 use crate::requirement::ThresholdsAssertion;
 
 /// Apply every thresholds contribution to the document.
-pub(crate) fn apply_thresholds(
+pub(crate) fn apply(
     doc: &mut DocumentMut,
     merged: &MergedAssertion<ThresholdsAssertion>,
     findings: &mut Vec<Finding>,
@@ -28,47 +28,34 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ThresholdsAssertion::Equals(map) => apply_map_equals(doc, map, attribution, findings),
-        ThresholdsAssertion::AtMost(map) => apply_map_at_most(doc, map, attribution, findings),
-        ThresholdsAssertion::AtLeast(map) => apply_map_at_least(doc, map, attribution, findings),
+        ThresholdsAssertion::Equals(map) => {
+            apply_map(doc, map, attribution, findings, apply_equals);
+        }
+        ThresholdsAssertion::AtMost(map) => {
+            apply_map(doc, map, attribution, findings, apply_at_most);
+        }
+        ThresholdsAssertion::AtLeast(map) => {
+            apply_map(doc, map, attribution, findings, apply_at_least);
+        }
         ThresholdsAssertion::Present(keys) => apply_present(doc, keys, attribution, findings),
         ThresholdsAssertion::Absent(keys) => apply_absent(doc, keys, attribution, findings),
     }
 }
 
-/// Each `(key, value)` must equal exactly.
-fn apply_map_equals(
+/// Walk a `(key, value)` map and apply the per-key handler to each.
+#[expect(
+    clippy::type_complexity,
+    reason = "fn pointer signature mirrors handler shape; aliasing would obscure intent"
+)]
+fn apply_map(
     doc: &mut DocumentMut,
     map: &BTreeMap<String, u64>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
+    handler: fn(&mut DocumentMut, &str, u64, &[Provenance], &mut Vec<Finding>),
 ) {
     for (key, want) in map {
-        apply_equals(doc, key, *want, attribution, findings);
-    }
-}
-
-/// Each `(key, value)` is an upper bound.
-fn apply_map_at_most(
-    doc: &mut DocumentMut,
-    map: &BTreeMap<String, u64>,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    for (key, ceiling) in map {
-        apply_at_most(doc, key, *ceiling, attribution, findings);
-    }
-}
-
-/// Each `(key, value)` is a lower bound.
-fn apply_map_at_least(
-    doc: &mut DocumentMut,
-    map: &BTreeMap<String, u64>,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    for (key, floor) in map {
-        apply_at_least(doc, key, *floor, attribution, findings);
+        handler(doc, key, *want, attribution, findings);
     }
 }
 
@@ -118,7 +105,7 @@ fn apply_absent(
     }
 }
 
-/// Apply a single scalar `Equals` requirement.
+/// `key == want`.
 fn apply_equals(
     doc: &mut DocumentMut,
     key: &str,
@@ -143,7 +130,7 @@ fn apply_equals(
     }
 }
 
-/// Apply a single scalar `AtMost` requirement.
+/// `key <= ceiling`.
 fn apply_at_most(
     doc: &mut DocumentMut,
     key: &str,
@@ -166,7 +153,7 @@ fn apply_at_most(
     doc[key] = value(ceiling_i64);
 }
 
-/// Apply a single scalar `AtLeast` requirement.
+/// `key >= floor`.
 fn apply_at_least(
     doc: &mut DocumentMut,
     key: &str,

@@ -8,12 +8,17 @@
 #[cfg(feature = "api")]
 pub mod engine;
 #[cfg(feature = "api")]
+pub mod finding;
+#[cfg(feature = "api")]
+pub mod toml_helpers;
+#[cfg(feature = "api")]
 pub mod types;
 
 #[cfg(feature = "api")]
 pub use engine::FileEngine;
 #[cfg(feature = "api")]
-pub use types::{
-    EngineError, EngineOutput, Finding, MergeConflict, MergedAssertion, PolicyId, Provenance,
-    Severity,
-};
+pub use finding::Finding;
+#[cfg(feature = "api")]
+pub use toml_helpers::{parse_or_report, parse_version_tuple};
+#[cfg(feature = "api")]
+pub use types::{EngineOutput, MergedAssertion, PolicyId, Provenance, Severity};

@@ -20,3 +20,4 @@ all = ["api"]
 api = []
 
 [dependencies]
+toml_edit = "0.25"

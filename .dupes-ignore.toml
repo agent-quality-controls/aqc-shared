@@ -1,0 +1,31 @@
+[[ignore]]
+fingerprint = "0a24739b56b60c07"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "0bfffb225e89e6f1"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "15dd47574021b92a"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "200697ecf95a466b"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "3448117e20f4a214"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "5fb39c38d73f0f29"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "7f38fd290bcc0981"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"
+
+[[ignore]]
+fingerprint = "b50d543737e07f93"
+reason = "engine reconcile helpers share by-design symmetric shape across sections (apply_present/apply_absent, is_exactly_only, current_list, etc.)"

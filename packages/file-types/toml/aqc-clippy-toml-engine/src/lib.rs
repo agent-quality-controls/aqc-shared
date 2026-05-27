@@ -1,5 +1,5 @@
-//! `FileEngine` for `clippy.toml`. Writes `msrv`, thresholds, and the
-//! `disallowed-methods` array via `toml_edit`.
+//! `FileEngine` for `clippy.toml`. Writes msrv, thresholds, bans, and
+//! configuration flags via `toml_edit`.
 //!
 //! See plan refs in the architecture and vertical-slice plans inside
 //! `guardrail3/.plans/g3v2-architecture/`.
@@ -15,5 +15,6 @@ mod requirement;
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    ClippyTomlRequirement, MethodBanEntry, MethodBansAssertion, MsrvAssertion, ThresholdsAssertion,
+    BanEntry, BansAssertion, BoolAssertion, ClippyTomlRequirement, MsrvAssertion, StringAssertion,
+    ThresholdsAssertion,
 };

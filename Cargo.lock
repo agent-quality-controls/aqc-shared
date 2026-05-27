@@ -21,6 +21,9 @@ dependencies = [
 [[package]]
 name = "aqc-file-engine-core"
 version = "0.1.0"
+dependencies = [
+ "toml_edit",
+]
 
 [[package]]
 name = "equivalent"
