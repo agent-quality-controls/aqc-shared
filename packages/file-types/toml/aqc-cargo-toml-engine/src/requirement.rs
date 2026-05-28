@@ -52,21 +52,29 @@ pub struct CargoTomlRequirement {
 
 /// What must hold about a `[lints.<tool>]` table.
 ///
-/// Map values are `(level, message)` tuples where `message` is the
-/// policy-authored explanation surfaced in the `Finding::Mismatch.message`
-/// field when this lint disagrees with disk.
+/// Map values are `(level, priority, message)` tuples.
+///   * `level` is the lint level (`"deny"`, `"warn"`, `"allow"`, `"forbid"`).
+///   * `priority` is `Some(i64)` for inline-table form (used for group lints
+///     like `clippy::all` with `priority = -1`); `None` for bare-string form.
+///   * `message` is the policy-authored explanation surfaced in the
+///     `Finding::Mismatch.message` field when this entry disagrees with disk.
+///
+/// Format choice is policy intent: bare-string for individual lints,
+/// inline-table for group lints that need to be applied before per-lint
+/// settings. The engine reads both forms but writes whichever form the
+/// policy's `priority` slot implies.
 #[expect(
     clippy::type_complexity,
-    reason = "BTreeMap<String, (level, message)> is the explicit per-entry shape; aliasing the inner tuple obscures the (value, message) pattern used uniformly across assertion types."
+    reason = "BTreeMap<String, (level, priority, message)> is the explicit per-entry shape; aliasing the inner tuple obscures the policy intent fields."
 )]
 #[derive(Debug, Clone)]
 pub enum LintLevelsAssertion {
-    /// Each (lint name, (level, message)) mapping must be present on disk.
-    Contains(BTreeMap<String, (String, String)>),
+    /// Each (lint name, (level, priority, message)) mapping must be present on disk.
+    Contains(BTreeMap<String, (String, Option<i64>, String)>),
     /// None of these lint names may be set on disk. Value is the message.
     Excludes(BTreeMap<String, String>),
-    /// The table must equal exactly these (name -> (level, message)) entries.
-    IsExactly(BTreeMap<String, (String, String)>),
+    /// The table must equal exactly these (name -> (level, priority, message)) entries.
+    IsExactly(BTreeMap<String, (String, Option<i64>, String)>),
 }
 
 /// What must hold about a single `[package].<field>` (or `[workspace.package].<field>`).
