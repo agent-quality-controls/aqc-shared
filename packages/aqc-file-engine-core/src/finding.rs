@@ -15,6 +15,10 @@ pub enum Finding {
         path: String,
         current: Option<String>,
         expected: String,
+        /// Free-form policy-authored explanation of the mismatch: what is
+        /// wrong, why it's wrong, what should be done instead. Sourced from
+        /// the assertion entry that produced this finding.
+        message: String,
         severity: Severity,
         attribution: Vec<Provenance>,
     },

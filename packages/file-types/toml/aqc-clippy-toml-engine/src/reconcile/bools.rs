@@ -35,9 +35,11 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        BoolAssertion::Equals(want) => apply_equals(doc, key, *want, attribution, findings),
-        BoolAssertion::Present => apply_present(doc, key, attribution, findings),
-        BoolAssertion::Absent => apply_absent(doc, key, attribution, findings),
+        BoolAssertion::Equals(want, message) => {
+            apply_equals(doc, key, *want, message, attribution, findings);
+        }
+        BoolAssertion::Present(message) => apply_present(doc, key, message, attribution, findings),
+        BoolAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
     }
 }
 
@@ -46,6 +48,7 @@ fn apply_equals(
     doc: &mut DocumentMut,
     key: &str,
     want: bool,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -57,6 +60,7 @@ fn apply_equals(
         path: key.into(),
         current: current.map(|b| b.to_string()),
         expected: want.to_string(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -67,6 +71,7 @@ fn apply_equals(
 fn apply_present(
     doc: &DocumentMut,
     key: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -77,6 +82,7 @@ fn apply_present(
         path: key.into(),
         current: None,
         expected: "any bool (Present)".into(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -86,6 +92,7 @@ fn apply_present(
 fn apply_absent(
     doc: &mut DocumentMut,
     key: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -96,6 +103,7 @@ fn apply_absent(
         path: key.into(),
         current: doc.get(key).and_then(Item::as_bool).map(|b| b.to_string()),
         expected: "absent".into(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });

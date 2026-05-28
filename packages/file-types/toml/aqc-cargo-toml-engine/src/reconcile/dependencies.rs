@@ -65,6 +65,7 @@ fn apply_contains(
             path: format!("[{table_key}].{name}"),
             current: current.as_ref().map(|s| format!("{s:?}")),
             expected: format!("{spec:?}"),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -88,6 +89,7 @@ fn apply_excludes(
             path: format!("[{table_key}].{name}"),
             current: Some(format!("{:?}", read_spec(table, name))),
             expected: "absent".into(),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -110,6 +112,7 @@ fn apply_exact_extras(
             path: format!("[{table_key}].{extra}"),
             current: Some(format!("{:?}", read_spec(table, extra))),
             expected: "absent (IsExactly)".into(),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });

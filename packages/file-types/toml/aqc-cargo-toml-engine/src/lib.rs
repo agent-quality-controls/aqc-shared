@@ -17,3 +17,8 @@ pub use requirement::{
     CargoTomlRequirement, DepKind, DependencySetAssertion, DependencySpec, FeatureSetAssertion,
     LintLevelsAssertion, PackageFieldAssertion, ProfileAssertion, ProfileFieldAssertion,
 };
+
+/// Stable engine id; matches this crate's `[package].name` and the value
+/// returned by `<CargoTomlRequirement as EngineRequirement>::engine_id`.
+#[cfg(feature = "api")]
+pub const ENGINE_ID: &str = "aqc-cargo-toml-engine";

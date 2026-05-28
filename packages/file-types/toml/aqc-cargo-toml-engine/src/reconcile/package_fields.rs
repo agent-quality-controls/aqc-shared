@@ -102,6 +102,7 @@ fn apply_equals(
         path: format!("[{section_prefix}].{field}"),
         current,
         expected: want.to_owned(),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -125,6 +126,7 @@ fn apply_at_least(
         path: format!("[{section_prefix}].{field}"),
         current,
         expected: format!("at least {min}"),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -148,6 +150,7 @@ fn apply_one_of(
         path: format!("[{section_prefix}].{field}"),
         current,
         expected: format!("one of {allowed:?}"),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -177,6 +180,7 @@ fn apply_list_contains(
         path: format!("[{section_prefix}].{field}"),
         current: Some(format!("{on_disk:?}")),
         expected: format!("contains {missing:?}"),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -206,6 +210,7 @@ fn apply_list_is_exactly(
         path: format!("[{section_prefix}].{field}"),
         current: Some(format!("{on_disk:?}")),
         expected: format!("{items:?}"),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -227,6 +232,7 @@ fn apply_present(
         path: format!("[{section_prefix}].{field}"),
         current: None,
         expected: "any value (Present)".into(),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -247,6 +253,7 @@ fn apply_absent(
         path: format!("[{section_prefix}].{field}"),
         current: current_str(table, field),
         expected: "absent".into(),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });

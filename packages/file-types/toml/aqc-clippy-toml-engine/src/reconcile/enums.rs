@@ -35,10 +35,16 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        StringAssertion::Equals(want) => apply_equals(doc, key, want, attribution, findings),
-        StringAssertion::OneOf(allowed) => apply_one_of(doc, key, allowed, attribution, findings),
-        StringAssertion::Present => apply_present(doc, key, attribution, findings),
-        StringAssertion::Absent => apply_absent(doc, key, attribution, findings),
+        StringAssertion::Equals(want, message) => {
+            apply_equals(doc, key, want, message, attribution, findings);
+        }
+        StringAssertion::OneOf(allowed, message) => {
+            apply_one_of(doc, key, allowed, message, attribution, findings);
+        }
+        StringAssertion::Present(message) => {
+            apply_present(doc, key, message, attribution, findings);
+        }
+        StringAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
     }
 }
 
@@ -47,6 +53,7 @@ fn apply_equals(
     doc: &mut DocumentMut,
     key: &str,
     want: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -58,6 +65,7 @@ fn apply_equals(
         path: key.into(),
         current,
         expected: want.to_owned(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -69,6 +77,7 @@ fn apply_one_of(
     doc: &DocumentMut,
     key: &str,
     allowed: &BTreeSet<String>,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -80,6 +89,7 @@ fn apply_one_of(
         path: key.into(),
         current: current.map(ToOwned::to_owned),
         expected: format!("one of {allowed:?}"),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -89,6 +99,7 @@ fn apply_one_of(
 fn apply_present(
     doc: &DocumentMut,
     key: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -99,6 +110,7 @@ fn apply_present(
         path: key.into(),
         current: None,
         expected: "any string (Present)".into(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -108,6 +120,7 @@ fn apply_present(
 fn apply_absent(
     doc: &mut DocumentMut,
     key: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -118,6 +131,7 @@ fn apply_absent(
         path: key.into(),
         current: doc.get(key).and_then(Item::as_str).map(ToOwned::to_owned),
         expected: "absent".into(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });

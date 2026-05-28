@@ -1,6 +1,6 @@
 //! Reconciliation for clippy.toml's numeric threshold keys.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
 use toml_edit::{DocumentMut, Item, value};
@@ -37,36 +37,36 @@ fn apply_one(
         ThresholdsAssertion::AtLeast(map) => {
             apply_map(doc, map, attribution, findings, apply_at_least);
         }
-        ThresholdsAssertion::Present(keys) => apply_present(doc, keys, attribution, findings),
-        ThresholdsAssertion::Absent(keys) => apply_absent(doc, keys, attribution, findings),
+        ThresholdsAssertion::Present(map) => apply_present(doc, map, attribution, findings),
+        ThresholdsAssertion::Absent(map) => apply_absent(doc, map, attribution, findings),
     }
 }
 
-/// Walk a `(key, value)` map and apply the per-key handler to each.
+/// Walk a `(key, (value, message))` map and apply the per-key handler to each.
 #[expect(
     clippy::type_complexity,
     reason = "fn pointer signature mirrors handler shape; aliasing would obscure intent"
 )]
 fn apply_map(
     doc: &mut DocumentMut,
-    map: &BTreeMap<String, u64>,
+    map: &BTreeMap<String, (u64, String)>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
-    handler: fn(&mut DocumentMut, &str, u64, &[Provenance], &mut Vec<Finding>),
+    handler: fn(&mut DocumentMut, &str, u64, &str, &[Provenance], &mut Vec<Finding>),
 ) {
-    for (key, want) in map {
-        handler(doc, key, *want, attribution, findings);
+    for (key, (want, message)) in map {
+        handler(doc, key, *want, message, attribution, findings);
     }
 }
 
 /// Each named key must be present with an integer value.
 fn apply_present(
     doc: &DocumentMut,
-    keys: &BTreeSet<String>,
+    map: &BTreeMap<String, String>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    for key in keys {
+    for (key, message) in map {
         if doc.get(key).and_then(Item::as_integer).is_some() {
             continue;
         }
@@ -74,6 +74,7 @@ fn apply_present(
             path: key.clone(),
             current: None,
             expected: "any integer (Present)".into(),
+            message: message.clone(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -83,11 +84,11 @@ fn apply_present(
 /// Each named key must not exist.
 fn apply_absent(
     doc: &mut DocumentMut,
-    keys: &BTreeSet<String>,
+    map: &BTreeMap<String, String>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    for key in keys {
+    for (key, message) in map {
         if !doc.contains_key(key) {
             continue;
         }
@@ -98,6 +99,7 @@ fn apply_absent(
                 .and_then(Item::as_integer)
                 .map(|n| n.to_string()),
             expected: "absent".into(),
+            message: message.clone(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -110,6 +112,7 @@ fn apply_equals(
     doc: &mut DocumentMut,
     key: &str,
     want: u64,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -122,6 +125,7 @@ fn apply_equals(
         path: key.into(),
         current: current.map(|n| n.to_string()),
         expected: want.to_string(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -135,6 +139,7 @@ fn apply_at_most(
     doc: &mut DocumentMut,
     key: &str,
     ceiling: u64,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -147,6 +152,7 @@ fn apply_at_most(
         path: key.into(),
         current: current.map(|n| n.to_string()),
         expected: format!("at most {ceiling}"),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -158,6 +164,7 @@ fn apply_at_least(
     doc: &mut DocumentMut,
     key: &str,
     floor: u64,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -170,6 +177,7 @@ fn apply_at_least(
         path: key.into(),
         current: current.map(|n| n.to_string()),
         expected: format!("at least {floor}"),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });

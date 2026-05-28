@@ -98,6 +98,7 @@ fn apply_equals(
         path: format!("[profile.{profile}].{field}"),
         current: current.map(ToString::to_string),
         expected: want.to_string(),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -121,6 +122,7 @@ fn apply_one_of(
         path: format!("[profile.{profile}].{field}"),
         current: current.map(ToString::to_string),
         expected: format!("one of {allowed:?}"),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -141,6 +143,7 @@ fn apply_present(
         path: format!("[profile.{profile}].{field}"),
         current: None,
         expected: "any value (Present)".into(),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -164,6 +167,7 @@ fn apply_absent(
             .and_then(Item::as_value)
             .map(ToString::to_string),
         expected: "absent".into(),
+        message: String::new(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });

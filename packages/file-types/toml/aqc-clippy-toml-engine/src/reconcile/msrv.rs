@@ -34,11 +34,19 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        MsrvAssertion::Equals(want) => apply_equals(doc, current, want, attribution, findings),
-        MsrvAssertion::AtLeast(min) => apply_at_least(doc, current, min, attribution, findings),
-        MsrvAssertion::OneOf(allowed) => apply_one_of(current, allowed, attribution, findings),
-        MsrvAssertion::Present => apply_present(current, attribution, findings),
-        MsrvAssertion::Absent => apply_absent(doc, current, attribution, findings),
+        MsrvAssertion::Equals(want, message) => {
+            apply_equals(doc, current, want, message, attribution, findings);
+        }
+        MsrvAssertion::AtLeast(min, message) => {
+            apply_at_least(doc, current, min, message, attribution, findings);
+        }
+        MsrvAssertion::OneOf(allowed, message) => {
+            apply_one_of(current, allowed, message, attribution, findings);
+        }
+        MsrvAssertion::Present(message) => apply_present(current, message, attribution, findings),
+        MsrvAssertion::Absent(message) => {
+            apply_absent(doc, current, message, attribution, findings);
+        }
     }
 }
 
@@ -47,6 +55,7 @@ fn apply_equals(
     doc: &mut DocumentMut,
     current: Option<&str>,
     want: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -57,6 +66,7 @@ fn apply_equals(
         path: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: want.to_owned(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -68,6 +78,7 @@ fn apply_at_least(
     doc: &mut DocumentMut,
     current: Option<&str>,
     min: &str,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -78,6 +89,7 @@ fn apply_at_least(
         path: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: format!("at least {min}"),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -88,6 +100,7 @@ fn apply_at_least(
 fn apply_one_of(
     current: Option<&str>,
     allowed: &BTreeSet<String>,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -98,13 +111,19 @@ fn apply_one_of(
         path: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: format!("one of {allowed:?}"),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
 }
 
 /// `msrv` is set (any value).
-fn apply_present(current: Option<&str>, attribution: &[Provenance], findings: &mut Vec<Finding>) {
+fn apply_present(
+    current: Option<&str>,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
     if current.is_some() {
         return;
     }
@@ -112,6 +131,7 @@ fn apply_present(current: Option<&str>, attribution: &[Provenance], findings: &m
         path: "msrv".into(),
         current: None,
         expected: "any value (Present)".into(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
@@ -121,6 +141,7 @@ fn apply_present(current: Option<&str>, attribution: &[Provenance], findings: &m
 fn apply_absent(
     doc: &mut DocumentMut,
     current: Option<&str>,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -131,6 +152,7 @@ fn apply_absent(
         path: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: "absent".into(),
+        message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });

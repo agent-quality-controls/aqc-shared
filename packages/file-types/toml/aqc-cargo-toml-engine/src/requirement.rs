@@ -51,14 +51,22 @@ pub struct CargoTomlRequirement {
 }
 
 /// What must hold about a `[lints.<tool>]` table.
+///
+/// Map values are `(level, message)` tuples where `message` is the
+/// policy-authored explanation surfaced in the `Finding::Mismatch.message`
+/// field when this lint disagrees with disk.
+#[expect(
+    clippy::type_complexity,
+    reason = "BTreeMap<String, (level, message)> is the explicit per-entry shape; aliasing the inner tuple obscures the (value, message) pattern used uniformly across assertion types."
+)]
 #[derive(Debug, Clone)]
 pub enum LintLevelsAssertion {
-    /// Each (lint name, level) mapping must be present on disk.
-    Contains(BTreeMap<String, String>),
-    /// None of these lint names may be set on disk.
-    Excludes(BTreeSet<String>),
-    /// The table must equal exactly this mapping.
-    IsExactly(BTreeMap<String, String>),
+    /// Each (lint name, (level, message)) mapping must be present on disk.
+    Contains(BTreeMap<String, (String, String)>),
+    /// None of these lint names may be set on disk. Value is the message.
+    Excludes(BTreeMap<String, String>),
+    /// The table must equal exactly these (name -> (level, message)) entries.
+    IsExactly(BTreeMap<String, (String, String)>),
 }
 
 /// What must hold about a single `[package].<field>` (or `[workspace.package].<field>`).
@@ -131,7 +139,7 @@ pub enum FeatureSetAssertion {
 
 impl EngineRequirement for CargoTomlRequirement {
     fn engine_id(&self) -> &'static str {
-        "aqc-cargo-toml-engine"
+        crate::ENGINE_ID
     }
 
     fn as_any(&self) -> &dyn Any {

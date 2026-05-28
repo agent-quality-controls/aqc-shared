@@ -53,6 +53,7 @@ fn apply_contains(
             path: format!("[features].{feature}"),
             current: Some(format!("{current:?}")),
             expected: format!("{want_impls:?}"),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -75,6 +76,7 @@ fn apply_excludes(
             path: format!("[features].{feature}"),
             current: Some(format!("{:?}", current_list(table, feature))),
             expected: "absent".into(),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -100,6 +102,7 @@ fn apply_exact_extras(
             path: format!("[features].{extra}"),
             current: Some(format!("{:?}", current_list(table, extra))),
             expected: "absent (IsExactly)".into(),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });

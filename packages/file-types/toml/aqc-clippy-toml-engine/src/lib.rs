@@ -18,3 +18,8 @@ pub use requirement::{
     BanEntry, BansAssertion, BoolAssertion, ClippyTomlRequirement, MsrvAssertion, StringAssertion,
     ThresholdsAssertion,
 };
+
+/// Stable engine id; matches this crate's `[package].name` and the value
+/// returned by `<ClippyTomlRequirement as EngineRequirement>::engine_id`.
+#[cfg(feature = "api")]
+pub const ENGINE_ID: &str = "aqc-clippy-toml-engine";

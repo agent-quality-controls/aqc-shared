@@ -1,7 +1,7 @@
 //! Reconciliation for clippy.toml ban tables. One implementation,
 //! reused for `disallowed-methods`, `disallowed-types`, `disallowed-macros`.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
@@ -62,8 +62,8 @@ fn apply_one(
                 findings,
             );
         }
-        BansAssertion::Excludes(paths) => {
-            apply_excludes(table_key, array, paths, attribution, findings);
+        BansAssertion::Excludes(map) => {
+            apply_excludes(table_key, array, map, attribution, findings);
         }
     }
 }
@@ -87,21 +87,22 @@ fn apply_contains(
             path: format!("{table_key}[?path == \"{}\"]", entry.path),
             current: None,
             expected: format_entry(entry),
+            message: entry.message.clone(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
     }
 }
 
-/// Remove any entries whose path matches any of `paths`.
+/// Remove any entries whose path matches any of `paths`. Map value is the message.
 fn apply_excludes(
     table_key: &str,
     array: &mut Array,
-    paths: &BTreeSet<String>,
+    map: &BTreeMap<String, String>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    for path_to_remove in paths {
+    for (path_to_remove, message) in map {
         let positions = positions_with_path(array, path_to_remove);
         for i in positions.into_iter().rev() {
             let _ = array.remove(i);
@@ -109,6 +110,7 @@ fn apply_excludes(
                 path: format!("{table_key}[?path == \"{path_to_remove}\"]"),
                 current: Some(path_to_remove.clone()),
                 expected: "absent".into(),
+                message: message.clone(),
                 severity: Severity::Error,
                 attribution: attribution.to_vec(),
             });
@@ -139,6 +141,7 @@ fn prune_extras(
             path: format!("{table_key}[?path == \"{p}\"]"),
             current: Some(p),
             expected: "absent (IsExactly)".into(),
+            message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
@@ -178,26 +181,29 @@ fn read_entry_path(item: &Value) -> Option<String> {
     None
 }
 
-/// Build a TOML value for one ban entry. Uses bare string when no reason
-/// is supplied; inline-table form when there is one.
+/// Build a TOML value for one ban entry. Uses bare string when the
+/// message is empty; inline-table form (path + reason) otherwise.
+///
+/// clippy's `disallowed-methods` schema names the field `reason`; we
+/// keep that wire name even though our internal API calls it `message`.
 fn ban_value(entry: &BanEntry) -> Value {
-    entry.reason.as_ref().map_or_else(
-        || Value::from(entry.path.as_str()),
-        |reason| {
-            let mut t = InlineTable::new();
-            let _ = t.insert("path", Value::from(entry.path.as_str()));
-            let _ = t.insert("reason", Value::from(reason.as_str()));
-            Value::InlineTable(t)
-        },
-    )
+    if entry.message.is_empty() {
+        Value::from(entry.path.as_str())
+    } else {
+        let mut t = InlineTable::new();
+        let _ = t.insert("path", Value::from(entry.path.as_str()));
+        let _ = t.insert("reason", Value::from(entry.message.as_str()));
+        Value::InlineTable(t)
+    }
 }
 
-/// Human-readable rendering of a `BanEntry` for finding messages.
+/// Human-readable rendering of a `BanEntry` for finding `expected` text.
 fn format_entry(entry: &BanEntry) -> String {
-    entry.reason.as_ref().map_or_else(
-        || format!("path={}", entry.path),
-        |r| format!("path={} reason={r}", entry.path),
-    )
+    if entry.message.is_empty() {
+        format!("path={}", entry.path)
+    } else {
+        format!("path={} reason={}", entry.path, entry.message)
+    }
 }
 
 /// If every contribution is `IsExactly`, return the union of entries.
