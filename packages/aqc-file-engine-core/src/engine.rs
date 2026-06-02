@@ -1,6 +1,9 @@
-//! `FileEngine` trait: the engine surface every `aqc-{domain}-engine` crate
-//! implements.
+//! Engine traits: the typed `FileEngine<Req>` and the erased `Engine`
+//! contract the runner dispatches over.
 
+use std::path::{Path, PathBuf};
+
+use crate::requirement::EngineRequirement;
 use crate::types::EngineOutput;
 
 /// A file engine: reconciles bytes-on-disk against typed declarative
@@ -18,4 +21,29 @@ pub trait FileEngine<Req> {
     /// Apply `requirement` against `current_bytes`, returning what `init`
     /// would write and what `validate` would report.
     fn reconcile(current_bytes: Option<&[u8]>, requirement: &Req) -> EngineOutput;
+}
+
+/// Erased engine contract the runner dispatches over.
+///
+/// Each engine knows the file it owns and reconciles the type-erased
+/// requirements routed to it (all carrying this engine's id). Object-safe so
+/// the runner registry can hold `Box<dyn Engine>`; the typed `FileEngine` is
+/// what each engine calls internally.
+pub trait Engine {
+    /// Stable engine id (matches the crate's `ENGINE_ID`).
+    fn id(&self) -> &'static str;
+    /// The workspace-relative file this engine owns (e.g. `Cargo.toml`).
+    fn target_path(&self, workspace_root: &Path) -> PathBuf;
+    /// Reconcile `current` bytes against the requirements routed to this
+    /// engine. The runner groups requirements by engine id, so every element
+    /// downcasts to this engine's requirement type.
+    #[expect(
+        clippy::type_complexity,
+        reason = "`&[Box<dyn EngineRequirement>]` is the erased multi-requirement input the registry dispatches; a type alias would hide the contract."
+    )]
+    fn reconcile(
+        &self,
+        current: Option<&[u8]>,
+        reqs: &[Box<dyn EngineRequirement>],
+    ) -> EngineOutput;
 }

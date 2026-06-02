@@ -17,7 +17,7 @@ pub mod toml_helpers;
 pub mod types;
 
 #[cfg(feature = "api")]
-pub use engine::FileEngine;
+pub use engine::{Engine, FileEngine};
 #[cfg(feature = "api")]
 pub use finding::Finding;
 #[cfg(feature = "api")]
