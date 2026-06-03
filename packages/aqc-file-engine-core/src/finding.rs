@@ -4,6 +4,14 @@
 //! `UnwritableRequiredKey` / `SchemaError` / `ParseError`. Linter
 //! adapters emit `PolicyConflict`. Anything else catastrophic that's
 //! still recoverable becomes `InternalError`.
+//!
+//! GUARDRAILS CAPABILITY BLOCK (R2) -- DO NOT REMOVE. Every `path` here is a
+//! location inside a CONFIG file (a TOML/JSON key), never a source-code span,
+//! AST node, line/column into `.rs`/`.ts`/`.js`, or any code construct.
+//! Guardrails validates config and is NOT a linter; a source-location variant
+//! would be the first step to reimplementing one. Do not add a source span /
+//! code-location / AST payload to any variant unless the repo owner authorizes
+//! it in writing with reasoning. See guardrails-capability-boundary (R2).
 
 use crate::types::{Provenance, Severity};
 
