@@ -1,0 +1,221 @@
+//! The shared merge machinery: how contributions for one file converge.
+//!
+//! When many policies (via many adapters) write the same file, their
+//! contributions all reach one engine as `MergedAssertion`s. This module is the
+//! single place that knows *how* to combine them: union the contribution lists,
+//! then resolve each key to one value or a conflict. It names no file type; each
+//! engine's assertion types implement [`Resolve`], and nothing else (the broker,
+//! the adapters) touches this code.
+
+use std::collections::BTreeMap;
+
+use crate::types::{MergedAssertion, Provenance};
+
+/// A key's contributions: each source's provenance paired with its value.
+pub type Contributions<A> = Vec<(Provenance, A)>;
+
+/// One field across its keys: each key to its merged contributions
+/// (e.g. `workspace_lints` keyed by tool name).
+pub type AssertionMap<K, A> = BTreeMap<K, MergedAssertion<A>>;
+
+/// One key on which sources irreconcilably disagree, with each source's value.
+///
+/// `key` is relative to the field; the engine prepends the field path to form
+/// the full in-file key on the resulting `Finding::PolicyConflict`.
+#[derive(Debug, Clone)]
+pub struct ConflictEntry {
+    /// The disagreeing key.
+    pub key: String,
+    /// Each contributing provenance paired with its value, rendered for display.
+    pub contributors: Contributions<String>,
+}
+
+/// An assertion type that knows how to resolve multiple contributions for one
+/// key into a single value, pushing a [`ConflictEntry`] for genuine disagreement.
+///
+/// This is the single decoupling seam: every file engine's assertion types
+/// implement it; the generic strategies below do the work; the broker and the
+/// adapters never call it.
+pub trait Resolve: Sized + Clone {
+    /// Resolve all contributions for one key (under `key`, the field's in-file
+    /// path). Returns the merged value, or `None` and pushes one or more
+    /// `ConflictEntry`s when the contributions cannot be reconciled.
+    fn resolve(
+        key: &str,
+        contributions: Contributions<Self>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<Self>;
+}
+
+/// Resolve a scalar: every contribution must hold the same value.
+///
+/// Different values → one conflict keyed by `key`, and `None`.
+pub fn resolve_scalar<T>(
+    key: &str,
+    contributions: Contributions<T>,
+    render: impl Fn(&T) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<T>
+where
+    T: PartialEq,
+{
+    let mut iter = contributions.into_iter();
+    let (first_prov, first) = iter.next()?;
+    let mut contributors: Contributions<String> = vec![(first_prov, render(&first))];
+    let mut disagree = false;
+    for (prov, value) in iter {
+        if value != first {
+            disagree = true;
+        }
+        contributors.push((prov, render(&value)));
+    }
+    if disagree {
+        conflicts.push(ConflictEntry {
+            key: key.to_owned(),
+            contributors,
+        });
+        None
+    } else {
+        Some(first)
+    }
+}
+
+/// Resolve an "exactly this" assertion: every contribution must be identical.
+///
+/// Same value-level check as [`resolve_scalar`]; named distinctly because it is
+/// the resolution for `IsExactly`-style assertions (no key-wise union).
+pub fn resolve_exact<T>(
+    key: &str,
+    contributions: Contributions<T>,
+    render: impl Fn(&T) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<T>
+where
+    T: PartialEq,
+{
+    resolve_scalar(key, contributions, render, conflicts)
+}
+
+/// Merge a set of `key -> value` maps.
+///
+/// The keys union; a key present in more than one map with different values →
+/// one conflict keyed by `key_prefix.<k>`, and that key is dropped from the
+/// result.
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "merge_map is the map-merge strategy; the name reads at call sites and is the public verb."
+)]
+#[expect(
+    clippy::type_complexity,
+    reason = "grouping contributions by map key needs `Contributions<BTreeMap<..>>` in and `BTreeMap<_, Contributions<V>>` internally; both are the natural shapes."
+)]
+pub fn merge_map<V>(
+    key_prefix: &str,
+    contributions: Contributions<BTreeMap<String, V>>,
+    render: impl Fn(&V) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> BTreeMap<String, V>
+where
+    V: PartialEq + Clone,
+{
+    let mut by_key: BTreeMap<String, Contributions<V>> = BTreeMap::new();
+    for (prov, map) in contributions {
+        for (k, v) in map {
+            by_key.entry(k).or_default().push((prov.clone(), v));
+        }
+    }
+    let mut out: BTreeMap<String, V> = BTreeMap::new();
+    for (k, entries) in by_key {
+        let full_key = format!("{key_prefix}.{k}");
+        if let Some(value) = resolve_scalar(&full_key, entries, &render, conflicts) {
+            let _ = out.insert(k, value);
+        }
+    }
+    out
+}
+
+/// Union the contribution lists of two `MergedAssertion`s for the same key.
+#[must_use]
+pub fn union_assertion<A>(
+    mut a: MergedAssertion<A>,
+    mut b: MergedAssertion<A>,
+) -> MergedAssertion<A> {
+    a.contributions.append(&mut b.contributions);
+    a
+}
+
+/// Union one field across requirements.
+///
+/// For a shared key, the two `MergedAssertion`s' contribution lists concatenate.
+pub fn union_field<K, A>(into: &mut AssertionMap<K, A>, other: AssertionMap<K, A>)
+where
+    K: Ord,
+{
+    for (k, merged) in other {
+        match into.remove(&k) {
+            Some(existing) => {
+                let _ = into.insert(k, union_assertion(existing, merged));
+            }
+            None => {
+                let _ = into.insert(k, merged);
+            }
+        }
+    }
+}
+
+/// Resolve one field after union.
+///
+/// Per key, run [`Resolve::resolve`] over its contributions; a resolved value is
+/// re-paired with every contributing provenance (so the apply phase keeps full
+/// attribution); a conflict drops the key. `key_of` maps a field key to its
+/// in-file path prefix.
+pub fn resolve_field<K, A>(
+    field: AssertionMap<K, A>,
+    key_of: impl Fn(&K) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> AssertionMap<K, A>
+where
+    K: Ord,
+    A: Resolve,
+{
+    let mut out: AssertionMap<K, A> = BTreeMap::new();
+    for (k, merged) in field {
+        let provenances: Vec<Provenance> = merged
+            .contributions
+            .iter()
+            .map(|(p, _)| p.clone())
+            .collect();
+        let key = key_of(&k);
+        if let Some(resolved) = A::resolve(&key, merged.contributions, conflicts) {
+            let contributions = provenances
+                .into_iter()
+                .map(|p| (p, resolved.clone()))
+                .collect();
+            let _ = out.insert(k, MergedAssertion { contributions });
+        }
+    }
+    out
+}
+
+/// Resolve an optional single-assertion field (e.g. `features`).
+pub fn resolve_optional<A>(
+    key: &str,
+    field: Option<MergedAssertion<A>>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<MergedAssertion<A>>
+where
+    A: Resolve,
+{
+    let merged = field?;
+    let provenances: Vec<Provenance> = merged
+        .contributions
+        .iter()
+        .map(|(p, _)| p.clone())
+        .collect();
+    let resolved = A::resolve(key, merged.contributions, conflicts)?;
+    let contributions = provenances
+        .into_iter()
+        .map(|p| (p, resolved.clone()))
+        .collect();
+    Some(MergedAssertion { contributions })
+}

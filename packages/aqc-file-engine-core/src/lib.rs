@@ -10,6 +10,8 @@ pub mod engine;
 #[cfg(feature = "api")]
 pub mod finding;
 #[cfg(feature = "api")]
+pub mod merge;
+#[cfg(feature = "api")]
 pub mod requirement;
 #[cfg(feature = "api")]
 pub mod toml_helpers;
@@ -20,6 +22,11 @@ pub mod types;
 pub use engine::{Engine, FileEngine};
 #[cfg(feature = "api")]
 pub use finding::Finding;
+#[cfg(feature = "api")]
+pub use merge::{
+    ConflictEntry, Resolve, merge_map, resolve_exact, resolve_field, resolve_optional,
+    resolve_scalar, union_assertion, union_field,
+};
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;
 #[cfg(feature = "api")]
