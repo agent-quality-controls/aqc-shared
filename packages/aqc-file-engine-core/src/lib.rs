@@ -19,13 +19,13 @@ pub mod toml_helpers;
 pub mod types;
 
 #[cfg(feature = "api")]
-pub use engine::{Engine, FileEngine};
+pub use engine::{Engine, FileEngine, merged_reconcile};
 #[cfg(feature = "api")]
 pub use finding::Finding;
 #[cfg(feature = "api")]
 pub use merge::{
     ConflictEntry, Resolve, merge_map, resolve_exact, resolve_field, resolve_optional,
-    resolve_scalar, union_assertion, union_field,
+    resolve_scalar, union_assertion, union_field, union_optional,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;

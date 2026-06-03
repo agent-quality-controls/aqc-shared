@@ -15,7 +15,8 @@ pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
     CargoTomlRequirement, DepKind, DependencySetAssertion, DependencySpec, FeatureSetAssertion,
-    LintLevelsAssertion, PackageFieldAssertion, ProfileAssertion, ProfileFieldAssertion,
+    LintLevelsAssertion, LintsInheritAssertion, PackageFieldAssertion, ProfileAssertion,
+    ProfileFieldAssertion,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value

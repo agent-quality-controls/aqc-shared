@@ -5,7 +5,7 @@ use aqc_file_engine_core::Finding;
 use toml_edit::DocumentMut;
 
 use super::{
-    dependencies, features, lints, package_fields, profiles, workspace_lints,
+    dependencies, features, lints, lints_inherit, package_fields, profiles, workspace_lints,
     workspace_package_fields,
 };
 use crate::requirement::CargoTomlRequirement;
@@ -18,6 +18,7 @@ pub(crate) fn apply(
     findings: &mut Vec<Finding>,
 ) {
     lints::apply(doc, &requirement.lints, findings);
+    lints_inherit::apply(doc, requirement.lints_inherit.as_ref(), findings);
     workspace_lints::apply(doc, &requirement.workspace_lints, findings);
     package_fields::apply(doc, &requirement.package_fields, findings);
     workspace_package_fields::apply(doc, &requirement.workspace_package_fields, findings);

@@ -13,7 +13,10 @@
 //! code-location / AST payload to any variant unless the repo owner authorizes
 //! it in writing with reasoning. See guardrails-capability-boundary (R2).
 
-use crate::types::{Provenance, Severity};
+use crate::types::{PolicyId, Provenance, Severity};
+
+/// Each disagreeing policy id paired with its value, rendered for display.
+pub type ConflictContributors = Vec<(PolicyId, String)>;
 
 /// A structured finding emitted by a `FileEngine` or a linter adapter.
 #[derive(Debug, Clone)]
@@ -44,13 +47,19 @@ pub enum Finding {
     },
     /// The file isn't valid in its native grammar (e.g. malformed TOML).
     ParseError { message: String, severity: Severity },
-    /// Two or more policies emitted irreconcilable contributions for the
-    /// same target. The adapter aborts the merge for that field.
+    /// Two or more enabled policies require different values for the same key
+    /// in the same file. Produced by the engine's merge phase, per key, naming
+    /// each disagreeing policy and its value. Always `Severity::Error`; the field
+    /// is dropped (not written); not waivable.
     PolicyConflict {
-        target: String,
-        contributors: Vec<Provenance>,
-        detail: String,
-        severity: Severity,
+        /// The file (e.g. `Cargo.toml`).
+        subject: String,
+        /// The in-file key (e.g. `[workspace.lints.clippy].unwrap_used`).
+        key: String,
+        /// Each disagreeing policy id + its rendered value.
+        contributors: ConflictContributors,
+        /// Which rule fired (scalar-disagree / set-key-disagree / exact-mismatch).
+        reason: String,
     },
     /// Engine- or adapter-internal failure (panic-class, but caught
     /// before it actually panics). Always `Severity::Error`.

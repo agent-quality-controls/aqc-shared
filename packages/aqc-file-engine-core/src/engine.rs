@@ -3,6 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::finding::Finding;
+use crate::merge::ConflictEntry;
 use crate::requirement::EngineRequirement;
 use crate::types::EngineOutput;
 
@@ -46,4 +48,56 @@ pub trait Engine {
         current: Option<&[u8]>,
         reqs: &[Box<dyn EngineRequirement>],
     ) -> EngineOutput;
+}
+
+/// The shared erased-reconcile body every engine's `Engine::reconcile` is.
+///
+/// Downcast the routed requirements to `Req`; with none, echo `current` back
+/// unchanged. Otherwise run the engine's `merge` phase (pure), reconcile the
+/// merged desired-state against disk via `reconcile_one`, then map each merge
+/// `ConflictEntry` to a `Finding::PolicyConflict` keyed by `subject` (the
+/// engine owns the file name). Only the requirement type, `subject`, and the
+/// two functions differ between engines; the dance is identical, so it lives
+/// here once.
+#[expect(
+    clippy::type_complexity,
+    reason = "`Fn(&[&Req]) -> (Req, Vec<ConflictEntry>)` is the merge phase's signature as data; aliasing it would hide the (resolved, conflicts) contract."
+)]
+pub fn merged_reconcile<Req, M, F>(
+    current: Option<&[u8]>,
+    reqs: &[Box<dyn EngineRequirement>],
+    subject: &str,
+    merge: M,
+    reconcile_one: F,
+) -> EngineOutput
+where
+    Req: EngineRequirement,
+    M: Fn(&[&Req]) -> (Req, Vec<ConflictEntry>),
+    F: Fn(Option<&[u8]>, &Req) -> EngineOutput,
+{
+    let typed: Vec<&Req> = reqs
+        .iter()
+        .filter_map(|r| r.as_any().downcast_ref::<Req>())
+        .collect();
+    if typed.is_empty() {
+        return EngineOutput {
+            expected_bytes: current.map(<[u8]>::to_vec).unwrap_or_default(),
+            findings: Vec::new(),
+        };
+    }
+    let (merged, conflicts) = merge(&typed);
+    let mut out = reconcile_one(current, &merged);
+    for entry in conflicts {
+        out.findings.push(Finding::PolicyConflict {
+            subject: subject.to_owned(),
+            key: entry.key,
+            contributors: entry
+                .contributors
+                .into_iter()
+                .map(|(prov, value)| (prov.policy, value))
+                .collect(),
+            reason: entry.reason,
+        });
+    }
+    out
 }

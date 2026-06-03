@@ -26,6 +26,9 @@ pub type AssertionMap<K, A> = BTreeMap<K, MergedAssertion<A>>;
 pub struct ConflictEntry {
     /// The disagreeing key.
     pub key: String,
+    /// Which resolution rule fired: `scalar-disagree`, `set-key-disagree`,
+    /// or `exact-mismatch`.
+    pub reason: String,
     /// Each contributing provenance paired with its value, rendered for display.
     pub contributors: Contributions<String>,
 }
@@ -47,11 +50,13 @@ pub trait Resolve: Sized + Clone {
     ) -> Option<Self>;
 }
 
-/// Resolve a scalar: every contribution must hold the same value.
+/// Resolve a set of contributions that must all hold the same value.
 ///
-/// Different values → one conflict keyed by `key`, and `None`.
-pub fn resolve_scalar<T>(
+/// Different values → one conflict keyed by `key`, tagged with `reason`, and
+/// `None`. The two public entry points differ only in the reason they record.
+fn resolve_all_equal<T>(
     key: &str,
+    reason: &str,
     contributions: Contributions<T>,
     render: impl Fn(&T) -> String,
     conflicts: &mut Vec<ConflictEntry>,
@@ -72,6 +77,7 @@ where
     if disagree {
         conflicts.push(ConflictEntry {
             key: key.to_owned(),
+            reason: reason.to_owned(),
             contributors,
         });
         None
@@ -80,10 +86,25 @@ where
     }
 }
 
+/// Resolve a scalar: every contribution must hold the same value.
+///
+/// Different values → one conflict keyed by `key` (`scalar-disagree`), and `None`.
+pub fn resolve_scalar<T>(
+    key: &str,
+    contributions: Contributions<T>,
+    render: impl Fn(&T) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<T>
+where
+    T: PartialEq,
+{
+    resolve_all_equal(key, "scalar-disagree", contributions, render, conflicts)
+}
+
 /// Resolve an "exactly this" assertion: every contribution must be identical.
 ///
-/// Same value-level check as [`resolve_scalar`]; named distinctly because it is
-/// the resolution for `IsExactly`-style assertions (no key-wise union).
+/// Same value-level check as [`resolve_scalar`]; the resolution for
+/// `IsExactly`-style assertions (no key-wise union), tagged `exact-mismatch`.
 pub fn resolve_exact<T>(
     key: &str,
     contributions: Contributions<T>,
@@ -93,7 +114,7 @@ pub fn resolve_exact<T>(
 where
     T: PartialEq,
 {
-    resolve_scalar(key, contributions, render, conflicts)
+    resolve_all_equal(key, "exact-mismatch", contributions, render, conflicts)
 }
 
 /// Merge a set of `key -> value` maps.
@@ -127,7 +148,9 @@ where
     let mut out: BTreeMap<String, V> = BTreeMap::new();
     for (k, entries) in by_key {
         let full_key = format!("{key_prefix}.{k}");
-        if let Some(value) = resolve_scalar(&full_key, entries, &render, conflicts) {
+        if let Some(value) =
+            resolve_all_equal(&full_key, "set-key-disagree", entries, &render, conflicts)
+        {
             let _ = out.insert(k, value);
         }
     }
@@ -142,6 +165,19 @@ pub fn union_assertion<A>(
 ) -> MergedAssertion<A> {
     a.contributions.append(&mut b.contributions);
     a
+}
+
+/// Union two optional single-assertion fields by concatenating contributions.
+#[must_use]
+pub fn union_optional<A>(
+    a: Option<MergedAssertion<A>>,
+    b: Option<MergedAssertion<A>>,
+) -> Option<MergedAssertion<A>> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(union_assertion(x, y)),
+        (x, None) => x,
+        (None, y) => y,
+    }
 }
 
 /// Union one field across requirements.

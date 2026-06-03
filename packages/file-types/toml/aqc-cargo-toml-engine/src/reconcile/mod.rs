@@ -4,6 +4,7 @@ mod dependencies;
 mod dispatch;
 mod features;
 mod lints;
+mod lints_inherit;
 mod package_fields;
 mod profiles;
 mod util;

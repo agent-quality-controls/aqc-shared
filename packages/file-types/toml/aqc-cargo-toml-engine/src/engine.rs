@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use aqc_file_engine_core::{
-    Engine, EngineOutput, EngineRequirement, FileEngine, Finding, parse_or_report,
+    Engine, EngineOutput, EngineRequirement, FileEngine, merged_reconcile, parse_or_report,
 };
 
 use crate::reconcile;
@@ -38,22 +38,12 @@ impl Engine for CargoTomlEngine {
         current: Option<&[u8]>,
         reqs: &[Box<dyn EngineRequirement>],
     ) -> EngineOutput {
-        let typed: Vec<&CargoTomlRequirement> = reqs
-            .iter()
-            .filter_map(|r| r.as_any().downcast_ref::<CargoTomlRequirement>())
-            .collect();
-        match typed.as_slice() {
-            [] => EngineOutput {
-                expected_bytes: current.map(<[u8]>::to_vec).unwrap_or_default(),
-                findings: Vec::new(),
-            },
-            [one] => <Self as FileEngine<CargoTomlRequirement>>::reconcile(current, one),
-            _ => EngineOutput {
-                expected_bytes: current.map(<[u8]>::to_vec).unwrap_or_default(),
-                findings: vec![Finding::InternalError {
-                    message: "multiple requirements routed to one engine; multi-adapter merge is not implemented (v1 routes a single adapter per engine)".to_owned(),
-                }],
-            },
-        }
+        merged_reconcile(
+            current,
+            reqs,
+            "Cargo.toml",
+            CargoTomlRequirement::merge,
+            <Self as FileEngine<CargoTomlRequirement>>::reconcile,
+        )
     }
 }
