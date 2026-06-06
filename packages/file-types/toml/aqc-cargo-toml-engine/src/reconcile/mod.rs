@@ -6,9 +6,11 @@ mod features;
 mod lints;
 mod lints_inherit;
 mod package_fields;
+mod patch;
 mod profiles;
+mod section_presence;
+mod target_tables;
 mod util;
-mod workspace_lints;
-mod workspace_package_fields;
+mod workspace_fields;
 
 pub(crate) use dispatch::apply;

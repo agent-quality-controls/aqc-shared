@@ -1,0 +1,129 @@
+//! `[package].<field>` / `[workspace.package].<field>` assertions.
+
+use std::collections::BTreeSet;
+
+use aqc_file_engine_core::merge::Contributions;
+use aqc_file_engine_core::{
+    ConfigScalar, ConflictEntry, FromEmpty, FromEmptyClass, Msg, Provenance, Resolve,
+    resolve_scalar, union_string_lists, union_string_sets,
+};
+
+/// What must hold about a single `[package].<field>` (or
+/// `[workspace.package].<field>`). One enum covers scalar and list-shaped
+/// fields; the engine knows from the field key which shape applies.
+///
+/// Equality (and therefore merge agreement) compares the semantic value only;
+/// the policy-authored [`Msg`] never participates.
+#[derive(Debug, Clone)]
+pub enum PackageFieldAssertion {
+    /// The field equals this value (string, integer, or bool form).
+    Equals(ConfigScalar, Msg),
+    /// Version-ordered floor (rust-version, version, edition).
+    AtLeastVersion(String, Msg),
+    /// The field's value is one of these (check-only: the engine cannot pick).
+    OneOf(BTreeSet<String>, Msg),
+    /// The list field contains every element.
+    ListContains(Vec<String>, Msg),
+    /// The list field contains none of these elements.
+    ListExcludes(BTreeSet<String>, Msg),
+    /// The list field equals exactly this list.
+    ListIsExactly(Vec<String>, Msg),
+    /// The field uses workspace inheritance: `<field>.workspace = true`.
+    InheritsWorkspace(Msg),
+    /// The field is set, to anything (check-only).
+    Present(Msg),
+    /// The field is not set.
+    Absent(Msg),
+}
+
+/// Semantic equality: messages excluded.
+impl PartialEq for PackageFieldAssertion {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Equals(a, _), Self::Equals(b, _)) => a == b,
+            (Self::AtLeastVersion(a, _), Self::AtLeastVersion(b, _)) => a == b,
+            (Self::OneOf(a, _), Self::OneOf(b, _))
+            | (Self::ListExcludes(a, _), Self::ListExcludes(b, _)) => a == b,
+            (Self::ListContains(a, _), Self::ListContains(b, _))
+            | (Self::ListIsExactly(a, _), Self::ListIsExactly(b, _)) => a == b,
+            (Self::InheritsWorkspace(_), Self::InheritsWorkspace(_))
+            | (Self::Present(_), Self::Present(_))
+            | (Self::Absent(_), Self::Absent(_)) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Resolve for PackageFieldAssertion {
+    fn resolve(
+        key: &str,
+        contributions: Vec<(Provenance, Self)>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<Self> {
+        // Set-family variants union their elements; everything else must agree.
+        if contributions
+            .iter()
+            .all(|(_, a)| matches!(a, Self::ListContains(..)))
+        {
+            return Some(union_list_contains(contributions));
+        }
+        if contributions
+            .iter()
+            .all(|(_, a)| matches!(a, Self::ListExcludes(..)))
+        {
+            return Some(union_list_excludes(contributions));
+        }
+        resolve_scalar(key, contributions, |a| format!("{a:?}"), conflicts)
+    }
+}
+
+impl FromEmptyClass for PackageFieldAssertion {
+    fn on_empty(&self) -> FromEmpty {
+        match self {
+            Self::Equals(..)
+            | Self::AtLeastVersion(..)
+            | Self::ListContains(..)
+            | Self::ListExcludes(..)
+            | Self::ListIsExactly(..)
+            | Self::InheritsWorkspace(..)
+            | Self::Absent(..) => FromEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => FromEmpty::ChecksOnly,
+        }
+    }
+}
+
+/// Union `ListContains` element lists via the core helper.
+fn union_list_contains(
+    contributions: Contributions<PackageFieldAssertion>,
+) -> PackageFieldAssertion {
+    let lists = contributions
+        .into_iter()
+        .filter_map(|(_, a)| {
+            if let PackageFieldAssertion::ListContains(list, m) = a {
+                Some((list, m))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let (items, msg) = union_string_lists(lists);
+    PackageFieldAssertion::ListContains(items, msg)
+}
+
+/// Union `ListExcludes` element sets via the core helper.
+fn union_list_excludes(
+    contributions: Contributions<PackageFieldAssertion>,
+) -> PackageFieldAssertion {
+    let sets = contributions
+        .into_iter()
+        .filter_map(|(_, a)| {
+            if let PackageFieldAssertion::ListExcludes(set, m) = a {
+                Some((set, m))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let (items, msg) = union_string_sets(sets);
+    PackageFieldAssertion::ListExcludes(items, msg)
+}

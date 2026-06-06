@@ -1,12 +1,17 @@
-//! Reconcile `[profile.<name>]` tables.
+//! Reconcile `[profile.<name>]` tables, including
+//! `[profile.<name>.package.<spec>]` overrides and `[profile.<name>.build-override]`.
+//!
+//! Lazy: check-only field assertions (`OneOf`, `Present`) and vacuous removals
+//! create no tables.
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
-use toml_edit::{Item, Table, Value};
+use aqc_file_engine_core::{ConfigScalar, Finding, MergedAssertion, Provenance};
+use toml_edit::{DocumentMut, Item};
 
 use crate::reconcile::util::{
-    all_provenances, get_or_create_nested_table_mut, get_or_create_table_mut,
+    all_provenances, ensure_table_at, push_mismatch, render_item, render_scalar, scalar_item,
+    scalar_matches, table_at, table_at_mut,
 };
 use crate::requirement::{ProfileAssertion, ProfileFieldAssertion};
 
@@ -16,166 +21,202 @@ use crate::requirement::{ProfileAssertion, ProfileFieldAssertion};
     reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
 )]
 pub(crate) fn apply(
-    doc: &mut toml_edit::DocumentMut,
+    doc: &mut DocumentMut,
     merged_by_profile: &BTreeMap<String, MergedAssertion<ProfileAssertion>>,
     findings: &mut Vec<Finding>,
 ) {
-    if merged_by_profile.is_empty() {
-        return;
-    }
-    let profile_root = get_or_create_table_mut(doc, "profile");
     for (profile, merged) in merged_by_profile {
-        apply_profile(profile_root, profile, merged, findings);
-    }
-}
-
-/// Apply contributions for one profile.
-fn apply_profile(
-    profile_root: &mut Table,
-    profile: &str,
-    merged: &MergedAssertion<ProfileAssertion>,
-    findings: &mut Vec<Finding>,
-) {
-    let attribution = all_provenances(merged);
-    let table = get_or_create_nested_table_mut(profile_root, profile);
-    for (_, assertion) in &merged.contributions {
-        match assertion {
-            ProfileAssertion::Fields(field_map) => {
-                for (field, field_assertion) in field_map {
-                    apply_field(
-                        table,
-                        profile,
-                        field,
-                        field_assertion,
-                        &attribution,
-                        findings,
-                    );
-                }
-            }
+        let attribution = all_provenances(merged);
+        for (_, assertion) in &merged.contributions {
+            apply_profile(doc, profile, assertion, &attribution, findings);
         }
     }
 }
 
-/// Apply one `ProfileFieldAssertion` to a profile field.
-fn apply_field(
-    table: &mut Table,
+/// Apply one `ProfileAssertion` (its direct fields, build-override, overrides).
+fn apply_profile(
+    doc: &mut DocumentMut,
     profile: &str,
+    assertion: &ProfileAssertion,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    for (field, fa) in &assertion.fields {
+        let path = vec!["profile".to_owned(), profile.to_owned()];
+        let display = format!("[profile.{profile}]");
+        apply_field(doc, &path, &display, field, fa, attribution, findings);
+    }
+    for (field, fa) in &assertion.build_override {
+        let path = vec![
+            "profile".to_owned(),
+            profile.to_owned(),
+            "build-override".to_owned(),
+        ];
+        let display = format!("[profile.{profile}.build-override]");
+        apply_field(doc, &path, &display, field, fa, attribution, findings);
+    }
+    for (spec, fields) in &assertion.package_overrides {
+        for (field, fa) in fields {
+            let path = vec![
+                "profile".to_owned(),
+                profile.to_owned(),
+                "package".to_owned(),
+                spec.clone(),
+            ];
+            let display = format!("[profile.{profile}.package.{spec}]");
+            apply_field(doc, &path, &display, field, fa, attribution, findings);
+        }
+    }
+}
+
+/// Apply one `ProfileFieldAssertion` to `field` in the table at `path`.
+fn apply_field(
+    doc: &mut DocumentMut,
+    path: &[String],
+    display: &str,
     field: &str,
     assertion: &ProfileFieldAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ProfileFieldAssertion::Equals(want) => {
-            apply_equals(table, profile, field, want, attribution, findings);
+        ProfileFieldAssertion::Equals(want, msg) => {
+            apply_equals(doc, path, display, field, want, msg, attribution, findings);
         }
-        ProfileFieldAssertion::OneOf(allowed) => {
-            apply_one_of(table, profile, field, allowed, attribution, findings);
+        ProfileFieldAssertion::OneOf(allowed, msg) => {
+            apply_one_of(
+                doc,
+                path,
+                display,
+                field,
+                allowed,
+                msg,
+                attribution,
+                findings,
+            );
         }
-        ProfileFieldAssertion::Present => {
-            apply_present(table, profile, field, attribution, findings);
+        ProfileFieldAssertion::Present(msg) => {
+            apply_present(doc, path, display, field, msg, attribution, findings);
         }
-        ProfileFieldAssertion::Absent => {
-            apply_absent(table, profile, field, attribution, findings);
+        ProfileFieldAssertion::Absent(msg) => {
+            apply_absent(doc, path, display, field, msg, attribution, findings);
         }
     }
 }
 
 /// `field == want`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the path-addressed field appliers carry doc, path, display, field, value, msg, attribution, findings; each is a distinct input with no natural grouping."
+)]
 fn apply_equals(
-    table: &mut Table,
-    profile: &str,
+    doc: &mut DocumentMut,
+    path: &[String],
+    display: &str,
     field: &str,
-    want: &Value,
+    want: &ConfigScalar,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = table.get(field).and_then(Item::as_value);
-    if current.is_some_and(|c| values_equal(c, want)) {
+    let current = field_item(doc, path, field);
+    if current.is_some_and(|it| scalar_matches(it, want)) {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[profile.{profile}].{field}"),
-        current: current.map(ToString::to_string),
-        expected: want.to_string(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    table[field] = Item::Value(want.clone());
+    let rendered = field_item(doc, path, field).and_then(render_item);
+    push_mismatch(
+        findings,
+        format!("{display}.{field}"),
+        rendered,
+        render_scalar(want),
+        msg.to_owned(),
+        attribution,
+    );
+    ensure_table_at(doc, path)[field] = scalar_item(want);
 }
 
-/// `field ∈ allowed`.
+/// `field ∈ allowed` (check-only).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "see apply_equals: distinct path-addressed inputs, no natural grouping."
+)]
 fn apply_one_of(
-    table: &Table,
-    profile: &str,
+    doc: &DocumentMut,
+    path: &[String],
+    display: &str,
     field: &str,
-    allowed: &[Value],
+    allowed: &[ConfigScalar],
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = table.get(field).and_then(Item::as_value);
-    if current.is_some_and(|c| allowed.iter().any(|a| values_equal(c, a))) {
+    let current = field_item(doc, path, field);
+    if current.is_some_and(|it| allowed.iter().any(|a| scalar_matches(it, a))) {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[profile.{profile}].{field}"),
-        current: current.map(ToString::to_string),
-        expected: format!("one of {allowed:?}"),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
+    let rendered = current.and_then(render_item);
+    let allowed_render: Vec<String> = allowed.iter().map(render_scalar).collect();
+    push_mismatch(
+        findings,
+        format!("{display}.{field}"),
+        rendered,
+        format!("one of {allowed_render:?}"),
+        msg.to_owned(),
+        attribution,
+    );
 }
 
-/// `field` must be set.
+/// `field` must be set (check-only).
 fn apply_present(
-    table: &Table,
-    profile: &str,
+    doc: &DocumentMut,
+    path: &[String],
+    display: &str,
     field: &str,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if table.contains_key(field) {
+    if field_item(doc, path, field).is_some() {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[profile.{profile}].{field}"),
-        current: None,
-        expected: "any value (Present)".into(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
+    push_mismatch(
+        findings,
+        format!("{display}.{field}"),
+        None,
+        "any value (Present)".to_owned(),
+        msg.to_owned(),
+        attribution,
+    );
 }
 
-/// `field` must not be set.
+/// `field` must not be set (vacuous when already absent).
 fn apply_absent(
-    table: &mut Table,
-    profile: &str,
+    doc: &mut DocumentMut,
+    path: &[String],
+    display: &str,
     field: &str,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if !table.contains_key(field) {
+    let rendered = field_item(doc, path, field).and_then(render_item);
+    if field_item(doc, path, field).is_none() {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[profile.{profile}].{field}"),
-        current: table
-            .get(field)
-            .and_then(Item::as_value)
-            .map(ToString::to_string),
-        expected: "absent".into(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    let _ = table.remove(field);
+    push_mismatch(
+        findings,
+        format!("{display}.{field}"),
+        rendered,
+        "absent".to_owned(),
+        msg.to_owned(),
+        attribution,
+    );
+    if let Some(t) = table_at_mut(doc, path) {
+        let _ = t.remove(field);
+    }
 }
 
-/// Compare two `toml_edit::Value`s by display form. The `toml_edit` crate
-/// does not derive `PartialEq`, so we compare textually after rendering.
-fn values_equal(a: &Value, b: &Value) -> bool {
-    a.to_string().trim() == b.to_string().trim()
+/// Read the on-disk item for `field` in the table at `path`, if present.
+fn field_item<'a>(doc: &'a DocumentMut, path: &[String], field: &str) -> Option<&'a Item> {
+    table_at(doc, path)?.get(field)
 }

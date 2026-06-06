@@ -34,7 +34,7 @@ reason = "Error type carrying structured data; named pub fields are the API."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml.rs"
 selector = "struct:CargoTomlRequirement"
 reason = "Declarative requirement struct; bulk-form field-per-target is the API."
 
@@ -52,6 +52,6 @@ reason = "Plain data record mirroring clippy's disallowed-methods/types/macros e
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/dependencies.rs"
 selector = "struct:DependencySpec"
 reason = "Plain data record mirroring a Cargo.toml dependency entry shape."

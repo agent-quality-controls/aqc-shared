@@ -8,16 +8,22 @@ mod engine;
 #[cfg(feature = "api")]
 mod reconcile;
 #[cfg(feature = "api")]
-mod requirement;
+pub mod requirement;
 
 #[cfg(feature = "api")]
 pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    CargoTomlRequirement, DepKind, DependencySetAssertion, DependencySpec, FeatureSetAssertion,
-    LintLevelsAssertion, LintsInheritAssertion, PackageFieldAssertion, ProfileAssertion,
-    ProfileFieldAssertion,
+    CargoTomlRequirement, DependencyKind, DependencyScope, DependencySetAssertion, DependencySpec,
 };
+#[cfg(feature = "api")]
+pub use requirement::{FeatureSetAssertion, LintLevelsAssertion, LintsInheritAssertion};
+#[cfg(feature = "api")]
+pub use requirement::{ManifestSection, PackageFieldAssertion, SectionPresenceAssertion};
+#[cfg(feature = "api")]
+pub use requirement::{ProfileAssertion, ProfileFieldAssertion};
+#[cfg(feature = "api")]
+pub use requirement::{TargetFieldAssertion, TargetTableAssertion, WorkspaceFieldAssertion};
 
 /// Stable engine id; matches this crate's `[package].name` and the value
 /// returned by `<CargoTomlRequirement as EngineRequirement>::engine_id`.

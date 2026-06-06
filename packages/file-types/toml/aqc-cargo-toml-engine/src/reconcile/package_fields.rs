@@ -1,293 +1,381 @@
-//! Reconcile `[package].<field>` (and `[workspace.package].<field>` via
-//! `apply_into_table`).
+//! Reconcile `[package].<field>` (and `[workspace.package].<field>`).
+//!
+//! Lazy: a check-only assertion (`OneOf`, `Present`) and a vacuous removal
+//! (`Absent`/`ListExcludes` on an absent key) never create the table. The
+//! table is fetched mutably only when a write is about to happen.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity, parse_version_tuple};
-use toml_edit::{Array, Item, Table, Value, value};
+use aqc_file_engine_core::{ConfigScalar, Finding, MergedAssertion, Provenance, Severity};
+use toml_edit::{DocumentMut, Item, Table};
 
-use crate::reconcile::util::{all_provenances, get_or_create_table_mut};
+use crate::reconcile::util;
 use crate::requirement::PackageFieldAssertion;
 
-/// Apply every `[package].<field>` contribution.
+/// Whether the fields target `[package]` or `[workspace.package]`. The latter
+/// is the inheritance source, so `InheritsWorkspace` there is a schema error.
+#[derive(Clone, Copy)]
+pub(crate) enum PackageScope {
+    /// `[package]`.
+    Package,
+    /// `[workspace.package]`.
+    WorkspacePackage,
+}
+
+impl PackageScope {
+    /// The finding-path prefix for this scope (`package` / `workspace.package`).
+    const fn prefix(self) -> &'static str {
+        match self {
+            Self::Package => "package",
+            Self::WorkspacePackage => "workspace.package",
+        }
+    }
+
+    /// True when this scope is the workspace inheritance source.
+    const fn is_workspace_source(self) -> bool {
+        matches!(self, Self::WorkspacePackage)
+    }
+}
+
+/// Apply every `[package].<field>` contribution at the given scope.
 #[expect(
     clippy::type_complexity,
     reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
 )]
 pub(crate) fn apply(
-    doc: &mut toml_edit::DocumentMut,
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     merged_by_field: &BTreeMap<String, MergedAssertion<PackageFieldAssertion>>,
     findings: &mut Vec<Finding>,
 ) {
-    if merged_by_field.is_empty() {
-        return;
-    }
-    let package = get_or_create_table_mut(doc, "package");
     for (field, merged) in merged_by_field {
-        apply_into_table(package, "package", field, merged, findings);
+        let attribution = util::all_provenances(merged);
+        for (_, assertion) in &merged.contributions {
+            apply_one(doc, scope, field, assertion, &attribution, findings);
+        }
     }
 }
 
-/// Apply contributions for one field into the given table.
-///
-/// Reused by `workspace_package_fields` to target `[workspace.package]`.
-pub(crate) fn apply_into_table(
-    table: &mut Table,
-    section_prefix: &str,
-    field: &str,
-    merged: &MergedAssertion<PackageFieldAssertion>,
-    findings: &mut Vec<Finding>,
-) {
-    let attribution = all_provenances(merged);
-    for (_, assertion) in &merged.contributions {
-        apply_one(
-            table,
-            section_prefix,
-            field,
-            assertion,
-            &attribution,
-            findings,
-        );
+/// The mutable target table for the scope, creating it (and any parent) lazily.
+fn ensure_target(doc: &mut DocumentMut, scope: PackageScope) -> &mut Table {
+    match scope {
+        PackageScope::Package => util::ensure_table(doc, "package"),
+        PackageScope::WorkspacePackage => {
+            let ws = util::ensure_table(doc, "workspace");
+            util::ensure_nested(ws, "package")
+        }
     }
 }
 
-/// Apply a single `PackageFieldAssertion` to one field.
+/// The read-only target table for the scope, if it exists.
+fn target_ref(doc: &DocumentMut, scope: PackageScope) -> Option<&Table> {
+    match scope {
+        PackageScope::Package => util::table_ref(doc, "package"),
+        PackageScope::WorkspacePackage => util::table_ref(doc, "workspace")
+            .and_then(|ws| ws.get("package").and_then(Item::as_table)),
+    }
+}
+
+/// Read the on-disk item for `field` at this scope, if present.
+fn current_item<'a>(doc: &'a DocumentMut, scope: PackageScope, field: &str) -> Option<&'a Item> {
+    target_ref(doc, scope).and_then(|t| t.get(field))
+}
+
+/// Apply a single `PackageFieldAssertion`.
 fn apply_one(
-    table: &mut Table,
-    section_prefix: &str,
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     field: &str,
     assertion: &PackageFieldAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        PackageFieldAssertion::Equals(want) => {
-            apply_equals(table, section_prefix, field, want, attribution, findings);
+        PackageFieldAssertion::Equals(want, msg) => {
+            apply_equals(doc, scope, field, want, msg, attribution, findings);
         }
-        PackageFieldAssertion::AtLeast(min) => {
-            apply_at_least(table, section_prefix, field, min, attribution, findings);
+        PackageFieldAssertion::AtLeastVersion(min, msg) => {
+            apply_at_least(doc, scope, field, min, msg, attribution, findings);
         }
-        PackageFieldAssertion::OneOf(allowed) => {
-            apply_one_of(table, section_prefix, field, allowed, attribution, findings);
+        PackageFieldAssertion::OneOf(allowed, msg) => {
+            apply_one_of(doc, scope, field, allowed, msg, attribution, findings);
         }
-        PackageFieldAssertion::ListContains(items) => {
-            apply_list_contains(table, section_prefix, field, items, attribution, findings);
+        PackageFieldAssertion::ListContains(items, msg) => {
+            apply_list_contains(doc, scope, field, items, msg, attribution, findings);
         }
-        PackageFieldAssertion::ListIsExactly(items) => {
-            apply_list_is_exactly(table, section_prefix, field, items, attribution, findings);
+        PackageFieldAssertion::ListExcludes(items, msg) => {
+            apply_list_excludes(doc, scope, field, items, msg, attribution, findings);
         }
-        PackageFieldAssertion::Present => {
-            apply_present(table, section_prefix, field, attribution, findings);
+        PackageFieldAssertion::ListIsExactly(items, msg) => {
+            apply_list_is_exactly(doc, scope, field, items, msg, attribution, findings);
         }
-        PackageFieldAssertion::Absent => {
-            apply_absent(table, section_prefix, field, attribution, findings);
+        PackageFieldAssertion::InheritsWorkspace(msg) => {
+            apply_inherits(doc, scope, field, msg, attribution, findings);
+        }
+        PackageFieldAssertion::Present(msg) => {
+            apply_present(doc, scope, field, msg, attribution, findings);
+        }
+        PackageFieldAssertion::Absent(msg) => {
+            apply_absent(doc, scope, field, msg, attribution, findings);
         }
     }
 }
 
-/// Enforce a scalar `field == want`.
+/// `field == want` (string/int/bool form).
 fn apply_equals(
-    table: &mut Table,
-    section_prefix: &str,
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     field: &str,
-    want: &str,
+    want: &ConfigScalar,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = current_str(table, field);
-    if current.as_deref() == Some(want) {
+    if current_item(doc, scope, field).is_some_and(|it| util::scalar_matches(it, want)) {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
+    let current = current_item(doc, scope, field).and_then(util::render_item);
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
         current,
-        expected: want.to_owned(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    table[field] = value(want.to_owned());
+        util::render_scalar(want),
+        msg.to_owned(),
+        attribution,
+    );
+    ensure_target(doc, scope)[field] = util::scalar_item(want);
 }
 
-/// Enforce a scalar `field >= min` (dotted version comparison).
+/// `field >= min` (version ordering; works for editions).
 fn apply_at_least(
-    table: &mut Table,
-    section_prefix: &str,
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     field: &str,
     min: &str,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = current_str(table, field);
-    if current.as_deref().is_some_and(|c| ge_version(c, min)) {
+    let current = current_item(doc, scope, field).and_then(Item::as_str);
+    if current.is_some_and(|c| util::ge_version(c, min)) {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
-        current,
-        expected: format!("at least {min}"),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    table[field] = value(min.to_owned());
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        current.map(ToOwned::to_owned),
+        format!("at least {min}"),
+        msg.to_owned(),
+        attribution,
+    );
+    ensure_target(doc, scope)[field] = util::scalar_item(&ConfigScalar::Str(min.to_owned()));
 }
 
-/// Enforce `field ∈ allowed`.
+/// `field` is one of `allowed` (check-only).
 fn apply_one_of(
-    table: &Table,
-    section_prefix: &str,
+    doc: &DocumentMut,
+    scope: PackageScope,
     field: &str,
     allowed: &BTreeSet<String>,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = current_str(table, field);
-    if current.as_deref().is_some_and(|c| allowed.contains(c)) {
+    let current = current_item(doc, scope, field).and_then(Item::as_str);
+    if current.is_some_and(|c| allowed.contains(c)) {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
-        current,
-        expected: format!("one of {allowed:?}"),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        current.map(ToOwned::to_owned),
+        format!("one of {allowed:?}"),
+        msg.to_owned(),
+        attribution,
+    );
 }
 
-/// Enforce that the on-disk list contains every requested element.
+/// The on-disk list contains every requested element.
 fn apply_list_contains(
-    table: &mut Table,
-    section_prefix: &str,
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     field: &str,
     items: &[String],
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let on_disk = current_list(table, field);
+    let on_disk =
+        target_ref(doc, scope).map_or_else(Vec::new, |t| util::read_string_array(t, field));
     let on_disk_set: BTreeSet<&str> = on_disk.iter().map(String::as_str).collect();
-    let mut missing = Vec::new();
-    for w in items {
-        if !on_disk_set.contains(w.as_str()) {
-            missing.push(w.clone());
-        }
-    }
+    let missing: Vec<&String> = items
+        .iter()
+        .filter(|w| !on_disk_set.contains(w.as_str()))
+        .collect();
     if missing.is_empty() {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
-        current: Some(format!("{on_disk:?}")),
-        expected: format!("contains {missing:?}"),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        Some(format!("{on_disk:?}")),
+        format!("contains {missing:?}"),
+        msg.to_owned(),
+        attribution,
+    );
     let mut new_list = on_disk;
     for w in items {
         if !new_list.iter().any(|e| e == w) {
             new_list.push(w.clone());
         }
     }
-    write_string_list(table, field, &new_list);
+    util::write_string_array(ensure_target(doc, scope), field, &new_list);
 }
 
-/// Enforce that the on-disk list equals exactly the requested set.
-fn apply_list_is_exactly(
-    table: &mut Table,
-    section_prefix: &str,
+/// The on-disk list contains none of these elements (vacuous when absent).
+fn apply_list_excludes(
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     field: &str,
-    items: &[String],
+    items: &BTreeSet<String>,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let on_disk = current_list(table, field);
+    let on_disk =
+        target_ref(doc, scope).map_or_else(Vec::new, |t| util::read_string_array(t, field));
+    let present: Vec<&String> = items.iter().filter(|x| on_disk.contains(x)).collect();
+    if present.is_empty() {
+        return;
+    }
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        Some(format!("{on_disk:?}")),
+        format!("excludes {present:?}"),
+        msg.to_owned(),
+        attribution,
+    );
+    let new_list: Vec<String> = on_disk.into_iter().filter(|e| !items.contains(e)).collect();
+    util::write_string_array(ensure_target(doc, scope), field, &new_list);
+}
+
+/// The on-disk list equals exactly `items`.
+fn apply_list_is_exactly(
+    doc: &mut DocumentMut,
+    scope: PackageScope,
+    field: &str,
+    items: &[String],
+    msg: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    let on_disk =
+        target_ref(doc, scope).map_or_else(Vec::new, |t| util::read_string_array(t, field));
     if on_disk == items {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
-        current: Some(format!("{on_disk:?}")),
-        expected: format!("{items:?}"),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    write_string_list(table, field, items);
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        Some(format!("{on_disk:?}")),
+        format!("{items:?}"),
+        msg.to_owned(),
+        attribution,
+    );
+    util::write_string_array(ensure_target(doc, scope), field, items);
 }
 
-/// Enforce that `field` is set (any value).
+/// The field uses workspace inheritance: `<field> = { workspace = true }`.
+/// In `[workspace.package]` this is invalid (the source can't inherit itself).
+fn apply_inherits(
+    doc: &mut DocumentMut,
+    scope: PackageScope,
+    field: &str,
+    msg: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    if scope.is_workspace_source() {
+        findings.push(Finding::SchemaError {
+            path: format!("[{}].{field}", scope.prefix()),
+            message: format!(
+                "InheritsWorkspace is invalid in [workspace.package].{field}: this table is the inheritance source. {msg}"
+            ),
+            severity: Severity::Error,
+        });
+        return;
+    }
+    if current_item(doc, scope, field).is_some_and(util::is_workspace_inherit) {
+        return;
+    }
+    let current = current_item(doc, scope, field).and_then(util::render_item);
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        current,
+        "{ workspace = true }".to_owned(),
+        msg.to_owned(),
+        attribution,
+    );
+    ensure_target(doc, scope)[field] = util::workspace_inline();
+}
+
+/// The field is set, to anything (check-only).
 fn apply_present(
-    table: &Table,
-    section_prefix: &str,
+    doc: &DocumentMut,
+    scope: PackageScope,
     field: &str,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if table.contains_key(field) {
+    if current_item(doc, scope, field).is_some() {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
-        current: None,
-        expected: "any value (Present)".into(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        None,
+        "any value (Present)".to_owned(),
+        msg.to_owned(),
+        attribution,
+    );
 }
 
-/// Enforce that `field` is unset.
+/// The field is not set (vacuous when already absent).
 fn apply_absent(
-    table: &mut Table,
-    section_prefix: &str,
+    doc: &mut DocumentMut,
+    scope: PackageScope,
     field: &str,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if !table.contains_key(field) {
+    let current = current_item(doc, scope, field).and_then(util::render_item);
+    if current_item(doc, scope, field).is_none() {
         return;
     }
-    findings.push(Finding::Mismatch {
-        path: format!("[{section_prefix}].{field}"),
-        current: current_str(table, field),
-        expected: "absent".into(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    let _ = table.remove(field);
-}
-
-/// Compare semver-ish dotted version strings (`1.85`, `1.85.0`).
-fn ge_version(a: &str, b: &str) -> bool {
-    parse_version_tuple(a) >= parse_version_tuple(b)
-}
-
-/// Read the current scalar string for `field`, if any.
-fn current_str(table: &Table, field: &str) -> Option<String> {
-    table
-        .get(field)
-        .and_then(Item::as_str)
-        .map(ToOwned::to_owned)
-}
-
-/// Read the current array of strings for `field`. Returns empty vec if absent.
-fn current_list(table: &Table, field: &str) -> Vec<String> {
-    let Some(arr) = table.get(field).and_then(Item::as_array) else {
-        return Vec::new();
-    };
-    arr.iter()
-        .filter_map(|v| v.as_str().map(ToOwned::to_owned))
-        .collect()
-}
-
-/// Write `field = ["a", "b", ...]` into `table`.
-fn write_string_list(table: &mut Table, field: &str, items: &[String]) {
-    let mut arr = Array::new();
-    for it in items {
-        arr.push(Value::from(it.as_str()));
+    util::push_mismatch(
+        findings,
+        format!("[{}].{field}", scope.prefix()),
+        current,
+        "absent".to_owned(),
+        msg.to_owned(),
+        attribution,
+    );
+    if let Some(t) = target_mut_existing(doc, scope) {
+        let _ = t.remove(field);
     }
-    table[field] = Item::Value(Value::Array(arr));
+}
+
+/// The mutable target table if it already exists (removals must not create it).
+fn target_mut_existing(doc: &mut DocumentMut, scope: PackageScope) -> Option<&mut Table> {
+    match scope {
+        PackageScope::Package => doc.get_mut("package").and_then(Item::as_table_mut),
+        PackageScope::WorkspacePackage => doc
+            .get_mut("workspace")
+            .and_then(Item::as_table_mut)
+            .and_then(|ws| ws.get_mut("package").and_then(Item::as_table_mut)),
+    }
 }

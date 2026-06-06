@@ -7,9 +7,9 @@
 //! engine's assertion types implement [`Resolve`], and nothing else (the broker,
 //! the adapters) touches this code.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use crate::types::{MergedAssertion, Provenance};
+use crate::types::{MergedAssertion, Msg, Provenance};
 
 /// A key's contributions: each source's provenance paired with its value.
 pub type Contributions<A> = Vec<(Provenance, A)>;
@@ -128,7 +128,7 @@ where
 )]
 #[expect(
     clippy::type_complexity,
-    reason = "grouping contributions by map key needs `Contributions<BTreeMap<..>>` in and `BTreeMap<_, Contributions<V>>` internally; both are the natural shapes."
+    reason = "`Contributions<BTreeMap<..>>` is the natural keyed-contributions input shape."
 )]
 pub fn merge_map<V>(
     key_prefix: &str,
@@ -139,6 +139,33 @@ pub fn merge_map<V>(
 where
     V: PartialEq + Clone,
 {
+    merge_map_by(key_prefix, contributions, V::clone, render, conflicts)
+}
+
+/// Merge a set of `key -> value` maps, comparing entries via `project`.
+///
+/// Like [`merge_map`], but agreement is decided on the projected value — the
+/// way engines exclude the policy-authored message from the comparison (two
+/// policies asserting the same semantic value with different messages agree;
+/// the first entry wins).
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "merge_map_by is the projected variant of merge_map; the names pair at call sites."
+)]
+#[expect(
+    clippy::type_complexity,
+    reason = "grouping contributions by map key needs `Contributions<BTreeMap<..>>` in and `BTreeMap<_, Contributions<V>>` internally; both are the natural shapes."
+)]
+pub fn merge_map_by<V, P>(
+    key_prefix: &str,
+    contributions: Contributions<BTreeMap<String, V>>,
+    project: impl Fn(&V) -> P,
+    render: impl Fn(&V) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> BTreeMap<String, V>
+where
+    P: PartialEq,
+{
     let mut by_key: BTreeMap<String, Contributions<V>> = BTreeMap::new();
     for (prov, map) in contributions {
         for (k, v) in map {
@@ -148,13 +175,101 @@ where
     let mut out: BTreeMap<String, V> = BTreeMap::new();
     for (k, entries) in by_key {
         let full_key = format!("{key_prefix}.{k}");
-        if let Some(value) =
-            resolve_all_equal(&full_key, "set-key-disagree", entries, &render, conflicts)
-        {
-            let _ = out.insert(k, value);
+        let mut iter = entries.into_iter();
+        let Some((first_prov, first_val)) = iter.next() else {
+            continue;
+        };
+        let mut contributors: Contributions<String> = vec![(first_prov, render(&first_val))];
+        let mut disagree = false;
+        for (prov, value) in iter {
+            if project(&value) != project(&first_val) {
+                disagree = true;
+            }
+            contributors.push((prov, render(&value)));
+        }
+        if disagree {
+            conflicts.push(ConflictEntry {
+                key: full_key,
+                reason: "set-key-disagree".to_owned(),
+                contributors,
+            });
+        } else {
+            let _ = out.insert(k, first_val);
         }
     }
     out
+}
+
+/// First-wins union of string-keyed maps (used for `Excludes`-style unions
+/// where the value is the policy message and carries no agreement semantics).
+#[must_use]
+#[expect(
+    clippy::type_complexity,
+    reason = "Vec<BTreeMap<String, V>> is the natural already-extracted input shape."
+)]
+pub fn union_first_wins<V>(maps: Vec<BTreeMap<String, V>>) -> BTreeMap<String, V> {
+    let mut out: BTreeMap<String, V> = BTreeMap::new();
+    for map in maps {
+        for (k, v) in map {
+            let _ = out.entry(k).or_insert(v);
+        }
+    }
+    out
+}
+
+/// Ordered, deduplicated union of `(list, message)` contributions; the first
+/// message wins. Pure union; never conflicts.
+#[must_use]
+#[expect(
+    clippy::type_complexity,
+    reason = "(list, message) pairs are the natural extracted assertion payload."
+)]
+pub fn union_string_lists(lists: Vec<(Vec<String>, Msg)>) -> (Vec<String>, Msg) {
+    let mut items: Vec<String> = Vec::new();
+    let mut msg: Option<Msg> = None;
+    for (list, m) in lists {
+        if msg.is_none() {
+            msg = Some(m);
+        }
+        for it in list {
+            if !items.iter().any(|e| e == &it) {
+                items.push(it);
+            }
+        }
+    }
+    (items, msg.unwrap_or_default())
+}
+
+/// Union of `(set, message)` contributions; the first message wins.
+#[must_use]
+#[expect(
+    clippy::type_complexity,
+    reason = "(set, message) pairs are the natural extracted assertion payload."
+)]
+pub fn union_string_sets(sets: Vec<(BTreeSet<String>, Msg)>) -> (BTreeSet<String>, Msg) {
+    let mut items: BTreeSet<String> = BTreeSet::new();
+    let mut msg: Option<Msg> = None;
+    for (set, m) in sets {
+        if msg.is_none() {
+            msg = Some(m);
+        }
+        items.extend(set);
+    }
+    (items, msg.unwrap_or_default())
+}
+
+/// A keyed map of `(value, message)` entries, as `Contains`-style assertions
+/// carry them.
+pub type KeyedEntries<S, M> = BTreeMap<String, (S, M)>;
+
+/// Semantic equality of two keyed `(value, message)` entry maps: keys and
+/// values must match; the messages never participate.
+#[must_use]
+pub fn keyed_entries_eq<S: PartialEq, M>(a: &KeyedEntries<S, M>, b: &KeyedEntries<S, M>) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|((ka, (sa, _)), (kb, (sb, _)))| ka == kb && sa == sb)
 }
 
 /// Union the contribution lists of two `MergedAssertion`s for the same key.
