@@ -153,3 +153,16 @@ Spec3 lock/verify may need to fail when locked spec paths changed on disk — th
 ## Implementation backlog
 
 - `rel_path_contains` rule shape — add only if suffix/prefix/name lists are insufficient
+
+---
+
+## AMENDMENTS (2026-06-07, post-build review)
+
+- **`glob_case_sensitive` is DELETED from `WalkOptions`**: the glob query
+  lives on the returned `FileTree`, which does not carry the walk options;
+  case sensitivity is the query's parameter (`glob(pattern, case_sensitive)`).
+- **Declared policies** (were silent implementation choices):
+  non-UTF-8 file names are recorded lossily (`to_string_lossy`) in
+  `rel_path`; a per-entry walk error (e.g. permission denied) aborts the walk
+  with `WalkError::Io`; `glob` patterns let `*` match across `/`
+  (`literal_separator(false)`).

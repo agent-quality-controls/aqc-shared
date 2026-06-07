@@ -12,9 +12,25 @@
 
 mod porcelain {
     use aqc_git_helpers::{
-        ChangeStatus, GitError, PorcelainOptions, WorktreeChange, changes_affecting_paths,
-        is_worktree_clean, parse_porcelain_v1z, worktree_changes,
+        ChangeStatus, ColumnChange, GitError, PorcelainOptions, WorktreeChange,
+        changes_affecting_paths, is_worktree_clean, parse_porcelain_v1z, worktree_changes,
     };
+
+    /// Tracked state with only the index column set.
+    const fn staged(change: ColumnChange) -> ChangeStatus {
+        ChangeStatus::Tracked {
+            index: Some(change),
+            worktree: None,
+        }
+    }
+
+    /// Tracked state with only the worktree column set.
+    const fn unstaged(change: ColumnChange) -> ChangeStatus {
+        ChangeStatus::Tracked {
+            index: None,
+            worktree: Some(change),
+        }
+    }
 
     #[test]
     fn parses_the_status_matrix() {
@@ -27,15 +43,60 @@ mod porcelain {
         assert_eq!(
             got,
             vec![
-                ("modified.rs", ChangeStatus::UnstagedModified),
+                ("modified.rs", unstaged(ColumnChange::Modified)),
                 ("new-file.txt", ChangeStatus::Untracked),
-                ("staged-new.rs", ChangeStatus::StagedNew),
-                ("staged-del.rs", ChangeStatus::StagedDeleted),
-                ("unstaged-del.rs", ChangeStatus::UnstagedDeleted),
-                ("staged-mod.rs", ChangeStatus::StagedModified),
+                ("staged-new.rs", staged(ColumnChange::Added)),
+                ("staged-del.rs", staged(ColumnChange::Deleted)),
+                ("unstaged-del.rs", unstaged(ColumnChange::Deleted)),
+                ("staged-mod.rs", staged(ColumnChange::Modified)),
                 ("ignored.log", ChangeStatus::Ignored),
             ]
         );
+    }
+
+    #[test]
+    fn both_columns_survive_mm() {
+        // Porcelain XY is a matrix: staged AND unstaged modification on one
+        // path must keep both halves.
+        let changes = parse_porcelain_v1z("MM both.rs\0").expect("MM must parse");
+        assert_eq!(
+            changes.first().map(|c| c.status),
+            Some(ChangeStatus::Tracked {
+                index: Some(ColumnChange::Modified),
+                worktree: Some(ColumnChange::Modified),
+            })
+        );
+    }
+
+    #[test]
+    fn copies_parse_and_carry_their_source() {
+        let changes =
+            parse_porcelain_v1z("C  copy.rs\0original.rs\0").expect("a copy record must parse");
+        assert_eq!(
+            changes.first(),
+            Some(&WorktreeChange {
+                path: "copy.rs".to_owned(),
+                status: staged(ColumnChange::Copied),
+                old_path: Some("original.rs".to_owned()),
+            })
+        );
+    }
+
+    #[test]
+    fn unmerged_paths_are_conflicted() {
+        for fixture in [
+            "UU theirs.rs\0",
+            "AA ours.rs\0",
+            "DD gone.rs\0",
+            "AU mixed.rs\0",
+        ] {
+            let changes = parse_porcelain_v1z(fixture).expect("unmerged records must parse");
+            assert_eq!(
+                changes.first().map(|c| c.status),
+                Some(ChangeStatus::Conflicted),
+                "{fixture:?}"
+            );
+        }
     }
 
     #[test]
@@ -46,7 +107,7 @@ mod porcelain {
             changes.first(),
             Some(&WorktreeChange {
                 path: "new-name.rs".to_owned(),
-                status: ChangeStatus::StagedRenamed,
+                status: staged(ColumnChange::Renamed),
                 old_path: Some("old-name.rs".to_owned()),
             })
         );
@@ -76,17 +137,17 @@ mod porcelain {
         let changes = vec![
             WorktreeChange {
                 path: "specs/a.md".to_owned(),
-                status: ChangeStatus::UnstagedModified,
+                status: unstaged(ColumnChange::Modified),
                 old_path: None,
             },
             WorktreeChange {
                 path: "specs-other/b.md".to_owned(),
-                status: ChangeStatus::UnstagedModified,
+                status: unstaged(ColumnChange::Modified),
                 old_path: None,
             },
             WorktreeChange {
                 path: "README.md".to_owned(),
-                status: ChangeStatus::UnstagedModified,
+                status: unstaged(ColumnChange::Modified),
                 old_path: None,
             },
         ];
@@ -101,7 +162,7 @@ mod porcelain {
     fn rename_matches_via_old_path() {
         let changes = vec![WorktreeChange {
             path: "elsewhere/new.rs".to_owned(),
-            status: ChangeStatus::StagedRenamed,
+            status: staged(ColumnChange::Renamed),
             old_path: Some("specs/old.rs".to_owned()),
         }];
         let hits = changes_affecting_paths(&changes, &["specs"]);

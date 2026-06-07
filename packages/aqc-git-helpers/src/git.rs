@@ -23,6 +23,8 @@ pub fn worktree_changes(
 ) -> Result<Vec<WorktreeChange>, GitError> {
     let repo_root = repo_root.as_ref();
     let mut command = Command::new("git");
+    // Pin the locale: classification must not depend on translated output.
+    let _ = command.env("LC_ALL", "C");
     let _ = command
         .arg("-C")
         .arg(repo_root)
@@ -41,13 +43,13 @@ pub fn worktree_changes(
         }
     })?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-        if stderr.contains("not a git repository") {
+        // Decide repo-ness structurally, never by stderr text.
+        if !is_inside_work_tree(repo_root) {
             return Err(GitError::NotARepository);
         }
         return Err(GitError::CommandFailed {
             command: "git status --porcelain=v1 -z".to_owned(),
-            stderr,
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         });
     }
     let text = String::from_utf8(output.stdout).map_err(|_| GitError::ParseError {
@@ -59,13 +61,19 @@ pub fn worktree_changes(
         .filter(|c| match c.status {
             ChangeStatus::Untracked => options.include_untracked,
             ChangeStatus::Ignored => options.include_ignored,
-            ChangeStatus::StagedNew
-            | ChangeStatus::StagedModified
-            | ChangeStatus::StagedDeleted
-            | ChangeStatus::StagedRenamed
-            | ChangeStatus::UnstagedModified
-            | ChangeStatus::UnstagedDeleted
-            | ChangeStatus::UnstagedRenamed => true,
+            ChangeStatus::Tracked { .. } | ChangeStatus::Conflicted => true,
         })
         .collect())
+}
+
+/// True when `git rev-parse --is-inside-work-tree` answers `true`.
+fn is_inside_work_tree(repo_root: &Path) -> bool {
+    let mut command = Command::new("git");
+    let _ = command.env("LC_ALL", "C");
+    let output = command
+        .arg("-C")
+        .arg(repo_root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output();
+    output.is_ok_and(|out| out.status.success() && out.stdout.starts_with(b"true"))
 }

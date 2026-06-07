@@ -27,7 +27,8 @@ pub enum EntryOrigin {
 /// One entry of a [`FileTree`].
 #[derive(Debug, Clone)]
 pub struct FileEntry {
-    /// Relative to the walk root: `/` separators, UTF-8, no leading `/`, no `..`.
+    /// Relative to the walk root: `/` separators, no leading `/`, no `..`.
+    /// Non-UTF-8 file names are recorded lossily (declared policy).
     pub rel_path: String,
     /// Absolute path.
     pub abs_path: PathBuf,
@@ -62,7 +63,8 @@ impl FileTree {
         self.entries.iter().filter(|e| e.origin == origin).collect()
     }
 
-    /// Entries whose `rel_path` matches the glob pattern.
+    /// Entries whose `rel_path` matches the glob pattern. `*` may match
+    /// across `/` (declared policy).
     ///
     /// # Errors
     ///

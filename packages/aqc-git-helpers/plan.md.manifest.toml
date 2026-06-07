@@ -39,7 +39,7 @@ note = "Parser probes on fixture porcelain v1 -z byte strings (staged/unstaged/r
 [[public_api]]
 workspace = "aqc-shared"
 crate = "aqc-git-helpers"
-types = ["ChangeStatus", "WorktreeChange", "PorcelainOptions", "GitError"]
+types = ["ChangeStatus", "ColumnChange", "WorktreeChange", "PorcelainOptions", "GitError"]
 functions = ["worktree_changes", "is_worktree_clean", "changes_affecting_paths", "dirty_paths"]
 
 [[closed_set]]
@@ -47,11 +47,14 @@ workspace = "aqc-shared"
 kind = "enum"
 crate = "aqc-git-helpers"
 type = "ChangeStatus"
-variants = [
-  "StagedNew", "StagedModified", "StagedDeleted", "StagedRenamed",
-  "UnstagedModified", "UnstagedDeleted", "UnstagedRenamed",
-  "Untracked", "Ignored",
-]
+variants = ["Tracked", "Conflicted", "Untracked", "Ignored"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-git-helpers"
+type = "ColumnChange"
+variants = ["Added", "Modified", "Deleted", "Renamed", "Copied", "TypeChanged"]
 
 [[closed_set]]
 workspace = "aqc-shared"

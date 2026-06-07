@@ -36,6 +36,8 @@ pub use queries::is_worktree_clean;
 #[cfg(feature = "api")]
 pub use status::ChangeStatus;
 #[cfg(feature = "api")]
+pub use status::ColumnChange;
+#[cfg(feature = "api")]
 pub use status::PORCELAIN_VERSION;
 #[cfg(feature = "api")]
 pub use status::PorcelainOptions;

@@ -93,7 +93,7 @@ crate = "aqc-filetree"
 type = "WalkOptions"
 required_fields = [
   "respect_gitignore", "include_hidden", "symlink_policy", "skip_dir_names",
-  "skip_path_prefixes", "max_depth", "recovery", "glob_case_sensitive",
+  "skip_path_prefixes", "max_depth", "recovery",
 ]
 
 [[struct_shape]]

@@ -128,3 +128,20 @@ Path normalisation: reject `..`, normalise separators to `/`, match Spec3 spec p
 
 - Unit tests on **fixture porcelain strings** (no real repo required for parser).
 - Few integration tests in a temp `git init` repo (optional, local only).
+
+---
+
+## AMENDMENTS (2026-06-07, post-build review)
+
+- **`ChangeStatus` is two-column, not one enum.** Porcelain `XY` is a matrix;
+  a single variant cannot represent `MM` (staged + unstaged on one path).
+  Final model:
+  `ChangeStatus::Tracked { index: Option<ColumnChange>, worktree: Option<ColumnChange> }
+  | Conflicted | Untracked | Ignored`, with
+  `ColumnChange = Added | Modified | Deleted | Renamed | Copied | TypeChanged`.
+  Copies (`C`) and typechanges (`T`) parse instead of erroring; unmerged
+  combinations (`U` in either column, `AA`, `DD`) are `Conflicted` (dirty,
+  fail-safe); `Tracked` with both columns empty is a `ParseError`.
+- **Locale + repo detection hardened:** the subprocess runs with `LC_ALL=C`,
+  and `NotARepository` is decided by `git rev-parse --is-inside-work-tree`
+  after a failed status, not by matching localized stderr text.

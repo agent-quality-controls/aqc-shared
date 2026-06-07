@@ -3,23 +3,39 @@
 /// Porcelain version this crate speaks.
 pub const PORCELAIN_VERSION: &str = "v1";
 
-/// How one path differs from HEAD/index, per porcelain v1 columns.
+/// One porcelain column's change kind (`X` index column / `Y` worktree column).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColumnChange {
+    /// `A`.
+    Added,
+    /// `M`.
+    Modified,
+    /// `D`.
+    Deleted,
+    /// `R`.
+    Renamed,
+    /// `C`.
+    Copied,
+    /// `T`.
+    TypeChanged,
+}
+
+/// How one path differs from HEAD/index.
+///
+/// Porcelain `XY` is a MATRIX: a path can be staged-modified AND
+/// unstaged-modified at once (`MM`), so tracked state carries both columns
+/// instead of collapsing them into one variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeStatus {
-    /// `A` in the index column.
-    StagedNew,
-    /// `M` in the index column.
-    StagedModified,
-    /// `D` in the index column.
-    StagedDeleted,
-    /// `R` in the index column.
-    StagedRenamed,
-    /// `M` in the worktree column.
-    UnstagedModified,
-    /// `D` in the worktree column.
-    UnstagedDeleted,
-    /// `R` in the worktree column.
-    UnstagedRenamed,
+    /// A tracked path; at least one column is set.
+    Tracked {
+        /// The index (staged) column, `X`.
+        index: Option<ColumnChange>,
+        /// The worktree (unstaged) column, `Y`.
+        worktree: Option<ColumnChange>,
+    },
+    /// An unmerged path (`U` in either column, `AA`, `DD`). Dirty, fail-safe.
+    Conflicted,
     /// `??`.
     Untracked,
     /// `!!` (listed only with `include_ignored`).

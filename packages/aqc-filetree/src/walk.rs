@@ -88,6 +88,7 @@ fn walk_phase(
     for result in builder.build() {
         let entry = match result {
             Ok(entry) => entry,
+            // Declared policy: a per-entry error aborts the whole walk.
             Err(source) => {
                 return Err(WalkError::Io {
                     path: root.to_path_buf(),

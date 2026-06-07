@@ -114,8 +114,6 @@ pub struct WalkOptions {
     pub max_depth: Option<u32>,
     /// Phase 2 rules; `None` = phase 2 off.
     pub recovery: Option<RecoveryRules>,
-    /// Case sensitivity for [`FileTree::glob`] when called through helpers.
-    pub glob_case_sensitive: bool,
 }
 
 impl Default for WalkOptions {
@@ -132,7 +130,6 @@ impl Default for WalkOptions {
             skip_path_prefixes: Vec::new(),
             max_depth: None,
             recovery: None,
-            glob_case_sensitive: true,
         }
     }
 }
