@@ -1,0 +1,27 @@
+[package]
+name = "aqc-filetree"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Walk one directory root into a FileTree: gitignore-aware phase 1 plus rule-driven recovery phase 2."
+publish = false
+
+[package.metadata.guardrail3]
+shared = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dependencies]
+globset = "0.4"
+ignore = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

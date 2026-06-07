@@ -1,0 +1,23 @@
+[package]
+name = "aqc-fs-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "Read a single file from disk with fixed rules (strict UTF-8, NUL rejection, size cap)."
+publish = false
+
+[package.metadata.guardrail3]
+shared = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,68 @@
+# Manifest for: aqc-fs-utils (plan.md in this directory)
+# Extraction: single audited pass by the plan's author (NOT 3-agent-isolated).
+# Rows are workspace="aqc-shared"; verified by the aqc cargo gates
+# (clippy/test) plus these rows as the structural contract.
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-fs-utils/src/lib.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-fs-utils/src/fs.rs"
+note = "The filesystem boundary module: every std::fs touch lives here (repo convention)."
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-fs-utils/src/options.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-fs-utils/src/error.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-fs-utils/src/read.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-fs-utils/tests/read_tests.rs"
+note = "Behavior probes: empty file, NUL byte, invalid UTF-8, too large, symlink policies, CRLF normalization."
+
+[[public_api]]
+workspace = "aqc-shared"
+crate = "aqc-fs-utils"
+types = ["ReadTextOptions", "ReadBytesOptions", "SymlinkReadPolicy", "ReadError"]
+functions = ["read_text", "read_bytes"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-fs-utils"
+type = "SymlinkReadPolicy"
+variants = ["DontFollow", "Follow"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-fs-utils"
+type = "ReadError"
+variants = ["NotFound", "NotAFile", "TooLarge", "ContainsNulByte", "InvalidUtf8", "Io"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-fs-utils"
+type = "ReadTextOptions"
+required_fields = ["symlink", "max_bytes", "normalize_crlf"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-fs-utils"
+type = "ReadBytesOptions"
+required_fields = ["symlink", "max_bytes"]
+
+[[verification_command]]
+workspace = "aqc-shared"
+name = "fs_utils_tests"
+cmd = "cargo test -p aqc-fs-utils --quiet"
+expect_exit = 0

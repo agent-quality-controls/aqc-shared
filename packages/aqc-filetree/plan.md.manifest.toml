@@ -1,0 +1,116 @@
+# Manifest for: aqc-filetree (plan.md in this directory)
+# Extraction: single audited pass by the plan's author (NOT 3-agent-isolated).
+#
+# Gap resolved during extraction (plan named the type but not its variants):
+# WalkError = { RootNotFound, RootNotADirectory, Io }. Everything else is
+# straight from the plan tables.
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-filetree/src/lib.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-filetree/src/fs.rs"
+note = "The filesystem boundary module: every std::fs touch lives here (repo convention)."
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-filetree/src/tree.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-filetree/src/options.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-filetree/src/walk.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-filetree/tests/walk_tests.rs"
+note = "Behavior probes: gitignore phase 1, recovery phase 2 (origin = Recovered, no double-listing), skip_dir_names in BOTH phases, symlink policies, max_depth, glob, sorted rel_path."
+
+[[public_api]]
+workspace = "aqc-shared"
+crate = "aqc-filetree"
+types = [
+  "FileKind", "EntryOrigin", "FileEntry", "FileTree", "SymlinkPolicy",
+  "SkipDirPreset", "RecoveryRules", "WalkOptions", "WalkError",
+]
+functions = ["build_file_tree"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-filetree"
+type = "FileKind"
+variants = ["File", "Directory", "Symlink"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-filetree"
+type = "EntryOrigin"
+variants = ["Primary", "Recovered"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-filetree"
+type = "SymlinkPolicy"
+variants = ["Skip", "Record", "Follow"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-filetree"
+type = "SkipDirPreset"
+variants = ["Common", "Rust", "Node", "Python", "DotNet"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-filetree"
+type = "WalkError"
+variants = ["RootNotFound", "RootNotADirectory", "Io"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-filetree"
+type = "FileEntry"
+required_fields = ["rel_path", "abs_path", "kind", "origin"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-filetree"
+type = "FileTree"
+required_fields = ["root", "entries"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-filetree"
+type = "WalkOptions"
+required_fields = [
+  "respect_gitignore", "include_hidden", "symlink_policy", "skip_dir_names",
+  "skip_path_prefixes", "max_depth", "recovery", "glob_case_sensitive",
+]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-filetree"
+type = "RecoveryRules"
+required_fields = ["exact_file_names", "file_name_prefixes", "directory_names", "rel_path_suffixes"]
+
+# FileTree queries from the plan: entry, entries_with_origin, glob.
+[[trait_sig]]
+workspace = "aqc-shared"
+crate = "aqc-filetree"
+function = "glob"
+signature_contains = ["fn glob(", "globset"]
+
+[[verification_command]]
+workspace = "aqc-shared"
+name = "filetree_tests"
+cmd = "cargo test -p aqc-filetree --quiet"
+expect_exit = 0

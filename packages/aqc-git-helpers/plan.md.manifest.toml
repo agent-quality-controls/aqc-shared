@@ -1,0 +1,79 @@
+# Manifest for: aqc-git-helpers (plan.md in this directory)
+# Extraction: single audited pass by the plan's author (NOT 3-agent-isolated).
+#
+# Gap resolved during extraction (plan said "trailing semantics TBD in impl"):
+# changes_affecting_paths matches a change when its path (or old_path) equals
+# an entry in `paths` OR starts with "<entry>/" (directory boundary; no
+# substring matches).
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/src/lib.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/src/git.rs"
+note = "The subprocess boundary module: every git invocation lives here (repo convention)."
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/src/porcelain.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/src/status.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/src/error.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/src/queries.rs"
+
+[[tree]]
+workspace = "aqc-shared"
+path = "packages/aqc-git-helpers/tests/porcelain_tests.rs"
+note = "Parser probes on fixture porcelain v1 -z byte strings (staged/unstaged/renamed/untracked/ignored), path filter boundary, plus a temp git-init integration probe."
+
+[[public_api]]
+workspace = "aqc-shared"
+crate = "aqc-git-helpers"
+types = ["ChangeStatus", "WorktreeChange", "PorcelainOptions", "GitError"]
+functions = ["worktree_changes", "is_worktree_clean", "changes_affecting_paths", "dirty_paths"]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-git-helpers"
+type = "ChangeStatus"
+variants = [
+  "StagedNew", "StagedModified", "StagedDeleted", "StagedRenamed",
+  "UnstagedModified", "UnstagedDeleted", "UnstagedRenamed",
+  "Untracked", "Ignored",
+]
+
+[[closed_set]]
+workspace = "aqc-shared"
+kind = "enum"
+crate = "aqc-git-helpers"
+type = "GitError"
+variants = ["NotARepository", "GitNotInstalled", "CommandFailed", "ParseError"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-git-helpers"
+type = "WorktreeChange"
+required_fields = ["path", "status", "old_path"]
+
+[[struct_shape]]
+workspace = "aqc-shared"
+crate = "aqc-git-helpers"
+type = "PorcelainOptions"
+required_fields = ["include_ignored", "include_untracked"]
+
+[[verification_command]]
+workspace = "aqc-shared"
+name = "git_helpers_tests"
+cmd = "cargo test -p aqc-git-helpers --quiet"
+expect_exit = 0

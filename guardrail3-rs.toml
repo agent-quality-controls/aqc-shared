@@ -2,6 +2,8 @@ profile = "library"
 
 allowed_deps = [
   "aqc-file-engine-core",
+  "globset",
+  "ignore",
   "toml_edit",
 ]
 
