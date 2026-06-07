@@ -1,5 +1,8 @@
 # aqc-shared
 
+> Building a crate here? Read [CONVENTIONS.md](CONVENTIONS.md) first --
+> the commit gates enforce structural rules that exist nowhere else in prose.
+
 Neutral `aqc-*` libraries for Agent Quality Controls (Spec3, Guardrail3, Fixture3, …).
 
 ## Principles
