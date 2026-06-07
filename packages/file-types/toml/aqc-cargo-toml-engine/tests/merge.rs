@@ -208,3 +208,43 @@ mod merge {
         );
     }
 }
+
+#[cfg(test)]
+mod f7_floor {
+    use aqc_cargo_toml_engine::{CargoTomlRequirement, PackageFieldAssertion};
+    use aqc_file_engine_core::Provenance;
+
+    fn floor(policy: &str, v: &str) -> CargoTomlRequirement {
+        let mut r = CargoTomlRequirement::default();
+        let _ = r.package_fields.insert(
+            "rust-version".to_owned(),
+            vec![(
+                Provenance {
+                    policy: policy.to_owned(),
+                },
+                PackageFieldAssertion::AtLeastVersion(v.to_owned(), "floor".to_owned()),
+            )],
+        );
+        r
+    }
+
+    #[test]
+    fn two_floors_take_the_higher() {
+        let a = floor("p1", "1.80");
+        let b = floor("p2", "1.85");
+        let (merged, conflicts) = CargoTomlRequirement::merge(&[&a, &b]);
+        assert!(
+            conflicts.is_empty(),
+            "two floors compose, not conflict: {conflicts:?}"
+        );
+        let resolved = merged
+            .package_fields
+            .get("rust-version")
+            .expect("the resolved rust-version floor must survive the merge");
+        let version = match resolved.first().map(|(_, x)| x) {
+            Some(PackageFieldAssertion::AtLeastVersion(v, _)) => Some(v.clone()),
+            _ => None,
+        };
+        assert_eq!(version.as_deref(), Some("1.85"), "the higher floor wins");
+    }
+}

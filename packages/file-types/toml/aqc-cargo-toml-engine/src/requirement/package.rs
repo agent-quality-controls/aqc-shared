@@ -7,8 +7,8 @@
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, resolve_scalar,
-    union_string_lists, union_string_sets,
+    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve,
+    parse_version_tuple, resolve_scalar, union_string_lists, union_string_sets,
 };
 
 /// What must hold about a single `[package].<field>` (or
@@ -63,6 +63,14 @@ impl Resolve for PackageFieldAssertion {
         contributions: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<Self> {
+        // Two floors compose to the higher floor (max-wins), not a conflict:
+        // `AtLeastVersion` is jointly satisfiable by definition.
+        if contributions
+            .iter()
+            .all(|(_, a)| matches!(a, Self::AtLeastVersion(..)))
+        {
+            return Some(max_floor(contributions));
+        }
         // Set-family variants union their elements; everything else must agree.
         if contributions
             .iter()
@@ -93,6 +101,25 @@ impl OnEmptyClass for PackageFieldAssertion {
             Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
+}
+
+/// Resolve all-`AtLeastVersion` contributions to the highest floor: two
+/// "at least X" requirements are jointly satisfied by the larger X. The
+/// winning floor's message is kept.
+fn max_floor(contributions: Vec<(Provenance, PackageFieldAssertion)>) -> PackageFieldAssertion {
+    let mut best: Option<(String, Msg)> = None;
+    for (_, assertion) in contributions {
+        if let PackageFieldAssertion::AtLeastVersion(version, msg) = assertion {
+            let take = best
+                .as_ref()
+                .is_none_or(|(b, _)| parse_version_tuple(&version) > parse_version_tuple(b));
+            if take {
+                best = Some((version, msg));
+            }
+        }
+    }
+    let (version, msg) = best.unwrap_or_else(|| (String::new(), String::new()));
+    PackageFieldAssertion::AtLeastVersion(version, msg)
 }
 
 /// Union `ListContains` element lists via the core helper.
