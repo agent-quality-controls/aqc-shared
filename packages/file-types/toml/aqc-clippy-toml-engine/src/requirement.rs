@@ -1,6 +1,10 @@
 //! Declarative requirement and assertion types accepted by `ClippyTomlEngine`.
 
 #![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
+#![expect(
     clippy::disallowed_types,
     reason = "`Any` is used only in the `EngineRequirement::as_any` impl; the broker uses it to downcast `Box<dyn EngineRequirement>` back to this concrete `Req` type at dispatch time."
 )]
@@ -8,10 +12,9 @@
 use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::merge::Contributions;
 use aqc_file_engine_core::{
-    ConflictEntry, EngineRequirement, MergedAssertion, Provenance, Resolve, resolve_field,
-    resolve_optional, resolve_scalar, union_field, union_optional,
+    ConflictEntry, EngineRequirement, Provenance, Resolve, resolve_field, resolve_optional,
+    resolve_scalar, union_field, union_optional,
 };
 
 /// Declarative requirement for the `clippy.toml` engine.
@@ -21,21 +24,13 @@ use aqc_file_engine_core::{
 /// contributions.
 #[derive(Debug, Clone, Default)]
 pub struct ClippyTomlRequirement {
-    pub msrv: Option<MergedAssertion<MsrvAssertion>>,
-    pub thresholds: Option<MergedAssertion<ThresholdsAssertion>>,
-    pub disallowed_methods: Option<MergedAssertion<BansAssertion>>,
-    pub disallowed_types: Option<MergedAssertion<BansAssertion>>,
-    pub disallowed_macros: Option<MergedAssertion<BansAssertion>>,
-    #[expect(
-        clippy::type_complexity,
-        reason = "BTreeMap<setting, MergedAssertion<BoolAssertion>> is the natural keyed-by-setting shape."
-    )]
-    pub bools: BTreeMap<String, MergedAssertion<BoolAssertion>>,
-    #[expect(
-        clippy::type_complexity,
-        reason = "BTreeMap<setting, MergedAssertion<StringAssertion>> is the natural keyed-by-setting shape."
-    )]
-    pub enums: BTreeMap<String, MergedAssertion<StringAssertion>>,
+    pub msrv: Option<Vec<(Provenance, MsrvAssertion)>>,
+    pub thresholds: Option<Vec<(Provenance, ThresholdsAssertion)>>,
+    pub disallowed_methods: Option<Vec<(Provenance, BansAssertion)>>,
+    pub disallowed_types: Option<Vec<(Provenance, BansAssertion)>>,
+    pub disallowed_macros: Option<Vec<(Provenance, BansAssertion)>>,
+    pub bools: BTreeMap<String, Vec<(Provenance, BoolAssertion)>>,
+    pub enums: BTreeMap<String, Vec<(Provenance, StringAssertion)>>,
 }
 
 impl ClippyTomlRequirement {
@@ -45,12 +40,8 @@ impl ClippyTomlRequirement {
     /// Phase 1 of reconciliation: pure, disk-independent. Per field, union the
     /// contributions, then resolve each key (identical → collapse, set/map →
     /// union keys, disagreement → [`ConflictEntry`]). The engine turns each
-    /// entry into a `Finding::PolicyConflict`.
+    /// entry into a `Finding::ConflictingRequirements`.
     #[must_use]
-    #[expect(
-        clippy::type_complexity,
-        reason = "(Self, Vec<ConflictEntry>) is the natural two-output shape: the resolved requirement plus the conflicts that dropped keys."
-    )]
     pub fn merge(reqs: &[&Self]) -> (Self, Vec<ConflictEntry>) {
         let mut u = Self::default();
         for r in reqs {
@@ -131,10 +122,6 @@ impl PartialEq for MsrvAssertion {
 /// What must hold about clippy's numeric threshold keys
 /// (e.g. `cognitive-complexity-threshold`). Map values are
 /// `(threshold, message)` pairs; set-shaped variants map name -> message.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, (value, message)> is the explicit per-entry shape; aliasing the inner tuple obscures the (value, message) pattern used uniformly across assertion types."
-)]
 #[derive(Debug, Clone)]
 pub enum ThresholdsAssertion {
     Equals(BTreeMap<String, (u64, String)>),
@@ -171,10 +158,6 @@ impl PartialEq for ThresholdsAssertion {
 }
 
 /// Compare two `(value, message)` maps by key and numeric value only.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, (value, message)> mirrors the value-carrying `ThresholdsAssertion` variants' shape."
-)]
 fn values_eq(a: &BTreeMap<String, (u64, String)>, b: &BTreeMap<String, (u64, String)>) -> bool {
     a.len() == b.len()
         && a.iter()
@@ -406,16 +389,12 @@ impl Resolve for BansAssertion {
 /// Two policies setting the same key to a different numeric value →
 /// one conflict keyed `{key}.{name}` (the policy-authored message is not part
 /// of the disagreement). Same value with different messages collapse.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, (value, message)> mirrors the value-carrying `ThresholdsAssertion` variants' shape."
-)]
 fn union_threshold_values(
     key: &str,
-    contributions: Contributions<ThresholdsAssertion>,
+    contributions: Vec<(Provenance, ThresholdsAssertion)>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> BTreeMap<String, (u64, String)> {
-    let mut by_name: BTreeMap<String, Contributions<(u64, String)>> = BTreeMap::new();
+    let mut by_name: BTreeMap<String, Vec<(Provenance, (u64, String))>> = BTreeMap::new();
     for (prov, a) in contributions {
         let map = match a {
             ThresholdsAssertion::Equals(m)
@@ -433,7 +412,8 @@ fn union_threshold_values(
         let Some((first_prov, first_val)) = iter.next() else {
             continue;
         };
-        let mut contributors: Contributions<String> = vec![(first_prov, first_val.0.to_string())];
+        let mut contributors: Vec<(Provenance, String)> =
+            vec![(first_prov, first_val.0.to_string())];
         let mut disagree = false;
         for (prov, v) in iter {
             if v.0 != first_val.0 {
@@ -457,7 +437,7 @@ fn union_threshold_values(
 /// Union set-shaped threshold maps, keyed by name; first message wins.
 /// Pure union; the key set carries no value, so it never conflicts.
 fn union_threshold_sets(
-    contributions: Contributions<ThresholdsAssertion>,
+    contributions: Vec<(Provenance, ThresholdsAssertion)>,
 ) -> BTreeMap<String, String> {
     let mut out: BTreeMap<String, String> = BTreeMap::new();
     for (_, a) in contributions {
@@ -479,7 +459,7 @@ fn union_threshold_sets(
 /// Two policies banning the same path agree (the policy-authored message is not
 /// part of the disagreement); the first entry's message wins. The path set is
 /// the only value, so a shared path never conflicts.
-fn union_ban_entries(contributions: Contributions<BansAssertion>) -> Vec<BanEntry> {
+fn union_ban_entries(contributions: Vec<(Provenance, BansAssertion)>) -> Vec<BanEntry> {
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut out: Vec<BanEntry> = Vec::new();
     for (_, a) in contributions {
@@ -498,7 +478,7 @@ fn union_ban_entries(contributions: Contributions<BansAssertion>) -> Vec<BanEntr
 
 /// Union `Excludes` ban maps across contributions, keyed by path; first message
 /// wins. Pure union; never conflicts.
-fn union_ban_excludes(contributions: Contributions<BansAssertion>) -> BTreeMap<String, String> {
+fn union_ban_excludes(contributions: Vec<(Provenance, BansAssertion)>) -> BTreeMap<String, String> {
     let mut out: BTreeMap<String, String> = BTreeMap::new();
     for (_, a) in contributions {
         let map = match a {

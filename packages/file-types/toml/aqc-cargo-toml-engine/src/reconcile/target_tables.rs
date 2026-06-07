@@ -6,9 +6,13 @@
 //! check-only field does not create a missing entry (it cannot be satisfied
 //! by writing); all-writable `Fields` create the entry with its name.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, FromEmpty, FromEmptyClass, MergedAssertion, Provenance};
+use aqc_file_engine_core::{Finding, OnEmpty, OnEmptyClass, Provenance};
 use toml_edit::{DocumentMut, Item, Table, value};
 
 use crate::reconcile::util;
@@ -39,18 +43,14 @@ impl FieldLoc<'_> {
 }
 
 /// Apply every `[lib].<field>` contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply_lib(
     doc: &mut DocumentMut,
-    merged_by_field: &BTreeMap<String, MergedAssertion<TargetFieldAssertion>>,
+    merged_by_field: &BTreeMap<String, Vec<(Provenance, TargetFieldAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (field, merged) in merged_by_field {
         let attribution = util::all_provenances(merged);
-        for (_, assertion) in &merged.contributions {
+        for (_, assertion) in merged {
             apply_field(
                 doc,
                 &FieldLoc::Lib,
@@ -64,19 +64,15 @@ pub(crate) fn apply_lib(
 }
 
 /// Apply every named `[[<kind>]]` target contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<name, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply_named(
     doc: &mut DocumentMut,
     kind: &str,
-    merged_by_name: &BTreeMap<String, MergedAssertion<TargetTableAssertion>>,
+    merged_by_name: &BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (name, merged) in merged_by_name {
         let attribution = util::all_provenances(merged);
-        for (_, assertion) in &merged.contributions {
+        for (_, assertion) in merged {
             apply_named_one(doc, kind, name, assertion, &attribution, findings);
         }
     }
@@ -124,7 +120,7 @@ fn apply_named_one(
             }
         }
         TargetTableAssertion::Fields(map) => {
-            if !exists && assertion.on_empty() == FromEmpty::ChecksOnly {
+            if !exists && assertion.on_empty() == OnEmpty::ChecksOnly {
                 // Cannot be satisfied by writing: report the missing entry only.
                 util::push_mismatch(
                     findings,

@@ -14,9 +14,13 @@
 //! Lazy: an `Excludes`-only requirement against a missing table creates no
 //! table (no write, no finding). Tables are fetched mutably only on a write.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, Severity};
 use toml_edit::{DocumentMut, InlineTable, Item, Table, Value, value};
 
 use crate::reconcile::util::{all_provenances, ensure_nested, ensure_table, table_ref};
@@ -42,14 +46,10 @@ impl LintRoot {
 }
 
 /// Apply every `[lints.<tool>]` (or `[workspace.lints.<tool>]`) contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     root: LintRoot,
-    merged_by_tool: &BTreeMap<String, MergedAssertion<LintLevelsAssertion>>,
+    merged_by_tool: &BTreeMap<String, Vec<(Provenance, LintLevelsAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (tool, merged) in merged_by_tool {
@@ -101,10 +101,10 @@ fn apply_tool(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &MergedAssertion<LintLevelsAssertion>,
+    merged: &[(Provenance, LintLevelsAssertion)],
     findings: &mut Vec<Finding>,
 ) {
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         match assertion {
             LintLevelsAssertion::Contains(map) | LintLevelsAssertion::IsExactly(map) => {
                 apply_contains(doc, root, tool, merged, map, findings);
@@ -120,15 +120,11 @@ fn apply_tool(
 }
 
 /// `Contains` / `IsExactly` per-key: write each in the form its priority implies.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, (level, priority, message)> mirrors the assertion's value shape."
-)]
 fn apply_contains(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &MergedAssertion<LintLevelsAssertion>,
+    merged: &[(Provenance, LintLevelsAssertion)],
     map: &BTreeMap<String, (String, Option<i64>, String)>,
     findings: &mut Vec<Finding>,
 ) {
@@ -138,7 +134,7 @@ fn apply_contains(
             continue;
         }
         findings.push(Finding::Mismatch {
-            path: format!("[{}.{tool}].{lint}", root.prefix()),
+            key: format!("[{}.{tool}].{lint}", root.prefix()),
             current: on_disk.map(|e| display_entry(&e)),
             expected: display_expected(level, *priority),
             message: message.clone(),
@@ -154,7 +150,7 @@ fn apply_excludes(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &MergedAssertion<LintLevelsAssertion>,
+    merged: &[(Provenance, LintLevelsAssertion)],
     map: &BTreeMap<String, String>,
     findings: &mut Vec<Finding>,
 ) {
@@ -163,7 +159,7 @@ fn apply_excludes(
             continue;
         };
         findings.push(Finding::Mismatch {
-            path: format!("[{}.{tool}].{lint}", root.prefix()),
+            key: format!("[{}.{tool}].{lint}", root.prefix()),
             current: Some(display_entry(&entry)),
             expected: "absent".to_owned(),
             message: message.clone(),
@@ -177,15 +173,11 @@ fn apply_excludes(
 }
 
 /// Drop on-disk keys not in any `IsExactly` contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, (level, priority, message)> mirrors the assertion's value shape."
-)]
 fn apply_exact_extras(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &MergedAssertion<LintLevelsAssertion>,
+    merged: &[(Provenance, LintLevelsAssertion)],
     exact: &BTreeMap<String, (String, Option<i64>, String)>,
     findings: &mut Vec<Finding>,
 ) {
@@ -200,7 +192,7 @@ fn apply_exact_extras(
             .and_then(|t| read_entry(t, extra))
             .map(|e| display_entry(&e));
         findings.push(Finding::Mismatch {
-            path: format!("[{}.{tool}].{extra}", root.prefix()),
+            key: format!("[{}.{tool}].{extra}", root.prefix()),
             current,
             expected: "absent (IsExactly)".to_owned(),
             message: String::new(),
@@ -277,11 +269,11 @@ fn display_expected(level: &str, priority: Option<i64>) -> String {
 
 /// Provenances of contributions that mention `lint`.
 fn contributors_for_lint(
-    merged: &MergedAssertion<LintLevelsAssertion>,
+    merged: &[(Provenance, LintLevelsAssertion)],
     lint: &str,
 ) -> Vec<Provenance> {
     let mut out = Vec::new();
-    for (provenance, assertion) in &merged.contributions {
+    for (provenance, assertion) in merged {
         let mentions = match assertion {
             LintLevelsAssertion::Contains(map) | LintLevelsAssertion::IsExactly(map) => {
                 map.contains_key(lint)
@@ -296,15 +288,11 @@ fn contributors_for_lint(
 }
 
 /// Union of allowed keys if every contribution is `IsExactly`; else `None`.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, (level, priority, message)> mirrors the assertion's `IsExactly` value shape."
-)]
 fn is_exactly_only(
-    merged: &MergedAssertion<LintLevelsAssertion>,
+    merged: &[(Provenance, LintLevelsAssertion)],
 ) -> Option<BTreeMap<String, (String, Option<i64>, String)>> {
     let mut combined: BTreeMap<String, (String, Option<i64>, String)> = BTreeMap::new();
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         match assertion {
             LintLevelsAssertion::IsExactly(map) => {
                 for (k, v) in map {

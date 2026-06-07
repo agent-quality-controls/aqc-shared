@@ -1,11 +1,14 @@
 //! `[workspace].<key>` assertions (resolver, members, exclude, default-members).
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::merge::Contributions;
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, FromEmpty, FromEmptyClass, Msg, Provenance, Resolve,
-    resolve_scalar, union_string_lists, union_string_sets,
+    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, resolve_scalar,
+    union_string_lists, union_string_sets,
 };
 
 /// What must hold about a direct `[workspace]` key.
@@ -67,22 +70,22 @@ impl Resolve for WorkspaceFieldAssertion {
     }
 }
 
-impl FromEmptyClass for WorkspaceFieldAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for WorkspaceFieldAssertion {
+    fn on_empty(&self) -> OnEmpty {
         match self {
             Self::Equals(..)
             | Self::ListContains(..)
             | Self::ListExcludes(..)
             | Self::ListIsExactly(..)
-            | Self::Absent(..) => FromEmpty::Writes,
-            Self::OneOf(..) | Self::Present(..) => FromEmpty::ChecksOnly,
+            | Self::Absent(..) => OnEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
 }
 
 /// Union `ListContains` element lists via the core helper.
 fn union_list_contains(
-    contributions: Contributions<WorkspaceFieldAssertion>,
+    contributions: Vec<(Provenance, WorkspaceFieldAssertion)>,
 ) -> WorkspaceFieldAssertion {
     let lists = contributions
         .into_iter()
@@ -100,7 +103,7 @@ fn union_list_contains(
 
 /// Union `ListExcludes` element sets via the core helper.
 fn union_list_excludes(
-    contributions: Contributions<WorkspaceFieldAssertion>,
+    contributions: Vec<(Provenance, WorkspaceFieldAssertion)>,
 ) -> WorkspaceFieldAssertion {
     let sets = contributions
         .into_iter()

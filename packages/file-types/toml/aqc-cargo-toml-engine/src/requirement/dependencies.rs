@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{FromEmpty, FromEmptyClass, Msg};
+use aqc_file_engine_core::{Msg, OnEmpty, OnEmptyClass};
 
 use super::macros::{impl_keyed_entries_eq, impl_set_resolve};
 
@@ -105,19 +105,19 @@ impl_set_resolve!(
     |entry: &DependencyEntry| entry.0.clone()
 );
 
-impl FromEmptyClass for DependencySetAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for DependencySetAssertion {
+    fn on_empty(&self) -> OnEmpty {
         match self {
             // Writable only when every entry names a source; a sourceless
             // entry cannot be created (cargo rejects it), only checked.
             Self::Contains(map) | Self::IsExactly(map) => {
                 if map.values().all(|(spec, _)| spec.has_source()) {
-                    FromEmpty::Writes
+                    OnEmpty::Writes
                 } else {
-                    FromEmpty::ChecksOnly
+                    OnEmpty::ChecksOnly
                 }
             }
-            Self::Excludes(_) => FromEmpty::Writes,
+            Self::Excludes(_) => OnEmpty::Writes,
         }
     }
 }

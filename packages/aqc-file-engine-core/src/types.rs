@@ -14,21 +14,6 @@ pub struct Provenance {
     pub policy: PolicyId,
 }
 
-/// Per-policy contributions for one assertion target, kept as slices.
-///
-/// The linter adapter does *not* squash contributions into a single
-/// merged assertion. It preserves each policy's contribution alongside
-/// its `Provenance`. Per-element attribution is derived at use time
-/// (engine-side) by walking `contributions`.
-#[derive(Debug, Clone)]
-#[expect(
-    clippy::type_complexity,
-    reason = "Vec<(Provenance, A)> is the natural shape: an ordered list of attributed contributions. A named type alias hides the parameterization without value."
-)]
-pub struct MergedAssertion<A> {
-    pub contributions: Vec<(Provenance, A)>,
-}
-
 /// Severity of a `Finding`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Severity {
@@ -64,7 +49,7 @@ pub type Msg = String;
 /// anything"), so the engine can only check; from empty it reports an Error
 /// and writes nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FromEmpty {
+pub enum OnEmpty {
     Writes,
     ChecksOnly,
 }
@@ -74,9 +59,9 @@ pub enum FromEmpty {
 /// Exhaustive matching makes a new variant uncompilable until its author
 /// answers what happens on an empty file. Value-dependent cases compute the
 /// answer (a dependency `Contains` writes only when the spec names a source).
-pub trait FromEmptyClass {
+pub trait OnEmptyClass {
     /// The class of this assertion value on a missing file.
-    fn on_empty(&self) -> FromEmpty;
+    fn on_empty(&self) -> OnEmpty;
 }
 
 /// Result of a single reconcile operation against one file.

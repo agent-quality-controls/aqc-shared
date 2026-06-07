@@ -55,7 +55,7 @@ pub trait Engine {
 /// Downcast the routed requirements to `Req`; with none, echo `current` back
 /// unchanged. Otherwise run the engine's `merge` phase (pure), reconcile the
 /// merged desired-state against disk via `reconcile_one`, then map each merge
-/// `ConflictEntry` to a `Finding::PolicyConflict` keyed by `subject` (the
+/// `ConflictEntry` to a `Finding::ConflictingRequirements` keyed by `subject` (the
 /// engine owns the file name). Only the requirement type, `subject`, and the
 /// two functions differ between engines; the dance is identical, so it lives
 /// here once.
@@ -88,7 +88,7 @@ where
     let (merged, conflicts) = merge(&typed);
     let mut out = reconcile_one(current, &merged);
     for entry in conflicts {
-        out.findings.push(Finding::PolicyConflict {
+        out.findings.push(Finding::ConflictingRequirements {
             subject: subject.to_owned(),
             key: entry.key,
             contributors: entry

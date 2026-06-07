@@ -1,8 +1,12 @@
 //! Reconciliation for clippy.toml's numeric threshold keys.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, Severity};
 use toml_edit::{DocumentMut, Item, value};
 
 use crate::reconcile::util::all_provenances;
@@ -11,11 +15,11 @@ use crate::requirement::ThresholdsAssertion;
 /// Apply every thresholds contribution to the document.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: &MergedAssertion<ThresholdsAssertion>,
+    merged: &Vec<(Provenance, ThresholdsAssertion)>,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = all_provenances(merged);
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         apply_one(doc, assertion, &attribution, findings);
     }
 }
@@ -43,10 +47,6 @@ fn apply_one(
 }
 
 /// Walk a `(key, (value, message))` map and apply the per-key handler to each.
-#[expect(
-    clippy::type_complexity,
-    reason = "fn pointer signature mirrors handler shape; aliasing would obscure intent"
-)]
 fn apply_map(
     doc: &mut DocumentMut,
     map: &BTreeMap<String, (u64, String)>,
@@ -71,7 +71,7 @@ fn apply_present(
             continue;
         }
         findings.push(Finding::Mismatch {
-            path: key.clone(),
+            key: key.clone(),
             current: None,
             expected: "any integer (Present)".into(),
             message: message.clone(),
@@ -93,7 +93,7 @@ fn apply_absent(
             continue;
         }
         findings.push(Finding::Mismatch {
-            path: key.clone(),
+            key: key.clone(),
             current: doc
                 .get(key)
                 .and_then(Item::as_integer)
@@ -122,7 +122,7 @@ fn apply_equals(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: key.into(),
+        key: key.into(),
         current: current.map(|n| n.to_string()),
         expected: want.to_string(),
         message: message.to_owned(),
@@ -149,7 +149,7 @@ fn apply_at_most(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: key.into(),
+        key: key.into(),
         current: current.map(|n| n.to_string()),
         expected: format!("at most {ceiling}"),
         message: message.to_owned(),
@@ -174,7 +174,7 @@ fn apply_at_least(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: key.into(),
+        key: key.into(),
         current: current.map(|n| n.to_string()),
         expected: format!("at least {floor}"),
         message: message.to_owned(),

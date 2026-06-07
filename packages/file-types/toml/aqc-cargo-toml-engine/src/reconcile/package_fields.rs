@@ -4,9 +4,13 @@
 //! (`Absent`/`ListExcludes` on an absent key) never create the table. The
 //! table is fetched mutably only when a write is about to happen.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConfigScalar, Finding, MergedAssertion, Provenance, Severity};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance};
 use toml_edit::{DocumentMut, Item, Table};
 
 use crate::reconcile::util;
@@ -38,19 +42,15 @@ impl PackageScope {
 }
 
 /// Apply every `[package].<field>` contribution at the given scope.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     scope: PackageScope,
-    merged_by_field: &BTreeMap<String, MergedAssertion<PackageFieldAssertion>>,
+    merged_by_field: &BTreeMap<String, Vec<(Provenance, PackageFieldAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (field, merged) in merged_by_field {
         let attribution = util::all_provenances(merged);
-        for (_, assertion) in &merged.contributions {
+        for (_, assertion) in merged {
             apply_one(doc, scope, field, assertion, &attribution, findings);
         }
     }
@@ -297,12 +297,15 @@ fn apply_inherits(
     findings: &mut Vec<Finding>,
 ) {
     if scope.is_workspace_source() {
-        findings.push(Finding::SchemaError {
-            path: format!("[{}].{field}", scope.prefix()),
+        findings.push(Finding::InvalidRequirements {
+            key: format!("[{}].{field}", scope.prefix()),
             message: format!(
                 "InheritsWorkspace is invalid in [workspace.package].{field}: this table is the inheritance source. {msg}"
             ),
-            severity: Severity::Error,
+            contributors: attribution
+                .iter()
+                .map(|p| (p.policy.clone(), "InheritsWorkspace".to_owned()))
+                .collect(),
         });
         return;
     }

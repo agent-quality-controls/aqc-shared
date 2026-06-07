@@ -3,18 +3,22 @@
 //! matches its ACTUAL reconcile behavior. A wrong declaration or a wrong
 //! apply fails here.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)>; declared openly (taxonomy decision 2026-06-07)."
+)]
 use toml_edit as _;
 
 mod contract {
     use std::collections::{BTreeMap, BTreeSet};
 
     use aqc_cargo_toml_engine::{
-        CargoTomlEngine, CargoTomlRequirement, LintLevelsAssertion, LintsInheritAssertion,
-        ManifestSection, PackageFieldAssertion, SectionPresenceAssertion, WorkspaceFieldAssertion,
+        CargoTomlEngine, CargoTomlRequirement, LintLevelsAssertion, ManifestSection,
+        PackageFieldAssertion, PackageLintsAssertion, SectionPresenceAssertion,
+        WorkspaceFieldAssertion,
     };
     use aqc_file_engine_core::{
-        ConfigScalar, FileEngine, FromEmpty, FromEmptyClass, MergedAssertion, Provenance,
-        check_from_empty,
+        ConfigScalar, FileEngine, OnEmpty, OnEmptyClass, Provenance, check_from_empty,
     };
 
     /// The engine's typed reconcile, as the harness expects it.
@@ -25,20 +29,18 @@ mod contract {
         <CargoTomlEngine as FileEngine<CargoTomlRequirement>>::reconcile(current, req)
     }
 
-    /// Wrap one assertion as a single-policy `MergedAssertion`.
-    fn ma<A>(a: A) -> MergedAssertion<A> {
-        MergedAssertion {
-            contributions: vec![(
-                Provenance {
-                    policy: "fixture".to_owned(),
-                },
-                a,
-            )],
-        }
+    /// Wrap one assertion as a single-policy collected list.
+    fn ma<A>(a: A) -> Vec<(Provenance, A)> {
+        vec![(
+            Provenance {
+                policy: "fixture".to_owned(),
+            },
+            a,
+        )]
     }
 
     /// Run the harness with the assertion's own declared class.
-    fn law(req: &CargoTomlRequirement, class: FromEmpty, what: &str) {
+    fn law(req: &CargoTomlRequirement, class: OnEmpty, what: &str) {
         let outcome = check_from_empty(reconcile, req, class);
         assert!(outcome.is_ok(), "{what}: {outcome:?}");
     }
@@ -233,7 +235,7 @@ mod contract {
     fn section_presence_workspace_present_writes_empty_table() {
         let a = SectionPresenceAssertion::Present(msg());
         let class = a.on_empty_in(ManifestSection::Workspace);
-        assert_eq!(class, FromEmpty::Writes, "Present([workspace]) is writable");
+        assert_eq!(class, OnEmpty::Writes, "Present([workspace]) is writable");
         let mut req = CargoTomlRequirement::default();
         let _ = req
             .section_presence
@@ -253,7 +255,7 @@ mod contract {
         let class = a.on_empty_in(ManifestSection::Package);
         assert_eq!(
             class,
-            FromEmpty::ChecksOnly,
+            OnEmpty::ChecksOnly,
             "Present([package]) cannot invent a name"
         );
         let mut req = CargoTomlRequirement::default();
@@ -306,56 +308,38 @@ mod contract {
         }
     }
 
-    // ---------------- LintsInheritAssertion (3 variants + exclusivity) ----------------
+    // ---------------- PackageLintsAssertion (the [lints] either/or key) ----------------
 
     #[test]
-    fn lints_inherit_variants() {
-        for (what, assertion) in [
-            (
-                "lints_inherit Equals",
-                LintsInheritAssertion::Equals(true, msg()),
-            ),
-            (
-                "lints_inherit Present",
-                LintsInheritAssertion::Present(msg()),
-            ),
-            ("lints_inherit Absent", LintsInheritAssertion::Absent(msg())),
-        ] {
-            let class = assertion.on_empty();
-            let req = CargoTomlRequirement {
-                lints_inherit: Some(ma(assertion)),
-                ..CargoTomlRequirement::default()
-            };
-            law(&req, class, what);
-        }
+    fn package_lints_inherit_writes_opt_in() {
+        let assertion = PackageLintsAssertion::Inherit(true, msg());
+        let class = assertion.on_empty();
+        let req = CargoTomlRequirement {
+            package_lints: Some(ma(assertion)),
+            ..CargoTomlRequirement::default()
+        };
+        law(&req, class, "package_lints Inherit");
     }
 
     #[test]
-    fn lints_inherit_with_inline_lints_is_schema_error() {
-        let mut req = CargoTomlRequirement {
-            lints_inherit: Some(ma(LintsInheritAssertion::Equals(true, msg()))),
+    fn package_lints_inline_writes_tool_tables() {
+        let mut tools = std::collections::BTreeMap::new();
+        let _ = tools.insert(
+            "clippy".to_owned(),
+            LintLevelsAssertion::Contains(lint_entry()),
+        );
+        let assertion = PackageLintsAssertion::Inline(tools);
+        let class = assertion.on_empty();
+        let req = CargoTomlRequirement {
+            package_lints: Some(ma(assertion)),
             ..CargoTomlRequirement::default()
         };
-        let _ = req.lints.insert(
-            "clippy".to_owned(),
-            ma(LintLevelsAssertion::Contains(lint_entry())),
-        );
         let out = reconcile(None, &req);
-        assert!(
-            out.findings
-                .iter()
-                .any(|f| matches!(f, aqc_file_engine_core::Finding::SchemaError { .. })),
-            "the incompatible combination is a SchemaError: {:?}",
-            out.findings
-        );
         let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
         assert!(
-            !text.contains("[lints."),
-            "no inline lint table is written for the rejected combination: {text}"
+            text.contains("[lints.clippy]"),
+            "Inline writes the inline tool table: {text}"
         );
-        assert!(
-            !text.contains("workspace = true"),
-            "the inherit key is not written for the rejected combination: {text}"
-        );
+        law(&req, class, "package_lints Inline");
     }
 }

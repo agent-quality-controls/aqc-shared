@@ -13,14 +13,14 @@ macro_rules! impl_set_resolve {
         impl aqc_file_engine_core::Resolve for $t {
             fn resolve(
                 key: &str,
-                contributions: aqc_file_engine_core::merge::Contributions<Self>,
+                contributions: Vec<(aqc_file_engine_core::Provenance, Self)>,
                 conflicts: &mut Vec<aqc_file_engine_core::ConflictEntry>,
             ) -> Option<Self> {
                 if contributions
                     .iter()
                     .all(|(_, a)| matches!(a, Self::Contains(_)))
                 {
-                    let maps: aqc_file_engine_core::merge::Contributions<$entries> = contributions
+                    let maps: Vec<(aqc_file_engine_core::Provenance, $entries)> = contributions
                         .into_iter()
                         .filter_map(|(p, a)| match a {
                             Self::Contains(m) => Some((p, m)),

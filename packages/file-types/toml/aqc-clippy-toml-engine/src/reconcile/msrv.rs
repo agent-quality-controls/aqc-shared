@@ -1,8 +1,12 @@
 //! Reconciliation for clippy.toml's `msrv` key.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity, parse_version_tuple};
+use aqc_file_engine_core::{Finding, Provenance, Severity, parse_version_tuple};
 use toml_edit::{DocumentMut, Item, value};
 
 use crate::reconcile::util::all_provenances;
@@ -11,7 +15,7 @@ use crate::requirement::MsrvAssertion;
 /// Apply every `msrv` contribution to the document.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: &MergedAssertion<MsrvAssertion>,
+    merged: &Vec<(Provenance, MsrvAssertion)>,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = all_provenances(merged);
@@ -20,7 +24,7 @@ pub(crate) fn apply(
         .and_then(Item::as_str)
         .map(ToOwned::to_owned);
 
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         apply_one(doc, current.as_deref(), assertion, &attribution, findings);
     }
 }
@@ -63,7 +67,7 @@ fn apply_equals(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: "msrv".into(),
+        key: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: want.to_owned(),
         message: message.to_owned(),
@@ -86,7 +90,7 @@ fn apply_at_least(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: "msrv".into(),
+        key: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: format!("at least {min}"),
         message: message.to_owned(),
@@ -108,7 +112,7 @@ fn apply_one_of(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: "msrv".into(),
+        key: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: format!("one of {allowed:?}"),
         message: message.to_owned(),
@@ -128,7 +132,7 @@ fn apply_present(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: "msrv".into(),
+        key: "msrv".into(),
         current: None,
         expected: "any value (Present)".into(),
         message: message.to_owned(),
@@ -149,7 +153,7 @@ fn apply_absent(
         return;
     }
     findings.push(Finding::Mismatch {
-        path: "msrv".into(),
+        key: "msrv".into(),
         current: current.map(ToOwned::to_owned),
         expected: "absent".into(),
         message: message.to_owned(),

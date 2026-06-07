@@ -2,9 +2,13 @@
 //!
 //! Lazy: check-only assertions and vacuous removals never create `[workspace]`.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConfigScalar, Finding, MergedAssertion, Provenance};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance};
 use toml_edit::{DocumentMut, Item, Table};
 
 use crate::reconcile::util::{
@@ -17,18 +21,14 @@ use crate::requirement::WorkspaceFieldAssertion;
 const PREFIX: &str = "workspace";
 
 /// Apply every direct `[workspace].<key>` contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_key: &BTreeMap<String, MergedAssertion<WorkspaceFieldAssertion>>,
+    merged_by_key: &BTreeMap<String, Vec<(Provenance, WorkspaceFieldAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (key, merged) in merged_by_key {
         let attribution = all_provenances(merged);
-        for (_, assertion) in &merged.contributions {
+        for (_, assertion) in merged {
             apply_one(doc, key, assertion, &attribution, findings);
         }
     }

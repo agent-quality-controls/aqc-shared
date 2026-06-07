@@ -1,11 +1,14 @@
 //! `[package].<field>` / `[workspace.package].<field>` assertions.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::merge::Contributions;
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, FromEmpty, FromEmptyClass, Msg, Provenance, Resolve,
-    resolve_scalar, union_string_lists, union_string_sets,
+    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, resolve_scalar,
+    union_string_lists, union_string_sets,
 };
 
 /// What must hold about a single `[package].<field>` (or
@@ -77,8 +80,8 @@ impl Resolve for PackageFieldAssertion {
     }
 }
 
-impl FromEmptyClass for PackageFieldAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for PackageFieldAssertion {
+    fn on_empty(&self) -> OnEmpty {
         match self {
             Self::Equals(..)
             | Self::AtLeastVersion(..)
@@ -86,15 +89,15 @@ impl FromEmptyClass for PackageFieldAssertion {
             | Self::ListExcludes(..)
             | Self::ListIsExactly(..)
             | Self::InheritsWorkspace(..)
-            | Self::Absent(..) => FromEmpty::Writes,
-            Self::OneOf(..) | Self::Present(..) => FromEmpty::ChecksOnly,
+            | Self::Absent(..) => OnEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
 }
 
 /// Union `ListContains` element lists via the core helper.
 fn union_list_contains(
-    contributions: Contributions<PackageFieldAssertion>,
+    contributions: Vec<(Provenance, PackageFieldAssertion)>,
 ) -> PackageFieldAssertion {
     let lists = contributions
         .into_iter()
@@ -112,7 +115,7 @@ fn union_list_contains(
 
 /// Union `ListExcludes` element sets via the core helper.
 fn union_list_excludes(
-    contributions: Contributions<PackageFieldAssertion>,
+    contributions: Vec<(Provenance, PackageFieldAssertion)>,
 ) -> PackageFieldAssertion {
     let sets = contributions
         .into_iter()

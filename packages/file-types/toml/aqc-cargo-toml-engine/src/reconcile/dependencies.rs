@@ -9,9 +9,13 @@
 //! Lazy: an `Excludes`-only requirement against a missing table writes nothing.
 //! A `Contains` entry with no source (cargo would reject it) is check-only.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, Severity};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, Value};
 
 use crate::reconcile::util::{all_provenances, ensure_table_at, table_at, table_at_mut};
@@ -27,13 +31,9 @@ pub(crate) enum SetRule {
 }
 
 /// Apply every scoped dependency-table contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<DependencyScope, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_scope: &BTreeMap<DependencyScope, MergedAssertion<DependencySetAssertion>>,
+    merged_by_scope: &BTreeMap<DependencyScope, Vec<(Provenance, DependencySetAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (scope, merged) in merged_by_scope {
@@ -71,11 +71,11 @@ pub(crate) fn apply_set(
     path: &[String],
     display_path: &str,
     rule: SetRule,
-    merged: &MergedAssertion<DependencySetAssertion>,
+    merged: &Vec<(Provenance, DependencySetAssertion)>,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = all_provenances(merged);
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         match assertion {
             DependencySetAssertion::Contains(map) | DependencySetAssertion::IsExactly(map) => {
                 apply_contains(doc, path, display_path, rule, map, &attribution, findings);
@@ -91,10 +91,6 @@ pub(crate) fn apply_set(
 }
 
 /// Each `(name, spec)` must be present and partial-match.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<name, (DependencySpec, Msg)> mirrors the assertion's value shape."
-)]
 fn apply_contains(
     doc: &mut DocumentMut,
     path: &[String],
@@ -106,10 +102,13 @@ fn apply_contains(
 ) {
     for (name, (spec, msg)) in map {
         if rule == SetRule::WorkspaceDeps && spec.optional.is_some() {
-            findings.push(Finding::SchemaError {
-                path: format!("{display_path}.{name}"),
+            findings.push(Finding::InvalidRequirements {
+                key: format!("{display_path}.{name}"),
                 message: format!("optional is invalid in [workspace.dependencies].{name}. {msg}"),
-                severity: Severity::Error,
+                contributors: attribution
+                    .iter()
+                    .map(|p| (p.policy.clone(), format!("{name} (optional)")))
+                    .collect(),
             });
             continue;
         }
@@ -119,7 +118,7 @@ fn apply_contains(
         }
         let writable = spec.has_source();
         findings.push(Finding::Mismatch {
-            path: format!("{display_path}.{name}"),
+            key: format!("{display_path}.{name}"),
             current: current.as_ref().map(|s| format!("{s:?}")),
             expected: if writable {
                 format!("{spec:?}")
@@ -150,7 +149,7 @@ fn apply_excludes(
             continue;
         };
         findings.push(Finding::Mismatch {
-            path: format!("{display_path}.{name}"),
+            key: format!("{display_path}.{name}"),
             current: Some(format!("{current:?}")),
             expected: "absent".to_owned(),
             message: msg.clone(),
@@ -180,7 +179,7 @@ fn apply_exact_extras(
     for extra in &extras {
         let current = table_at(doc, path).and_then(|t| read_spec(t, extra));
         findings.push(Finding::Mismatch {
-            path: format!("{display_path}.{extra}"),
+            key: format!("{display_path}.{extra}"),
             current: current.map(|s| format!("{s:?}")),
             expected: "absent (IsExactly)".to_owned(),
             message: String::new(),
@@ -335,9 +334,9 @@ fn put_str(t: &mut InlineTable, k: &str, v: Option<&String>) {
 }
 
 /// Union of allowed names if every contribution is `IsExactly`; else `None`.
-fn is_exactly_only(merged: &MergedAssertion<DependencySetAssertion>) -> Option<BTreeSet<String>> {
+fn is_exactly_only(merged: &Vec<(Provenance, DependencySetAssertion)>) -> Option<BTreeSet<String>> {
     let mut combined: BTreeSet<String> = BTreeSet::new();
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         match assertion {
             DependencySetAssertion::IsExactly(map) => combined.extend(map.keys().cloned()),
             DependencySetAssertion::Contains(_) | DependencySetAssertion::Excludes(_) => {

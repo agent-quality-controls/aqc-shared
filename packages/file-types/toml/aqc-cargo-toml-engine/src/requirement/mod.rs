@@ -34,7 +34,7 @@ pub use features::FeatureSetAssertion;
 pub use lints::LintEntries;
 pub use lints::LintEntry;
 pub use lints::LintLevelsAssertion;
-pub use lints::LintsInheritAssertion;
+pub use lints::PackageLintsAssertion;
 pub use package::PackageFieldAssertion;
 pub use profiles::ProfileAssertion;
 pub use profiles::ProfileFieldAssertion;

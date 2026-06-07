@@ -1,9 +1,13 @@
 //! Reconciliation for clippy.toml ban tables. One implementation,
 //! reused for `disallowed-methods`, `disallowed-types`, `disallowed-macros`.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, Severity};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
 
 use crate::reconcile::util::all_provenances;
@@ -17,7 +21,7 @@ use crate::requirement::{BanEntry, BansAssertion};
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     table_key: &str,
-    merged: &MergedAssertion<BansAssertion>,
+    merged: &Vec<(Provenance, BansAssertion)>,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = all_provenances(merged);
@@ -27,7 +31,7 @@ pub(crate) fn apply(
         .as_array_mut()
         .expect("ban table is an array");
     let mut current_paths = collect_current_paths(array);
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         apply_one(
             table_key,
             array,
@@ -84,7 +88,7 @@ fn apply_contains(
         array.push(ban_value(entry));
         let _ = current_paths.insert(entry.path.clone());
         findings.push(Finding::Mismatch {
-            path: format!("{table_key}[?path == \"{}\"]", entry.path),
+            key: format!("{table_key}[?path == \"{}\"]", entry.path),
             current: None,
             expected: format_entry(entry),
             message: entry.message.clone(),
@@ -107,7 +111,7 @@ fn apply_excludes(
         for i in positions.into_iter().rev() {
             let _ = array.remove(i);
             findings.push(Finding::Mismatch {
-                path: format!("{table_key}[?path == \"{path_to_remove}\"]"),
+                key: format!("{table_key}[?path == \"{path_to_remove}\"]"),
                 current: Some(path_to_remove.clone()),
                 expected: "absent".into(),
                 message: message.clone(),
@@ -138,7 +142,7 @@ fn prune_extras(
     for (i, p) in indices_to_remove.into_iter().rev() {
         let _ = array.remove(i);
         findings.push(Finding::Mismatch {
-            path: format!("{table_key}[?path == \"{p}\"]"),
+            key: format!("{table_key}[?path == \"{p}\"]"),
             current: Some(p),
             expected: "absent (IsExactly)".into(),
             message: String::new(),
@@ -207,9 +211,9 @@ fn format_entry(entry: &BanEntry) -> String {
 }
 
 /// If every contribution is `IsExactly`, return the union of entries.
-fn is_exactly_only(merged: &MergedAssertion<BansAssertion>) -> Option<Vec<BanEntry>> {
+fn is_exactly_only(merged: &Vec<(Provenance, BansAssertion)>) -> Option<Vec<BanEntry>> {
     let mut combined = Vec::new();
-    for (_, a) in &merged.contributions {
+    for (_, a) in merged {
         match a {
             BansAssertion::IsExactly(v) => combined.extend(v.iter().cloned()),
             BansAssertion::Contains(_) | BansAssertion::Excludes(_) => return None,

@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{FromEmpty, FromEmptyClass, Msg};
+use aqc_file_engine_core::{Msg, OnEmpty, OnEmptyClass};
 
 use super::macros::{impl_keyed_entries_eq, impl_set_resolve};
 
@@ -33,9 +33,9 @@ impl_set_resolve!(
     |entry: &FeatureEntry| entry.0.clone()
 );
 
-impl FromEmptyClass for FeatureSetAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for FeatureSetAssertion {
+    fn on_empty(&self) -> OnEmpty {
         // A feature entry is self-contained (name -> list); always writable.
-        FromEmpty::Writes
+        OnEmpty::Writes
     }
 }

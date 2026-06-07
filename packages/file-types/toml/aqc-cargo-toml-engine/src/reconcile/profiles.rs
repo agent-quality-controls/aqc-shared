@@ -4,9 +4,13 @@
 //! Lazy: check-only field assertions (`OneOf`, `Present`) and vacuous removals
 //! create no tables.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{ConfigScalar, Finding, MergedAssertion, Provenance};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance};
 use toml_edit::{DocumentMut, Item};
 
 use crate::reconcile::util::{
@@ -16,18 +20,14 @@ use crate::reconcile::util::{
 use crate::requirement::{ProfileAssertion, ProfileFieldAssertion};
 
 /// Apply every `[profile.<name>]` contribution.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<String, MergedAssertion<...>> is the natural section input shape"
-)]
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_profile: &BTreeMap<String, MergedAssertion<ProfileAssertion>>,
+    merged_by_profile: &BTreeMap<String, Vec<(Provenance, ProfileAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     for (profile, merged) in merged_by_profile {
         let attribution = all_provenances(merged);
-        for (_, assertion) in &merged.contributions {
+        for (_, assertion) in merged {
             apply_profile(doc, profile, assertion, &attribution, findings);
         }
     }

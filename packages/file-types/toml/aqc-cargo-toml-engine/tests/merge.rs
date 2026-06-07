@@ -8,9 +8,9 @@ use toml_edit as _;
 mod merge {
     use aqc_cargo_toml_engine::{
         CargoTomlRequirement, DependencyKind, DependencyScope, DependencySetAssertion,
-        DependencySpec, PackageFieldAssertion,
+        DependencySpec, LintLevelsAssertion, PackageFieldAssertion, PackageLintsAssertion,
     };
-    use aqc_file_engine_core::{ConfigScalar, MergedAssertion, Provenance};
+    use aqc_file_engine_core::{ConfigScalar, Provenance};
     use std::collections::BTreeMap;
 
     /// A requirement asserting one `[package].<field>` from one policy.
@@ -22,14 +22,12 @@ mod merge {
         let mut r = CargoTomlRequirement::default();
         let _ = r.package_fields.insert(
             field.to_owned(),
-            MergedAssertion {
-                contributions: vec![(
-                    Provenance {
-                        policy: policy.to_owned(),
-                    },
-                    assertion,
-                )],
-            },
+            vec![(
+                Provenance {
+                    policy: policy.to_owned(),
+                },
+                assertion,
+            )],
         );
         r
     }
@@ -62,14 +60,12 @@ mod merge {
                 kind: DependencyKind::Normal,
                 target: None,
             },
-            MergedAssertion {
-                contributions: vec![(
-                    Provenance {
-                        policy: policy.to_owned(),
-                    },
-                    DependencySetAssertion::Contains(entries),
-                )],
-            },
+            vec![(
+                Provenance {
+                    policy: policy.to_owned(),
+                },
+                DependencySetAssertion::Contains(entries),
+            )],
         );
         r
     }
@@ -106,10 +102,7 @@ mod merge {
             merged.package_fields.contains_key("edition"),
             "the agreed edition survives"
         );
-        let contribution_count = merged
-            .package_fields
-            .get("edition")
-            .map_or(0, |m| m.contributions.len());
+        let contribution_count = merged.package_fields.get("edition").map_or(0, Vec::len);
         assert_eq!(contribution_count, 2, "both provenances are kept");
     }
 
@@ -156,15 +149,62 @@ mod merge {
             target: None,
         };
         let kept = merged.dependencies.get(&scope).is_some_and(|m| {
-            m.contributions
-                .iter()
-                .all(|(_, assertion)| match assertion {
-                    DependencySetAssertion::Contains(map) => !map.contains_key("serde"),
-                    DependencySetAssertion::Excludes(_) | DependencySetAssertion::IsExactly(_) => {
-                        true
-                    }
-                })
+            m.iter().all(|(_, assertion)| match assertion {
+                DependencySetAssertion::Contains(map) => !map.contains_key("serde"),
+                DependencySetAssertion::Excludes(_) | DependencySetAssertion::IsExactly(_) => true,
+            })
         });
         assert!(kept, "the conflicting entry is dropped from the merged set");
+    }
+
+    #[test]
+    fn package_lints_inherit_vs_inline_conflicts() {
+        // The [lints] either/or key: one policy asserts the inherit opt-in,
+        // another asserts inline tables -- cargo forbids the combination, so
+        // the merge surfaces it as a conflict naming both policies.
+        let a = CargoTomlRequirement {
+            package_lints: Some(vec![(
+                Provenance {
+                    policy: "p-inherit".to_owned(),
+                },
+                PackageLintsAssertion::Inherit(true, "inherit the workspace tables".to_owned()),
+            )]),
+            ..CargoTomlRequirement::default()
+        };
+        let mut tools = BTreeMap::new();
+        let _ = tools.insert(
+            "clippy".to_owned(),
+            LintLevelsAssertion::Contains(BTreeMap::from([(
+                "unwrap_used".to_owned(),
+                ("deny".to_owned(), None, "no unwraps".to_owned()),
+            )])),
+        );
+        let b = CargoTomlRequirement {
+            package_lints: Some(vec![(
+                Provenance {
+                    policy: "p-inline".to_owned(),
+                },
+                PackageLintsAssertion::Inline(tools),
+            )]),
+            ..CargoTomlRequirement::default()
+        };
+        let (merged, conflicts) = CargoTomlRequirement::merge(&[&a, &b]);
+        assert!(
+            merged.package_lints.is_none(),
+            "the conflicted [lints] key is dropped, not written"
+        );
+        assert_eq!(conflicts.len(), 1, "exactly one conflict: {conflicts:?}");
+        let entry = conflicts.first().expect("one conflict entry");
+        assert_eq!(entry.key, "[lints]", "the conflict is at the [lints] key");
+        let policies: Vec<&str> = entry
+            .contributors
+            .iter()
+            .map(|(p, _)| p.policy.as_str())
+            .collect();
+        assert_eq!(
+            policies,
+            vec!["p-inherit", "p-inline"],
+            "both policies are named"
+        );
     }
 }

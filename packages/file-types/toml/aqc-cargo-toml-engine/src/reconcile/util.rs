@@ -5,31 +5,29 @@
 //! write). Reads go through `doc.get(..)` / `table.get(..)`; the
 //! `ensure_*` helpers create a table only when a write is about to happen.
 
-use aqc_file_engine_core::{
-    ConfigScalar, Finding, MergedAssertion, Provenance, Severity, parse_version_tuple,
-};
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, Severity, parse_version_tuple};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value, value};
 
-/// Collect provenances of all contributions in a `MergedAssertion`.
-pub(crate) fn all_provenances<A>(merged: &MergedAssertion<A>) -> Vec<Provenance> {
-    merged
-        .contributions
-        .iter()
-        .map(|(p, _)| p.clone())
-        .collect()
+/// Collect the provenances of a collected-assertion list.
+pub(crate) fn all_provenances<A>(pairs: &[(Provenance, A)]) -> Vec<Provenance> {
+    pairs.iter().map(|(p, _)| p.clone()).collect()
 }
 
 /// Push a writable-key `Mismatch` finding (Error severity).
 pub(crate) fn push_mismatch(
     findings: &mut Vec<Finding>,
-    path: String,
+    key: String,
     current: Option<String>,
     expected: String,
     message: String,
     attribution: &[Provenance],
 ) {
     findings.push(Finding::Mismatch {
-        path,
+        key,
         current,
         expected,
         message,

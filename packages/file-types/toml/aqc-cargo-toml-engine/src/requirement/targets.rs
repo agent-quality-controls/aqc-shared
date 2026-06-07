@@ -1,11 +1,14 @@
 //! Target-table assertions: `[lib]` fields and the named `[[bin]]` /
 //! `[[example]]` / `[[test]]` / `[[bench]]` entries.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::merge::Contributions;
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, FromEmpty, FromEmptyClass, Msg, Provenance, Resolve, merge_map,
+    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, merge_map,
     resolve_scalar, union_string_lists,
 };
 
@@ -59,14 +62,14 @@ impl Resolve for TargetFieldAssertion {
     }
 }
 
-impl FromEmptyClass for TargetFieldAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for TargetFieldAssertion {
+    fn on_empty(&self) -> OnEmpty {
         match self {
             Self::Equals(..)
             | Self::ListContains(..)
             | Self::ListIsExactly(..)
-            | Self::Absent(..) => FromEmpty::Writes,
-            Self::OneOf(..) | Self::Present(..) => FromEmpty::ChecksOnly,
+            | Self::Absent(..) => OnEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
 }
@@ -124,16 +127,16 @@ impl Resolve for TargetTableAssertion {
     }
 }
 
-impl FromEmptyClass for TargetTableAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for TargetTableAssertion {
+    fn on_empty(&self) -> OnEmpty {
         match self {
-            Self::Present(_) | Self::Absent(_) => FromEmpty::Writes,
+            Self::Present(_) | Self::Absent(_) => OnEmpty::Writes,
             // Writable when every asserted field is writable.
             Self::Fields(map) => {
-                if map.values().any(|a| a.on_empty() == FromEmpty::ChecksOnly) {
-                    FromEmpty::ChecksOnly
+                if map.values().any(|a| a.on_empty() == OnEmpty::ChecksOnly) {
+                    OnEmpty::ChecksOnly
                 } else {
-                    FromEmpty::Writes
+                    OnEmpty::Writes
                 }
             }
         }
@@ -141,7 +144,9 @@ impl FromEmptyClass for TargetTableAssertion {
 }
 
 /// Union `ListContains` element lists via the core helper.
-fn union_list_contains(contributions: Contributions<TargetFieldAssertion>) -> TargetFieldAssertion {
+fn union_list_contains(
+    contributions: Vec<(Provenance, TargetFieldAssertion)>,
+) -> TargetFieldAssertion {
     let lists = contributions
         .into_iter()
         .filter_map(|(_, a)| {

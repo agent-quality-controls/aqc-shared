@@ -3,9 +3,8 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::merge::Contributions;
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, FromEmpty, FromEmptyClass, Msg, Provenance, Resolve, merge_map,
+    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, merge_map,
 };
 
 /// What must hold about a single profile field (`opt-level`, `lto`, ...).
@@ -35,11 +34,11 @@ impl PartialEq for ProfileFieldAssertion {
     }
 }
 
-impl FromEmptyClass for ProfileFieldAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for ProfileFieldAssertion {
+    fn on_empty(&self) -> OnEmpty {
         match self {
-            Self::Equals(..) | Self::Absent(..) => FromEmpty::Writes,
-            Self::OneOf(..) | Self::Present(..) => FromEmpty::ChecksOnly,
+            Self::Equals(..) | Self::Absent(..) => OnEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
 }
@@ -48,7 +47,7 @@ impl FromEmptyClass for ProfileFieldAssertion {
 pub type ProfileFields = BTreeMap<String, ProfileFieldAssertion>;
 
 /// Per-package-spec override contributions gathered during resolve.
-type OverrideContributions = BTreeMap<String, Contributions<ProfileFields>>;
+type OverrideContributions = BTreeMap<String, Vec<(Provenance, ProfileFields)>>;
 
 /// What must hold about a `[profile.<name>]` table: its direct fields, its
 /// per-package overrides, and its `build-override` table.
@@ -109,8 +108,8 @@ impl Resolve for ProfileAssertion {
     }
 }
 
-impl FromEmptyClass for ProfileAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for ProfileAssertion {
+    fn on_empty(&self) -> OnEmpty {
         // Writable when every contained field assertion is writable.
         let all_fields = self
             .fields
@@ -118,10 +117,10 @@ impl FromEmptyClass for ProfileAssertion {
             .chain(self.build_override.values())
             .chain(self.package_overrides.values().flat_map(BTreeMap::values));
         for a in all_fields {
-            if a.on_empty() == FromEmpty::ChecksOnly {
-                return FromEmpty::ChecksOnly;
+            if a.on_empty() == OnEmpty::ChecksOnly {
+                return OnEmpty::ChecksOnly;
             }
         }
-        FromEmpty::Writes
+        OnEmpty::Writes
     }
 }

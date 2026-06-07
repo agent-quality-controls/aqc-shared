@@ -1,6 +1,6 @@
 //! Table-level existence assertions per manifest section.
 
-use aqc_file_engine_core::{ConflictEntry, FromEmpty, Msg, Provenance, Resolve, resolve_scalar};
+use aqc_file_engine_core::{ConflictEntry, Msg, OnEmpty, Provenance, Resolve, resolve_scalar};
 
 /// The manifest sections whose *existence* is controllable. Closed set (D7):
 /// presence control only for sections whose content is either covered by a
@@ -82,16 +82,16 @@ impl Resolve for SectionPresenceAssertion {
 
 impl SectionPresenceAssertion {
     /// The class depends on the section, so it is answered by the pair
-    /// (an orphan-rule-safe inherent method instead of [`FromEmptyClass`]):
+    /// (an orphan-rule-safe inherent method instead of [`OnEmptyClass`]):
     /// `Present([workspace])` writes an empty table; `Present([package])` is
     /// check-only because `[package]` needs a `name` the engine cannot
     /// invent. `Absent` always writes (nothing to do on an empty file;
     /// delete when present).
     #[must_use]
-    pub const fn on_empty_in(&self, section: ManifestSection) -> FromEmpty {
+    pub const fn on_empty_in(&self, section: ManifestSection) -> OnEmpty {
         match (section, self) {
-            (ManifestSection::Package, Self::Present(_)) => FromEmpty::ChecksOnly,
-            (_, Self::Absent(_) | Self::Present(_)) => FromEmpty::Writes,
+            (ManifestSection::Package, Self::Present(_)) => OnEmpty::ChecksOnly,
+            (_, Self::Absent(_) | Self::Present(_)) => OnEmpty::Writes,
         }
     }
 }

@@ -29,8 +29,8 @@ pub use finding::Finding;
 #[cfg(feature = "api")]
 pub use merge::{
     ConflictEntry, Resolve, keyed_entries_eq, merge_map, merge_map_by, resolve_exact,
-    resolve_field, resolve_optional, resolve_scalar, union_assertion, union_field,
-    union_first_wins, union_optional, union_string_lists, union_string_sets,
+    resolve_field, resolve_optional, resolve_scalar, union_field, union_first_wins, union_optional,
+    union_string_lists, union_string_sets,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;
@@ -38,6 +38,5 @@ pub use requirement::EngineRequirement;
 pub use toml_helpers::{parse_or_report, parse_version_tuple};
 #[cfg(feature = "api")]
 pub use types::{
-    ConfigScalar, EngineOutput, FromEmpty, FromEmptyClass, MergedAssertion, Msg, PolicyId,
-    Provenance, Severity,
+    ConfigScalar, EngineOutput, Msg, OnEmpty, OnEmptyClass, PolicyId, Provenance, Severity,
 };

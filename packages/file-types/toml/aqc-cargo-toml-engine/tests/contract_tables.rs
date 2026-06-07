@@ -2,6 +2,10 @@
 //! features, profiles, target tables, and patch. Split from `contract.rs` to
 //! keep file size in bounds; same `contract::` module path.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)>; declared openly (taxonomy decision 2026-06-07)."
+)]
 use toml_edit as _;
 
 mod contract {
@@ -13,8 +17,7 @@ mod contract {
         ProfileFieldAssertion, TargetFieldAssertion, TargetTableAssertion,
     };
     use aqc_file_engine_core::{
-        ConfigScalar, FileEngine, FromEmpty, FromEmptyClass, MergedAssertion, Provenance,
-        check_from_empty,
+        ConfigScalar, FileEngine, OnEmpty, OnEmptyClass, Provenance, check_from_empty,
     };
 
     /// The engine's typed reconcile, as the harness expects it.
@@ -25,20 +28,18 @@ mod contract {
         <CargoTomlEngine as FileEngine<CargoTomlRequirement>>::reconcile(current, req)
     }
 
-    /// Wrap one assertion as a single-policy `MergedAssertion`.
-    fn ma<A>(a: A) -> MergedAssertion<A> {
-        MergedAssertion {
-            contributions: vec![(
-                Provenance {
-                    policy: "fixture".to_owned(),
-                },
-                a,
-            )],
-        }
+    /// Wrap one assertion as a single-policy collected list.
+    fn ma<A>(a: A) -> Vec<(Provenance, A)> {
+        vec![(
+            Provenance {
+                policy: "fixture".to_owned(),
+            },
+            a,
+        )]
     }
 
     /// Run the harness with the assertion's own declared class.
-    fn law(req: &CargoTomlRequirement, class: FromEmpty, what: &str) {
+    fn law(req: &CargoTomlRequirement, class: OnEmpty, what: &str) {
         let outcome = check_from_empty(reconcile, req, class);
         assert!(outcome.is_ok(), "{what}: {outcome:?}");
     }
@@ -85,11 +86,7 @@ mod contract {
             ..DependencySpec::default()
         };
         let a = DependencySetAssertion::Contains(dep_entries(spec));
-        assert_eq!(
-            a.on_empty(),
-            FromEmpty::Writes,
-            "a sourced spec is writable"
-        );
+        assert_eq!(a.on_empty(), OnEmpty::Writes, "a sourced spec is writable");
         let req = dep_req(normal_scope(), a.clone());
         law(&req, a.on_empty(), "dependency Contains with source");
         let out = reconcile(None, &req);
@@ -109,7 +106,7 @@ mod contract {
         let a = DependencySetAssertion::Contains(dep_entries(spec));
         assert_eq!(
             a.on_empty(),
-            FromEmpty::ChecksOnly,
+            OnEmpty::ChecksOnly,
             "a spec with no source cannot create the entry"
         );
         let req = dep_req(normal_scope(), a.clone());
@@ -193,8 +190,8 @@ mod contract {
         assert!(
             out.findings
                 .iter()
-                .any(|f| matches!(f, aqc_file_engine_core::Finding::SchemaError { .. })),
-            "optional in [workspace.dependencies] is a SchemaError: {:?}",
+                .any(|f| matches!(f, aqc_file_engine_core::Finding::InvalidRequirements { .. })),
+            "optional in [workspace.dependencies] is InvalidRequirements: {:?}",
             out.findings
         );
     }
@@ -344,7 +341,7 @@ mod contract {
             TargetFieldAssertion::Equals(ConfigScalar::Bool(false), msg()),
         )]));
         let class = fields.on_empty();
-        assert_eq!(class, FromEmpty::Writes, "all-writable Fields is writable");
+        assert_eq!(class, OnEmpty::Writes, "all-writable Fields is writable");
         let mut fields_req = CargoTomlRequirement::default();
         let _ = fields_req.bin_targets.insert("g3rs".to_owned(), ma(fields));
         law(&fields_req, class, "bin Fields (writable)");
@@ -358,7 +355,7 @@ mod contract {
         )]));
         assert_eq!(
             fields.on_empty(),
-            FromEmpty::ChecksOnly,
+            OnEmpty::ChecksOnly,
             "a check-only field makes the entry check-only"
         );
         let mut req = CargoTomlRequirement::default();

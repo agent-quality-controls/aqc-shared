@@ -1,10 +1,14 @@
 //! `[lints.<tool>]` / `[workspace.lints.<tool>]` tables and the
 //! `[lints] workspace = <bool>` member opt-in.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
-    ConflictEntry, FromEmpty, FromEmptyClass, Msg, Provenance, Resolve, resolve_scalar,
+    ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, resolve_scalar,
 };
 
 use super::macros::impl_set_resolve;
@@ -45,57 +49,109 @@ impl_set_resolve!(LintLevelsAssertion, LintEntries, |entry: &LintEntry| (
     entry.1
 ));
 
-impl FromEmptyClass for LintLevelsAssertion {
-    fn on_empty(&self) -> FromEmpty {
+impl OnEmptyClass for LintLevelsAssertion {
+    fn on_empty(&self) -> OnEmpty {
         // Contains/IsExactly write the entries; Excludes is vacuously satisfied.
-        FromEmpty::Writes
+        OnEmpty::Writes
     }
 }
 
-/// Whether `[lints]` inherits the workspace lint tables (`workspace = <bool>`).
+/// `[lints]` is ONE either/or decision (cargo's own rule).
 ///
-/// The member opt-in that makes `[workspace.lints.*]` actually apply to a
-/// package. Cargo rejects a manifest combining `workspace = true` with inline
-/// `[lints.<tool>]` tables; the engine reports that combination as an Error
-/// instead of writing it.
-///
-/// Equality (and therefore merge agreement) ignores the policy message.
+/// A manifest either inherits the workspace tables (`workspace = <bool>`) or
+/// carries inline `[lints.<tool>]` tables -- never both. Modeling it as one
+/// key makes the inline-vs-inherit combination an ordinary merge conflict
+/// (`ConflictingRequirements` naming both policies) instead of an unwritable
+/// state the engine would have to refuse ad hoc.
 #[derive(Debug, Clone)]
-pub enum LintsInheritAssertion {
-    /// `[lints] workspace = <bool>`.
-    Equals(bool, Msg),
-    /// The `workspace` key is set, to anything (check-only).
-    Present(Msg),
-    /// The `workspace` key is not set.
-    Absent(Msg),
+pub enum PackageLintsAssertion {
+    /// `[lints] workspace = <bool>` (the member opt-in).
+    Inherit(bool, Msg),
+    /// Inline `[lints.<tool>]` tables, keyed by tool.
+    Inline(BTreeMap<String, LintLevelsAssertion>),
 }
 
-/// Semantic equality: messages excluded.
-impl PartialEq for LintsInheritAssertion {
+/// Semantic equality: the `Inherit` message is excluded.
+impl PartialEq for PackageLintsAssertion {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Equals(a, _), Self::Equals(b, _)) => a == b,
-            (Self::Present(_), Self::Present(_)) | (Self::Absent(_), Self::Absent(_)) => true,
+            (Self::Inherit(a, _), Self::Inherit(b, _)) => a == b,
+            (Self::Inline(a), Self::Inline(b)) => a == b,
             _ => false,
         }
     }
 }
 
-impl Resolve for LintsInheritAssertion {
+impl Resolve for PackageLintsAssertion {
     fn resolve(
         key: &str,
         contributions: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<Self> {
-        resolve_scalar(key, contributions, |a| format!("{a:?}"), conflicts)
+        let all_inherit = contributions
+            .iter()
+            .all(|(_, a)| matches!(a, Self::Inherit(..)));
+        let all_inline = contributions
+            .iter()
+            .all(|(_, a)| matches!(a, Self::Inline(..)));
+        if all_inherit {
+            return resolve_scalar(key, contributions, |a| format!("{a:?}"), conflicts);
+        }
+        if all_inline {
+            return Some(Self::Inline(resolve_inline(key, contributions, conflicts)));
+        }
+        // Mixed inherit + inline: cargo rejects the combination; the policy
+        // set disagrees on the one [lints] decision.
+        conflicts.push(ConflictEntry {
+            key: key.to_owned(),
+            contributors: contributions
+                .into_iter()
+                .map(|(p, a)| {
+                    let rendered = match a {
+                        Self::Inherit(b, _) => format!("inherit (workspace = {b})"),
+                        Self::Inline(tools) => {
+                            let names: Vec<&str> = tools.keys().map(String::as_str).collect();
+                            format!("inline [lints.<tool>] tables ({})", names.join(", "))
+                        }
+                    };
+                    (p, rendered)
+                })
+                .collect(),
+            reason: "scalar-disagree".to_owned(),
+        });
+        None
     }
 }
 
-impl FromEmptyClass for LintsInheritAssertion {
-    fn on_empty(&self) -> FromEmpty {
-        match self {
-            Self::Equals(..) | Self::Absent(..) => FromEmpty::Writes,
-            Self::Present(..) => FromEmpty::ChecksOnly,
+impl OnEmptyClass for PackageLintsAssertion {
+    fn on_empty(&self) -> OnEmpty {
+        // Both forms have one correct value; init writes it.
+        OnEmpty::Writes
+    }
+}
+
+/// Union all-`Inline` contributions per tool through the lint-table merge
+/// (message-insensitive); a per-tool disagreement drops that tool's table.
+fn resolve_inline(
+    key: &str,
+    contributions: Vec<(Provenance, PackageLintsAssertion)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> BTreeMap<String, LintLevelsAssertion> {
+    let mut by_tool: BTreeMap<String, Vec<(Provenance, LintLevelsAssertion)>> = BTreeMap::new();
+    for (prov, assertion) in contributions {
+        let PackageLintsAssertion::Inline(tools) = assertion else {
+            continue;
+        };
+        for (tool, table) in tools {
+            by_tool.entry(tool).or_default().push((prov.clone(), table));
         }
     }
+    let mut resolved = BTreeMap::new();
+    for (tool, pairs) in by_tool {
+        let tool_key = format!("{key}.{tool}");
+        if let Some(table) = LintLevelsAssertion::resolve(&tool_key, pairs, conflicts) {
+            let _ = resolved.insert(tool, table);
+        }
+    }
+    resolved
 }

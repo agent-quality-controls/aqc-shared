@@ -7,13 +7,13 @@
 )]
 
 use core::any::Any;
+use std::collections::BTreeMap;
 
-use aqc_file_engine_core::merge::AssertionMap;
-use aqc_file_engine_core::{ConflictEntry, EngineRequirement, MergedAssertion};
+use aqc_file_engine_core::{ConflictEntry, EngineRequirement, Provenance};
 
 use super::dependencies::{DependencyScope, DependencySetAssertion};
 use super::features::FeatureSetAssertion;
-use super::lints::{LintLevelsAssertion, LintsInheritAssertion};
+use super::lints::{LintLevelsAssertion, PackageLintsAssertion};
 use super::package::PackageFieldAssertion;
 use super::profiles::ProfileAssertion;
 use super::sections::{ManifestSection, SectionPresenceAssertion};
@@ -22,45 +22,47 @@ use super::workspace::WorkspaceFieldAssertion;
 
 /// Declarative requirement for the `Cargo.toml` engine.
 ///
-/// One field per addressable target. Each field's value is a
-/// `MergedAssertion<...>` (or map thereof) carrying the per-policy
-/// contributions.
+/// One field per addressable target. Each field's value is the collected
+/// per-policy assertions: `Vec<(Provenance, A)>` (or a per-key map thereof).
+#[expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct CargoTomlRequirement {
-    /// `[lints.<tool>]`, keyed by tool. Lint levels are the linter adapters' domain.
-    pub lints: AssertionMap<String, LintLevelsAssertion>,
+    /// The `[lints]` either/or decision: inherit the workspace tables or
+    /// carry inline `[lints.<tool>]` tables (one key; cargo forbids both).
+    pub package_lints: Option<Vec<(Provenance, PackageLintsAssertion)>>,
     /// `[workspace.lints.<tool>]`, keyed by tool.
-    pub workspace_lints: AssertionMap<String, LintLevelsAssertion>,
-    /// The `[lints] workspace = <bool>` member opt-in.
-    pub lints_inherit: Option<MergedAssertion<LintsInheritAssertion>>,
+    pub workspace_lints: BTreeMap<String, Vec<(Provenance, LintLevelsAssertion)>>,
     /// `[package].<field>`, keyed by field name.
-    pub package_fields: AssertionMap<String, PackageFieldAssertion>,
+    pub package_fields: BTreeMap<String, Vec<(Provenance, PackageFieldAssertion)>>,
     /// `[workspace.package].<field>`, keyed by field name.
-    pub workspace_package_fields: AssertionMap<String, PackageFieldAssertion>,
+    pub workspace_package_fields: BTreeMap<String, Vec<(Provenance, PackageFieldAssertion)>>,
     /// `[workspace].<key>` (resolver, members, exclude, default-members).
-    pub workspace_fields: AssertionMap<String, WorkspaceFieldAssertion>,
+    pub workspace_fields: BTreeMap<String, Vec<(Provenance, WorkspaceFieldAssertion)>>,
     /// Table-level existence per manifest section.
-    pub section_presence: AssertionMap<ManifestSection, SectionPresenceAssertion>,
+    pub section_presence: BTreeMap<ManifestSection, Vec<(Provenance, SectionPresenceAssertion)>>,
     /// Dependency tables, keyed by scope (kind + optional `cfg` target).
-    pub dependencies: AssertionMap<DependencyScope, DependencySetAssertion>,
+    pub dependencies: BTreeMap<DependencyScope, Vec<(Provenance, DependencySetAssertion)>>,
     /// `[workspace.dependencies]`.
-    pub workspace_dependencies: Option<MergedAssertion<DependencySetAssertion>>,
+    pub workspace_dependencies: Option<Vec<(Provenance, DependencySetAssertion)>>,
     /// `[features]`.
-    pub features: Option<MergedAssertion<FeatureSetAssertion>>,
+    pub features: Option<Vec<(Provenance, FeatureSetAssertion)>>,
     /// `[profile.<name>]`, keyed by profile name.
-    pub profiles: AssertionMap<String, ProfileAssertion>,
+    pub profiles: BTreeMap<String, Vec<(Provenance, ProfileAssertion)>>,
     /// `[lib].<field>`, keyed by field name (singleton target table).
-    pub lib_fields: AssertionMap<String, TargetFieldAssertion>,
+    pub lib_fields: BTreeMap<String, Vec<(Provenance, TargetFieldAssertion)>>,
     /// `[[bin]]` entries, keyed by target name.
-    pub bin_targets: AssertionMap<String, TargetTableAssertion>,
+    pub bin_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
     /// `[[example]]` entries, keyed by target name.
-    pub example_targets: AssertionMap<String, TargetTableAssertion>,
+    pub example_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
     /// `[[test]]` entries, keyed by target name.
-    pub test_targets: AssertionMap<String, TargetTableAssertion>,
+    pub test_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
     /// `[[bench]]` entries, keyed by target name.
-    pub bench_targets: AssertionMap<String, TargetTableAssertion>,
+    pub bench_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
     /// `[patch.<registry>]`, keyed by registry name.
-    pub patch: AssertionMap<String, DependencySetAssertion>,
+    pub patch: BTreeMap<String, Vec<(Provenance, DependencySetAssertion)>>,
 }
 
 impl CargoTomlRequirement {
@@ -70,7 +72,7 @@ impl CargoTomlRequirement {
     /// Phase 1 of reconciliation: pure, disk-independent. Per field, union the
     /// contributions, then resolve each key (identical → collapse, set/map →
     /// union keys, disagreement → [`ConflictEntry`]). The engine turns each
-    /// entry into a `Finding::PolicyConflict`.
+    /// entry into a `Finding::ConflictingRequirements`.
     #[must_use]
     #[expect(
         clippy::type_complexity,
@@ -83,12 +85,11 @@ impl CargoTomlRequirement {
     pub fn merge(reqs: &[&Self]) -> (Self, Vec<ConflictEntry>) {
         let mut u = Self::default();
         for r in reqs {
-            aqc_file_engine_core::union_field(&mut u.lints, r.lints.clone());
-            aqc_file_engine_core::union_field(&mut u.workspace_lints, r.workspace_lints.clone());
-            u.lints_inherit = aqc_file_engine_core::union_optional(
-                u.lints_inherit.take(),
-                r.lints_inherit.clone(),
+            u.package_lints = aqc_file_engine_core::union_optional(
+                u.package_lints.take(),
+                r.package_lints.clone(),
             );
+            aqc_file_engine_core::union_field(&mut u.workspace_lints, r.workspace_lints.clone());
             aqc_file_engine_core::union_field(&mut u.package_fields, r.package_fields.clone());
             aqc_file_engine_core::union_field(
                 &mut u.workspace_package_fields,
@@ -113,19 +114,14 @@ impl CargoTomlRequirement {
         }
         let mut conflicts = Vec::new();
         let out = Self {
-            lints: aqc_file_engine_core::resolve_field(
-                u.lints,
-                |t| format!("[lints.{t}]"),
+            package_lints: aqc_file_engine_core::resolve_optional(
+                "[lints]",
+                u.package_lints,
                 &mut conflicts,
             ),
             workspace_lints: aqc_file_engine_core::resolve_field(
                 u.workspace_lints,
                 |t| format!("[workspace.lints.{t}]"),
-                &mut conflicts,
-            ),
-            lints_inherit: aqc_file_engine_core::resolve_optional(
-                "[lints].workspace",
-                u.lints_inherit,
                 &mut conflicts,
             ),
             package_fields: aqc_file_engine_core::resolve_field(

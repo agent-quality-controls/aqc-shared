@@ -17,7 +17,7 @@ pub use requirement::{
     CargoTomlRequirement, DependencyKind, DependencyScope, DependencySetAssertion, DependencySpec,
 };
 #[cfg(feature = "api")]
-pub use requirement::{FeatureSetAssertion, LintLevelsAssertion, LintsInheritAssertion};
+pub use requirement::{FeatureSetAssertion, LintLevelsAssertion, PackageLintsAssertion};
 #[cfg(feature = "api")]
 pub use requirement::{ManifestSection, PackageFieldAssertion, SectionPresenceAssertion};
 #[cfg(feature = "api")]

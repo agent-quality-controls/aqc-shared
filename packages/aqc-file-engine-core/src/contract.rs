@@ -1,6 +1,6 @@
 //! The shared from-empty contract harness.
 //!
-//! Binds an assertion's declared [`FromEmpty`] class to the engine's actual
+//! Binds an assertion's declared [`OnEmpty`] class to the engine's actual
 //! reconcile behavior. Every engine runs these two laws over every variant of
 //! every assertion enum in its test catalogue; a wrong declaration or a wrong
 //! apply fails the law, so the declaration, the behavior, and the test hold
@@ -10,7 +10,7 @@
 //! `assert!` on them with a message under the workspace's no-panic lints.
 
 use crate::finding::Finding;
-use crate::types::{EngineOutput, FromEmpty, Severity};
+use crate::types::{EngineOutput, OnEmpty, Severity};
 
 /// A from-empty law violation, carrying the human-readable description the
 /// failing test surfaces.
@@ -56,12 +56,12 @@ impl ContractViolation {
 pub fn check_from_empty<Req>(
     reconcile: impl Fn(Option<&[u8]>, &Req) -> EngineOutput,
     requirement: &Req,
-    class: FromEmpty,
+    class: OnEmpty,
 ) -> Result<(), ContractViolation> {
     let first = reconcile(None, requirement);
     match class {
-        FromEmpty::Writes => check_writes_law(&reconcile, requirement, &first),
-        FromEmpty::ChecksOnly => check_checks_only_law(&reconcile, requirement, &first),
+        OnEmpty::Writes => check_writes_law(&reconcile, requirement, &first),
+        OnEmpty::ChecksOnly => check_checks_only_law(&reconcile, requirement, &first),
     }
 }
 
@@ -132,9 +132,9 @@ const fn is_hard(finding: &Finding) -> bool {
     matches!(
         finding,
         Finding::ParseError { .. }
-            | Finding::SchemaError { .. }
+            | Finding::InvalidRequirements { .. }
             | Finding::InternalError { .. }
-            | Finding::PolicyConflict { .. }
+            | Finding::ConflictingRequirements { .. }
     )
 }
 
@@ -142,11 +142,10 @@ const fn is_hard(finding: &Finding) -> bool {
 /// always Error by contract).
 const fn severity_of(finding: &Finding) -> Severity {
     match finding {
-        Finding::Mismatch { severity, .. }
-        | Finding::SchemaError { severity, .. }
-        | Finding::ParseError { severity, .. } => *severity,
+        Finding::Mismatch { severity, .. } | Finding::ParseError { severity, .. } => *severity,
         Finding::UnwritableRequiredKey { .. }
-        | Finding::PolicyConflict { .. }
+        | Finding::ConflictingRequirements { .. }
+        | Finding::InvalidRequirements { .. }
         | Finding::InternalError { .. } => Severity::Error,
     }
 }

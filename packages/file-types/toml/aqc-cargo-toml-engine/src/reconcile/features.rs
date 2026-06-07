@@ -3,9 +3,13 @@
 //! Lazy: an `Excludes`-only requirement against a missing `[features]` table
 //! writes nothing. The table is fetched mutably only on a write.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
+)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, MergedAssertion, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, Severity};
 use toml_edit::{Array, DocumentMut, Item, Table, Value};
 
 use crate::reconcile::util::{all_provenances, ensure_table, read_string_array, table_ref};
@@ -14,12 +18,12 @@ use crate::requirement::FeatureSetAssertion;
 /// Apply the `[features]` contribution (single field on the requirement).
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: Option<&MergedAssertion<FeatureSetAssertion>>,
+    merged: Option<&Vec<(Provenance, FeatureSetAssertion)>>,
     findings: &mut Vec<Finding>,
 ) {
     let Some(merged) = merged else { return };
     let attribution = all_provenances(merged);
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         match assertion {
             FeatureSetAssertion::Contains(map) | FeatureSetAssertion::IsExactly(map) => {
                 apply_contains(doc, map, &attribution, findings);
@@ -35,10 +39,6 @@ pub(crate) fn apply(
 }
 
 /// Each `(feature, enable_list)` must be present and equal.
-#[expect(
-    clippy::type_complexity,
-    reason = "BTreeMap<name, (BTreeSet<String>, Msg)> mirrors the assertion's value shape."
-)]
 fn apply_contains(
     doc: &mut DocumentMut,
     map: &BTreeMap<String, (BTreeSet<String>, String)>,
@@ -53,7 +53,7 @@ fn apply_contains(
             continue;
         }
         findings.push(Finding::Mismatch {
-            path: format!("[features].{feature}"),
+            key: format!("[features].{feature}"),
             current: Some(format!("{current:?}")),
             expected: format!("{want:?}"),
             message: msg.clone(),
@@ -78,7 +78,7 @@ fn apply_excludes(
         let current =
             table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, feature));
         findings.push(Finding::Mismatch {
-            path: format!("[features].{feature}"),
+            key: format!("[features].{feature}"),
             current: Some(format!("{current:?}")),
             expected: "absent".to_owned(),
             message: msg.clone(),
@@ -107,7 +107,7 @@ fn apply_exact_extras(
         let current =
             table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, extra));
         findings.push(Finding::Mismatch {
-            path: format!("[features].{extra}"),
+            key: format!("[features].{extra}"),
             current: Some(format!("{current:?}")),
             expected: "absent (IsExactly)".to_owned(),
             message: String::new(),
@@ -130,9 +130,9 @@ fn write_list(table: &mut Table, feature: &str, impls: &BTreeSet<String>) {
 }
 
 /// Union of allowed feature names if every contribution is `IsExactly`; else `None`.
-fn is_exactly_only(merged: &MergedAssertion<FeatureSetAssertion>) -> Option<BTreeSet<String>> {
+fn is_exactly_only(merged: &Vec<(Provenance, FeatureSetAssertion)>) -> Option<BTreeSet<String>> {
     let mut combined: BTreeSet<String> = BTreeSet::new();
-    for (_, assertion) in &merged.contributions {
+    for (_, assertion) in merged {
         match assertion {
             FeatureSetAssertion::IsExactly(map) => combined.extend(map.keys().cloned()),
             FeatureSetAssertion::Contains(_) | FeatureSetAssertion::Excludes(_) => return None,

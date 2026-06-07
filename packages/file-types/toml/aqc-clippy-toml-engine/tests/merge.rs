@@ -3,6 +3,10 @@
 //! The module is named `merge` so the test paths read `merge::disjoint`,
 //! `merge::conflict`, `merge::identical` (the manifest's verification names).
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Collected assertions are plainly Vec<(Provenance, A)>; declared openly (taxonomy decision 2026-06-07)."
+)]
 use toml_edit as _;
 
 mod merge {
@@ -11,24 +15,22 @@ mod merge {
     use aqc_clippy_toml_engine::{
         BanEntry, BansAssertion, BoolAssertion, ClippyTomlRequirement, ThresholdsAssertion,
     };
-    use aqc_file_engine_core::{MergedAssertion, Provenance};
+    use aqc_file_engine_core::Provenance;
 
-    /// Wrap one policy's assertion in a single-contribution `MergedAssertion`.
-    fn one_contribution<A>(policy: &str, assertion: A) -> MergedAssertion<A> {
-        MergedAssertion {
-            contributions: vec![(
-                Provenance {
-                    policy: policy.to_owned(),
-                },
-                assertion,
-            )],
-        }
+    /// Wrap one policy's assertion as a single-entry collected list.
+    fn one_assertion<A>(policy: &str, assertion: A) -> Vec<(Provenance, A)> {
+        vec![(
+            Provenance {
+                policy: policy.to_owned(),
+            },
+            assertion,
+        )]
     }
 
     /// A requirement asserting `disallowed-methods` bans from one policy.
     fn bans_req(policy: &str, assertion: BansAssertion) -> ClippyTomlRequirement {
         ClippyTomlRequirement {
-            disallowed_methods: Some(one_contribution(policy, assertion)),
+            disallowed_methods: Some(one_assertion(policy, assertion)),
             ..ClippyTomlRequirement::default()
         }
     }
@@ -36,7 +38,7 @@ mod merge {
     /// A requirement asserting `thresholds` from one policy.
     fn thresholds_req(policy: &str, assertion: ThresholdsAssertion) -> ClippyTomlRequirement {
         ClippyTomlRequirement {
-            thresholds: Some(one_contribution(policy, assertion)),
+            thresholds: Some(one_assertion(policy, assertion)),
             ..ClippyTomlRequirement::default()
         }
     }
@@ -55,12 +57,10 @@ mod merge {
     /// Count the ban entries in a requirement's `disallowed-methods` field.
     fn ban_count(req: &ClippyTomlRequirement) -> usize {
         req.disallowed_methods.as_ref().map_or(0, |m| {
-            m.contributions
-                .first()
-                .map_or(0, |(_, assertion)| match assertion {
-                    BansAssertion::Contains(v) | BansAssertion::IsExactly(v) => v.len(),
-                    BansAssertion::Excludes(_) => 0,
-                })
+            m.first().map_or(0, |(_, assertion)| match assertion {
+                BansAssertion::Contains(v) | BansAssertion::IsExactly(v) => v.len(),
+                BansAssertion::Excludes(_) => 0,
+            })
         })
     }
 
@@ -69,14 +69,12 @@ mod merge {
         let mut r = ClippyTomlRequirement::default();
         let _ = r.bools.insert(
             setting.to_owned(),
-            MergedAssertion {
-                contributions: vec![(
-                    Provenance {
-                        policy: policy.to_owned(),
-                    },
-                    assertion,
-                )],
-            },
+            vec![(
+                Provenance {
+                    policy: policy.to_owned(),
+                },
+                assertion,
+            )],
         );
         r
     }
