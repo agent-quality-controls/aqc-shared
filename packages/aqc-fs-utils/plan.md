@@ -1,6 +1,6 @@
 # aqc-fs-utils
 
-Read a single file from disk with fixed rules. Shared by Spec3, Fixture3, Guardrail3.
+Read a single file from disk with fixed rules. Shared by Specular, Fixture3, Guardrail3.
 
 Not a repo walk (`aqc-filetree`). Not Git. Not substring checks.
 

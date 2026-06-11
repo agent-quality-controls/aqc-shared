@@ -1,6 +1,6 @@
 //! Read a single file from disk with fixed rules.
 //!
-//! Shared by Spec3, Fixture3, Guardrail3. Not a repo walk (`aqc-filetree`),
+//! Shared by Specular, Fixture3, Guardrail3. Not a repo walk (`aqc-filetree`),
 //! not Git, not substring checks. All failures are `Err`: there is no `Ok`
 //! branch for "binary" or "skip". Contract: `plan.md` in this directory.
 

@@ -3,11 +3,11 @@
 > Building a crate here? Read [CONVENTIONS.md](CONVENTIONS.md) first --
 > the commit gates enforce structural rules that exist nowhere else in prose.
 
-Neutral `aqc-*` libraries for Agent Quality Controls (Spec3, Guardrail3, Fixture3, …).
+Neutral `aqc-*` libraries for Agent Quality Controls (Specular, Guardrail3, Fixture3, …).
 
 ## Principles
 
-- **No shared finding / evidence crate.** Spec3 evidence, `G3CheckResult`, websmasher `AuditFinding`, and `low-expectations` suites stay in their products.
+- **No shared finding / evidence crate.** Specular evidence, `G3CheckResult`, websmasher `AuditFinding`, and `low-expectations` suites stay in their products.
 - Small crates with `plan.md` before implementation.
 
 ## Packages

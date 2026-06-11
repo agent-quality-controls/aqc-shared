@@ -146,7 +146,7 @@ Sort by `rel_path`, return `FileTree`.
 
 **Not this crate.** “Porcelain” = stable, script-friendly `git status` output (`--porcelain`). A **dirty worktree** means Git sees unstaged/untracked/committed changes vs the index or `HEAD`.
 
-Spec3 lock/verify may need to fail when locked spec paths changed on disk — that checks **Git’s view of change**, not “what paths exist.” `aqc-filetree` only answers existence/layout on disk at walk time. A separate **`aqc-git-worktree`** (or product code) would run `git status --porcelain` (or equivalent); it must not be folded into the file tree walk.
+Specular lock/verify may need to fail when locked spec paths changed on disk — that checks **Git’s view of change**, not “what paths exist.” `aqc-filetree` only answers existence/layout on disk at walk time. A separate **`aqc-git-worktree`** (or product code) would run `git status --porcelain` (or equivalent); it must not be folded into the file tree walk.
 
 ---
 

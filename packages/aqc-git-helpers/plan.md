@@ -1,16 +1,16 @@
 # aqc-git-helpers
 
-Read-only Git **worktree state** for Spec3 lock/verify. Not a general Git library.
+Read-only Git **worktree state** for Specular lock/verify. Not a general Git library.
 
-Runs `git` as a subprocess, parses **porcelain** output, normalises paths like Spec3 / `aqc-filetree`. No commits, merges, or object database access in V1.
+Runs `git` as a subprocess, parses **porcelain** output, normalises paths like Specular / `aqc-filetree`. No commits, merges, or object database access in V1.
 
-Primary consumer: **Spec3** (`lock`, `status`, `verify`). Guardrail3 hooks may keep using shell; adopt this only when Rust needs the same checks.
+Primary consumer: **Specular** (`lock`, `status`, `verify`). Guardrail3 hooks may keep using shell; adopt this only when Rust needs the same checks.
 
 ---
 
 ## Questions this crate answers
 
-| Question | Spec3 use |
+| Question | Specular use |
 |----------|-----------|
 | Is this directory a Git repo? | Before lock/verify |
 | Is the worktree clean? | `lock` must fail if dirty |
@@ -99,7 +99,7 @@ pub fn dirty_paths(
 ) -> Result<Vec<WorktreeChange>, GitError>;
 ```
 
-Path normalisation: reject `..`, normalise separators to `/`, match Spec3 spec path rules.
+Path normalisation: reject `..`, normalise separators to `/`, match Specular spec path rules.
 
 ---
 

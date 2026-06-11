@@ -1,4 +1,4 @@
-//! Read-only Git worktree state for Spec3 lock/verify.
+//! Read-only Git worktree state for Specular lock/verify.
 //!
 //! Runs `git status --porcelain=v1 -z` as a subprocess and parses the
 //! NUL-separated records. No commits, merges, or object-database access.
