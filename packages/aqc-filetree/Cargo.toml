@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 description = "Walk one directory root into a FileTree: gitignore-aware phase 1 plus rule-driven recovery phase 2."
-publish = false
+publish = true
 
 [package.metadata.guardrail3]
 shared = true

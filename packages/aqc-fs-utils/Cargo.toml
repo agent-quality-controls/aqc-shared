@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 description = "Read a single file from disk with fixed rules (strict UTF-8, NUL rejection, size cap)."
-publish = false
+publish = true
 
 [package.metadata.guardrail3]
 shared = true

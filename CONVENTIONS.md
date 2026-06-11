@@ -68,7 +68,8 @@ implementation will not commit.
   gitleaks.
 - New workspace members: add to the root `Cargo.toml` members list; crate
   `Cargo.toml` uses `version/edition/license/rust-version/repository
-  .workspace = true`, `publish = false`,
+  .workspace = true`, `publish = false` unless the crate is intentionally
+  part of the public AQC release surface,
   `[package.metadata.guardrail3] shared = true`, `[lints] workspace = true`.
 
 ## Where the rules live (when this file is doubted)

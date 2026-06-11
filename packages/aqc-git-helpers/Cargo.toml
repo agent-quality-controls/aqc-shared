@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 description = "Read-only git worktree state (porcelain v1) for lock/verify flows."
-publish = false
+publish = true
 
 [package.metadata.guardrail3]
 shared = true
