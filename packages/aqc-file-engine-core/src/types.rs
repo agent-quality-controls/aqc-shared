@@ -1,9 +1,6 @@
-//! Framework data types: `Provenance`, `MergedAssertion`, `EngineOutput`, `Severity`, `PolicyId`.
+//! Framework data types: `Provenance`, `MergedAssertion`, `EngineOutput`, and `Severity`.
 
 use crate::finding::Finding;
-
-/// Identifier for a Guardrail3 policy. Always a `String`.
-pub type PolicyId = String;
 
 /// Identifies which policy contributed a requirement.
 ///
@@ -11,7 +8,7 @@ pub type PolicyId = String;
 /// would have to disable to drop the requirement.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Provenance {
-    pub policy: PolicyId,
+    pub policy: String,
 }
 
 /// Severity of a `Finding`.
@@ -40,8 +37,6 @@ pub enum ConfigScalar {
 /// Surfaced on `Finding::Mismatch.message`. NEVER part of merge agreement:
 /// two policies asserting the same value with different messages agree
 /// (first message wins).
-pub type Msg = String;
-
 /// What an assertion does when the file does not exist yet.
 ///
 /// `Writes`: exactly one correct value exists, so `init` writes it.

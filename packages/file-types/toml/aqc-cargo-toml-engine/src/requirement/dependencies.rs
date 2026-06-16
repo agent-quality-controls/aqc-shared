@@ -1,15 +1,14 @@
-//! Dependency-table assertions: `[dependencies]` / `[dev-dependencies]` /
-//! `[build-dependencies]`, their `[target.'cfg(..)'.*]` variants,
-//! `[workspace.dependencies]`, and `[patch.<registry>]` (same vocabulary).
+//! Dependency-table scopes and entry payloads.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::fmt;
 
-use aqc_file_engine_core::{Msg, OnEmpty, OnEmptyClass};
+use aqc_file_engine_core::{
+    ConflictEntry, FileItemRequirement, Provenance, ResolvedRequirement, compose_optional_field,
+    compose_string_set,
+};
 
-use super::macros::{impl_keyed_entries_eq, impl_set_resolve};
-
-/// Which dependency table kind. Names match cargo's own (`cargo metadata`
-/// renders the pair as `dep_kinds: [{ kind, target }]`).
+/// Which dependency table kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DependencyKind {
     Normal,
@@ -17,17 +16,15 @@ pub enum DependencyKind {
     Build,
 }
 
-/// Which dependency table: kind plus the optional `cfg` platform
-/// (`[target.'cfg(windows)'.dependencies]`). Field names match cargo's.
+/// Which dependency table: kind plus optional target.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DependencyScope {
     pub kind: DependencyKind,
-    /// The `cfg` expression / target triple, when platform-scoped.
     pub target: Option<String>,
 }
 
 impl DependencyScope {
-    /// The in-file table path this scope addresses (used on findings).
+    /// The in-file table path this scope addresses.
     #[must_use]
     pub fn table_path(&self) -> String {
         let kind = match self.kind {
@@ -41,19 +38,13 @@ impl DependencyScope {
     }
 }
 
-/// Typed shape of one dependency entry.
-///
-/// A spec constrains **only the fields it sets** (partial matching, D4);
-/// `IsExactly` stays the closed form at the set level. A spec is writable
-/// only when it names a source (`version` | `path` | `git` | `workspace`);
-/// cargo rejects a dependency entry with no source.
+/// Partial dependency entry spec. Unset fields are unconstrained.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DependencySpec {
     pub version: Option<String>,
-    pub features: Vec<String>,
+    pub features: BTreeSet<String>,
     pub default_features: Option<bool>,
     pub optional: Option<bool>,
-    /// `dep = { workspace = true }`: inherit from `[workspace.dependencies]`.
     pub workspace: Option<bool>,
     pub path: Option<String>,
     pub git: Option<String>,
@@ -61,13 +52,35 @@ pub struct DependencySpec {
     pub tag: Option<String>,
     pub rev: Option<String>,
     pub registry: Option<String>,
-    /// Rename: the registry package this entry actually points at.
     pub package: Option<String>,
 }
 
+/// A dependency file-item requirement.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DependencyRequirement {
+    pub file_key: Option<String>,
+    pub value: DependencySpec,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DependencyIdentity {
+    Package(String),
+    LocalKey(String),
+    Invalid,
+}
+
+impl fmt::Display for DependencyIdentity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Package(package) => write!(f, "{package}"),
+            Self::LocalKey(file_key) => write!(f, "{file_key}"),
+            Self::Invalid => write!(f, "<invalid>"),
+        }
+    }
+}
+
 impl DependencySpec {
-    /// True when the spec names where the code comes from. Only then can the
-    /// engine create the entry; without a source it can only check one.
+    /// True when the spec names where the code comes from.
     #[must_use]
     pub const fn has_source(&self) -> bool {
         self.version.is_some()
@@ -77,47 +90,163 @@ impl DependencySpec {
     }
 }
 
-/// What must hold about one dependency table.
-///
-/// Equality (and therefore merge agreement) compares dependency names and
-/// specs; the policy-authored messages never participate.
-/// The entry map of a `Contains` / `IsExactly` assertion: dependency name to
-/// its (partial) spec plus the policy message.
-pub type DependencyEntries = BTreeMap<String, DependencyEntry>;
+impl FileItemRequirement for DependencyRequirement {
+    type Identity = DependencyIdentity;
 
-/// One dependency entry: the (partial) spec plus the policy message.
-pub type DependencyEntry = (DependencySpec, Msg);
-
-#[derive(Debug, Clone)]
-pub enum DependencySetAssertion {
-    /// These entries must be present, each matching its (partial) spec.
-    Contains(DependencyEntries),
-    /// None of these dependencies may be present (banned, with the why).
-    Excludes(BTreeMap<String, Msg>),
-    /// The table must contain exactly these entries.
-    IsExactly(DependencyEntries),
-}
-
-impl_keyed_entries_eq!(DependencySetAssertion);
-impl_set_resolve!(
-    DependencySetAssertion,
-    DependencyEntries,
-    |entry: &DependencyEntry| entry.0.clone()
-);
-
-impl OnEmptyClass for DependencySetAssertion {
-    fn on_empty(&self) -> OnEmpty {
-        match self {
-            // Writable only when every entry names a source; a sourceless
-            // entry cannot be created (cargo rejects it), only checked.
-            Self::Contains(map) | Self::IsExactly(map) => {
-                if map.values().all(|(spec, _)| spec.has_source()) {
-                    OnEmpty::Writes
-                } else {
-                    OnEmpty::ChecksOnly
-                }
-            }
-            Self::Excludes(_) => OnEmpty::Writes,
+    fn merge_identity(&self) -> Self::Identity {
+        if let Some(package) = self.value.package.clone() {
+            return DependencyIdentity::Package(package);
         }
+        if let Some(file_key) = self.file_key.clone() {
+            return DependencyIdentity::LocalKey(file_key);
+        }
+        DependencyIdentity::Invalid
+    }
+
+    fn compose_item(
+        key: &str,
+        items: Vec<(Provenance, (Self, String))>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
+        let file_keys = items
+            .iter()
+            .filter_map(|(_, (requirement, _))| requirement.file_key.clone())
+            .collect::<BTreeSet<_>>();
+        if file_keys.len() > 1 {
+            conflicts.push(ConflictEntry {
+                key: format!("{key}.file_key"),
+                reason: "dependency-package-multiple-file-keys".to_owned(),
+                contributors: items
+                    .iter()
+                    .filter_map(|(prov, (requirement, _))| {
+                        requirement
+                            .file_key
+                            .as_ref()
+                            .map(|file_key| (prov.clone(), file_key.clone()))
+                    })
+                    .collect(),
+            });
+            return None;
+        }
+        let specs = items
+            .iter()
+            .map(|(prov, (requirement, _))| (prov.clone(), requirement.value.clone()))
+            .collect::<Vec<_>>();
+        let merged = DependencySpec {
+            version: compose_optional_field(
+                &format!("{key}.version"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.version.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            features: compose_string_set(
+                specs
+                    .iter()
+                    .map(|(_, spec)| spec.features.clone())
+                    .collect(),
+            ),
+            default_features: compose_optional_field(
+                &format!("{key}.default-features"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.default_features))
+                    .collect(),
+                bool::to_string,
+                conflicts,
+            ),
+            optional: compose_optional_field(
+                &format!("{key}.optional"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.optional))
+                    .collect(),
+                bool::to_string,
+                conflicts,
+            ),
+            workspace: compose_optional_field(
+                &format!("{key}.workspace"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.workspace))
+                    .collect(),
+                bool::to_string,
+                conflicts,
+            ),
+            path: compose_optional_field(
+                &format!("{key}.path"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.path.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            git: compose_optional_field(
+                &format!("{key}.git"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.git.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            branch: compose_optional_field(
+                &format!("{key}.branch"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.branch.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            tag: compose_optional_field(
+                &format!("{key}.tag"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.tag.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            rev: compose_optional_field(
+                &format!("{key}.rev"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.rev.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            registry: compose_optional_field(
+                &format!("{key}.registry"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.registry.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+            package: compose_optional_field(
+                &format!("{key}.package"),
+                specs
+                    .iter()
+                    .map(|(prov, spec)| (prov.clone(), spec.package.clone()))
+                    .collect(),
+                Clone::clone,
+                conflicts,
+            ),
+        };
+        Some(ResolvedRequirement {
+            merged: DependencyRequirement {
+                file_key: items
+                    .iter()
+                    .find_map(|(_, (requirement, _))| requirement.file_key.clone()),
+                value: merged,
+            },
+            collected: items,
+        })
     }
 }

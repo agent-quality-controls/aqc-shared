@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::finding::Finding;
 use crate::merge::ConflictEntry;
 use crate::requirement::EngineRequirement;
-use crate::types::EngineOutput;
+use crate::types::{EngineOutput, Provenance};
 
 /// A file engine: reconciles bytes-on-disk against typed declarative
 /// requirements, returning both the bytes `init` would write and the
@@ -41,12 +41,12 @@ pub trait Engine {
     /// downcasts to this engine's requirement type.
     #[expect(
         clippy::type_complexity,
-        reason = "`&[Box<dyn EngineRequirement>]` is the erased multi-requirement input the registry dispatches; a type alias would hide the contract."
+        reason = "`&[(Provenance, Box<dyn EngineRequirement>)]` is the erased multi-requirement input the registry dispatches; a type alias would hide the contract."
     )]
     fn reconcile(
         &self,
         current: Option<&[u8]>,
-        reqs: &[Box<dyn EngineRequirement>],
+        reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     ) -> EngineOutput;
 }
 
@@ -61,23 +61,27 @@ pub trait Engine {
 /// here once.
 #[expect(
     clippy::type_complexity,
-    reason = "`Fn(&[&Req]) -> (Req, Vec<ConflictEntry>)` is the merge phase's signature as data; aliasing it would hide the (resolved, conflicts) contract."
+    reason = "`Fn(Vec<(Provenance, Req)>) -> (Resolved, Vec<ConflictEntry>)` is the merge phase's signature as data; aliasing it would hide the raw-to-resolved contract."
 )]
-pub fn merged_reconcile<Req, M, F>(
+pub fn merged_reconcile<Req, Resolved, M, F>(
     current: Option<&[u8]>,
-    reqs: &[Box<dyn EngineRequirement>],
+    reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     subject: &str,
     merge: M,
     reconcile_one: F,
 ) -> EngineOutput
 where
-    Req: EngineRequirement,
-    M: Fn(&[&Req]) -> (Req, Vec<ConflictEntry>),
-    F: Fn(Option<&[u8]>, &Req) -> EngineOutput,
+    Req: EngineRequirement + Clone,
+    M: Fn(Vec<(Provenance, Req)>) -> (Resolved, Vec<ConflictEntry>),
+    F: Fn(Option<&[u8]>, &Resolved) -> EngineOutput,
 {
-    let typed: Vec<&Req> = reqs
+    let typed: Vec<(Provenance, Req)> = reqs
         .iter()
-        .filter_map(|r| r.as_any().downcast_ref::<Req>())
+        .filter_map(|(prov, r)| {
+            r.as_any()
+                .downcast_ref::<Req>()
+                .map(|req| (prov.clone(), req.clone()))
+        })
         .collect();
     if typed.is_empty() {
         return EngineOutput {
@@ -85,7 +89,7 @@ where
             findings: Vec::new(),
         };
     }
-    let (merged, conflicts) = merge(&typed);
+    let (merged, conflicts) = merge(typed);
     let mut out = reconcile_one(current, &merged);
     for entry in conflicts {
         out.findings.push(Finding::ConflictingRequirements {

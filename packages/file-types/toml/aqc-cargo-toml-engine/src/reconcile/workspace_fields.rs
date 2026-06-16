@@ -2,35 +2,35 @@
 //!
 //! Lazy: check-only assertions and vacuous removals never create `[workspace]`.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};
 use toml_edit::{DocumentMut, Item, Table};
 
 use crate::reconcile::util::{
-    all_provenances, ensure_table, push_mismatch, read_string_array, render_item, render_scalar,
-    scalar_item, scalar_matches, table_ref, write_string_array,
+    attribution as resolved_attribution, ensure_table, push_mismatch, read_string_array,
+    render_item, render_scalar, scalar_item, scalar_matches, table_ref, write_string_array,
 };
-use crate::requirement::WorkspaceFieldAssertion;
+use crate::requirement::{ResolvedWorkspaceFieldAssertion, WorkspaceFieldAssertion};
 
 /// The finding-path prefix for direct workspace keys.
 const PREFIX: &str = "workspace";
 
-/// Apply every direct `[workspace].<key>` contribution.
+/// Apply every direct `[workspace].<key>` requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_key: &BTreeMap<String, Vec<(Provenance, WorkspaceFieldAssertion)>>,
+    merged_by_key: &BTreeMap<
+        String,
+        ResolvedRequirement<
+            ResolvedWorkspaceFieldAssertion,
+            crate::requirement::WorkspaceFieldAssertion,
+        >,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (key, merged) in merged_by_key {
-        let attribution = all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_one(doc, key, assertion, &attribution, findings);
-        }
+        let attribution = attribution_for(doc, key, merged);
+        apply_one(doc, key, &merged.merged, &attribution, findings);
     }
 }
 
@@ -44,34 +44,95 @@ fn workspace_mut_existing(doc: &mut DocumentMut) -> Option<&mut Table> {
     doc.get_mut(PREFIX).and_then(Item::as_table_mut)
 }
 
-/// Apply a single `WorkspaceFieldAssertion`.
+fn attribution_for(
+    doc: &DocumentMut,
+    key: &str,
+    resolved: &ResolvedRequirement<ResolvedWorkspaceFieldAssertion, WorkspaceFieldAssertion>,
+) -> Vec<Provenance> {
+    let current = current_item(doc, key);
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| assertion_fails(current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        resolved_attribution(resolved)
+    } else {
+        filtered
+    }
+}
+
+fn assertion_fails(current: Option<&Item>, assertion: &WorkspaceFieldAssertion) -> bool {
+    match assertion {
+        WorkspaceFieldAssertion::Equals(want, _) => {
+            !current.is_some_and(|item| scalar_matches(item, want))
+        }
+        WorkspaceFieldAssertion::OneOf(allowed, _) => !current
+            .and_then(Item::as_str)
+            .is_some_and(|value| allowed.contains(value)),
+        WorkspaceFieldAssertion::List(_) => false,
+        WorkspaceFieldAssertion::Present(_) => current.is_none(),
+        WorkspaceFieldAssertion::Absent(_) => current.is_some(),
+    }
+}
+
+/// Apply a single resolved workspace field assertion.
 fn apply_one(
     doc: &mut DocumentMut,
     key: &str,
-    assertion: &WorkspaceFieldAssertion,
+    assertion: &ResolvedWorkspaceFieldAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        WorkspaceFieldAssertion::Equals(want, msg) => {
+        ResolvedWorkspaceFieldAssertion::Equals(want, msg) => {
             apply_equals(doc, key, want, msg, attribution, findings);
         }
-        WorkspaceFieldAssertion::OneOf(allowed, msg) => {
+        ResolvedWorkspaceFieldAssertion::OneOf(allowed, msg) => {
             apply_one_of(doc, key, allowed, msg, attribution, findings);
         }
-        WorkspaceFieldAssertion::ListContains(items, msg) => {
-            apply_list_contains(doc, key, items, msg, attribution, findings);
+        ResolvedWorkspaceFieldAssertion::List(list) => {
+            for (item, entry) in &list.contains {
+                let item_attribution = resolved_attribution(entry);
+                let msg = entry
+                    .collected
+                    .first()
+                    .map(|(_, msg)| msg.as_str())
+                    .unwrap_or_default();
+                apply_list_contains(
+                    doc,
+                    key,
+                    core::slice::from_ref(item),
+                    msg,
+                    &item_attribution,
+                    findings,
+                );
+            }
+            for (item, entry) in &list.excludes {
+                let item_attribution = resolved_attribution(entry);
+                let msg = entry
+                    .collected
+                    .first()
+                    .map(|(_, msg)| msg.as_str())
+                    .unwrap_or_default();
+                let excluded = BTreeSet::from([item.clone()]);
+                apply_list_excludes(doc, key, &excluded, msg, &item_attribution, findings);
+            }
+            if let Some(exact) = &list.exact {
+                let exact_attribution = resolved_attribution(exact);
+                let msg = exact
+                    .collected
+                    .first()
+                    .map(|(_, (_, msg))| msg.as_str())
+                    .unwrap_or_default();
+                apply_list_is_exactly(doc, key, &exact.merged, msg, &exact_attribution, findings);
+            }
         }
-        WorkspaceFieldAssertion::ListExcludes(items, msg) => {
-            apply_list_excludes(doc, key, items, msg, attribution, findings);
-        }
-        WorkspaceFieldAssertion::ListIsExactly(items, msg) => {
-            apply_list_is_exactly(doc, key, items, msg, attribution, findings);
-        }
-        WorkspaceFieldAssertion::Present(msg) => {
+        ResolvedWorkspaceFieldAssertion::Present(msg) => {
             apply_present(doc, key, msg, attribution, findings);
         }
-        WorkspaceFieldAssertion::Absent(msg) => {
+        ResolvedWorkspaceFieldAssertion::Absent(msg) => {
             apply_absent(doc, key, msg, attribution, findings);
         }
     }

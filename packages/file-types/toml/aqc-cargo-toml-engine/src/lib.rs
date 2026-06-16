@@ -14,18 +14,24 @@ pub mod requirement;
 pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    CargoTomlRequirement, DependencyKind, DependencyScope, DependencySetAssertion, DependencySpec,
+    CargoTomlRequirements, DependencyIdentity, DependencyKind, DependencyRequirement,
+    DependencyScope, DependencySpec,
 };
 #[cfg(feature = "api")]
-pub use requirement::{FeatureSetAssertion, LintLevelsAssertion, PackageLintsAssertion};
+pub use requirement::{FeatureMembers, LintSetting, PackageLintsAssertion};
 #[cfg(feature = "api")]
-pub use requirement::{ManifestSection, PackageFieldAssertion, SectionPresenceAssertion};
+pub use requirement::{
+    ManifestSection, PackageFieldAssertion, ResolvedPackageFieldAssertion, SectionPresenceAssertion,
+};
 #[cfg(feature = "api")]
-pub use requirement::{ProfileAssertion, ProfileFieldAssertion};
+pub use requirement::{ProfileFieldAssertion, ProfileRequirements};
 #[cfg(feature = "api")]
-pub use requirement::{TargetFieldAssertion, TargetTableAssertion, WorkspaceFieldAssertion};
+pub use requirement::{
+    ResolvedTargetFieldAssertion, ResolvedTargetTableAssertion, ResolvedWorkspaceFieldAssertion,
+    TargetFieldAssertion, TargetRequirements, TargetTableAssertion, WorkspaceFieldAssertion,
+};
 
 /// Stable engine id; matches this crate's `[package].name` and the value
-/// returned by `<CargoTomlRequirement as EngineRequirement>::engine_id`.
+/// returned by `<CargoTomlRequirements as EngineRequirement>::engine_id`.
 #[cfg(feature = "api")]
 pub const ENGINE_ID: &str = "aqc-cargo-toml-engine";

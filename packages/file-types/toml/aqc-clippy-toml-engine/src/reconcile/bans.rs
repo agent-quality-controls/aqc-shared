@@ -1,150 +1,201 @@
-//! Reconciliation for clippy.toml ban tables. One implementation,
-//! reused for `disallowed-methods`, `disallowed-types`, `disallowed-macros`.
+//! Reconciliation for clippy.toml ban tables.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedItemRequirements, Severity};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
 
-use crate::reconcile::util::all_provenances;
-use crate::requirement::{BanEntry, BansAssertion};
+use crate::requirement::BanEntry;
 
-/// Apply every contribution against the named ban table.
-#[expect(
-    clippy::expect_used,
-    reason = "or_insert(Item::Value(Value::Array(_))) guarantees as_array_mut returns Some"
-)]
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     table_key: &str,
-    merged: &Vec<(Provenance, BansAssertion)>,
+    merged: &ResolvedItemRequirements<BanEntry>,
     findings: &mut Vec<Finding>,
 ) {
-    let attribution = all_provenances(merged);
-    let array = doc
-        .entry(table_key)
-        .or_insert(Item::Value(Value::Array(Array::new())))
-        .as_array_mut()
-        .expect("ban table is an array");
+    if merged.required.is_empty() && merged.banned.is_empty() && merged.closed_by.is_empty() {
+        return;
+    }
+
+    let array = if merged.required.is_empty() {
+        let Some(item) = doc.get_mut(table_key) else {
+            return;
+        };
+        if !item.is_array() {
+            push_malformed_array_finding(table_key, item, merged, findings);
+            return;
+        }
+        let Some(array) = item.as_array_mut() else {
+            return;
+        };
+        array
+    } else {
+        let item = doc
+            .entry(table_key)
+            .or_insert(Item::Value(Value::Array(Array::new())));
+        if !item.is_array() {
+            push_malformed_array_finding(table_key, item, merged, findings);
+            *item = Item::Value(Value::Array(Array::new()));
+        }
+        let Some(array) = item.as_array_mut() else {
+            return;
+        };
+        array
+    };
     let mut current_paths = collect_current_paths(array);
-    for (_, assertion) in merged {
-        apply_one(
+
+    for entry in merged.required.values() {
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        apply_required(
             table_key,
             array,
             &mut current_paths,
-            assertion,
+            &entry.merged,
             &attribution,
             findings,
         );
     }
-    if let Some(exact) = is_exactly_only(merged) {
-        prune_extras(table_key, array, &exact, &attribution, findings);
+
+    for entry in merged.banned.values() {
+        let path = &entry.merged.path;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let message = entry
+            .collected
+            .first()
+            .map(|(_, msg)| msg.clone())
+            .unwrap_or_default();
+        apply_banned(table_key, array, path, &message, &attribution, findings);
+    }
+
+    if !merged.closed_by.is_empty() {
+        let allowed = merged.required.keys().cloned().collect();
+        let attribution = merged
+            .closed_by
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        prune_extras(table_key, array, &allowed, &attribution, findings);
     }
 }
 
-/// Dispatch one assertion variant.
-fn apply_one(
+fn apply_required(
     table_key: &str,
     array: &mut Array,
     current_paths: &mut BTreeSet<String>,
-    assertion: &BansAssertion,
+    entry: &BanEntry,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    match assertion {
-        BansAssertion::Contains(wanted) | BansAssertion::IsExactly(wanted) => {
-            apply_contains(
-                table_key,
-                array,
-                current_paths,
-                wanted,
-                attribution,
-                findings,
-            );
+    if let Some(index) = position_with_path(array, &entry.path) {
+        let current = array.get(index).cloned();
+        if current
+            .as_ref()
+            .is_some_and(|value| ban_value_matches(value, entry))
+        {
+            return;
         }
-        BansAssertion::Excludes(map) => {
-            apply_excludes(table_key, array, map, attribution, findings);
-        }
-    }
-}
-
-/// Add any wanted entries that are not already present.
-fn apply_contains(
-    table_key: &str,
-    array: &mut Array,
-    current_paths: &mut BTreeSet<String>,
-    wanted: &[BanEntry],
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    for entry in wanted {
-        if current_paths.contains(&entry.path) {
-            continue;
-        }
-        array.push(ban_value(entry));
-        let _ = current_paths.insert(entry.path.clone());
+        let _ = array.replace(index, ban_value(entry));
         findings.push(Finding::Mismatch {
             key: format!("{table_key}[?path == \"{}\"]", entry.path),
-            current: None,
+            current: current.map(|value| value.to_string()),
             expected: format_entry(entry),
             message: entry.message.clone(),
+            severity: Severity::Error,
+            attribution: attribution.to_vec(),
+        });
+        return;
+    }
+    array.push(ban_value(entry));
+    let _ = current_paths.insert(entry.path.clone());
+    findings.push(Finding::Mismatch {
+        key: format!("{table_key}[?path == \"{}\"]", entry.path),
+        current: None,
+        expected: format_entry(entry),
+        message: entry.message.clone(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+}
+
+fn push_malformed_array_finding(
+    table_key: &str,
+    item: &Item,
+    merged: &ResolvedItemRequirements<BanEntry>,
+    findings: &mut Vec<Finding>,
+) {
+    let mut attribution = merged
+        .required
+        .values()
+        .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone()))
+        .collect::<Vec<_>>();
+    attribution.extend(
+        merged
+            .banned
+            .values()
+            .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone())),
+    );
+    attribution.extend(merged.closed_by.iter().map(|(prov, _)| prov.clone()));
+    findings.push(Finding::Mismatch {
+        key: table_key.to_owned(),
+        current: Some(item.to_string().trim().to_owned()),
+        expected: "array".to_owned(),
+        message: String::new(),
+        severity: Severity::Error,
+        attribution,
+    });
+}
+
+fn apply_banned(
+    table_key: &str,
+    array: &mut Array,
+    path_to_remove: &str,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    let positions = positions_with_path(array, path_to_remove);
+    for i in positions.into_iter().rev() {
+        let _ = array.remove(i);
+        findings.push(Finding::Mismatch {
+            key: format!("{table_key}[?path == \"{path_to_remove}\"]"),
+            current: Some(path_to_remove.to_owned()),
+            expected: "absent".into(),
+            message: message.to_owned(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
     }
 }
 
-/// Remove any entries whose path matches any of `paths`. Map value is the message.
-fn apply_excludes(
-    table_key: &str,
-    array: &mut Array,
-    map: &BTreeMap<String, String>,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    for (path_to_remove, message) in map {
-        let positions = positions_with_path(array, path_to_remove);
-        for i in positions.into_iter().rev() {
-            let _ = array.remove(i);
-            findings.push(Finding::Mismatch {
-                key: format!("{table_key}[?path == \"{path_to_remove}\"]"),
-                current: Some(path_to_remove.clone()),
-                expected: "absent".into(),
-                message: message.clone(),
-                severity: Severity::Error,
-                attribution: attribution.to_vec(),
-            });
-        }
-    }
-}
-
-/// Drop on-disk entries not in `exact`.
 fn prune_extras(
     table_key: &str,
     array: &mut Array,
-    exact: &[BanEntry],
+    allowed: &BTreeSet<String>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let allowed: BTreeSet<String> = exact.iter().map(|e| e.path.clone()).collect();
     let mut indices_to_remove = Vec::new();
-    for (i, v) in array.iter().enumerate() {
-        if let Some(p) = read_entry_path(v) {
-            if !allowed.contains(&p) {
-                indices_to_remove.push((i, p));
+    for (i, value) in array.iter().enumerate() {
+        if let Some(path) = read_entry_path(value) {
+            if !allowed.contains(&path) {
+                indices_to_remove.push((i, path));
             }
         }
     }
-    for (i, p) in indices_to_remove.into_iter().rev() {
+    for (i, path) in indices_to_remove.into_iter().rev() {
         let _ = array.remove(i);
         findings.push(Finding::Mismatch {
-            key: format!("{table_key}[?path == \"{p}\"]"),
-            current: Some(p),
-            expected: "absent (IsExactly)".into(),
+            key: format!("{table_key}[?path == \"{path}\"]"),
+            current: Some(path),
+            expected: "absent (closed table)".into(),
             message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
@@ -152,7 +203,6 @@ fn prune_extras(
     }
 }
 
-/// Scan the existing array and collect the set of paths already banned.
 fn collect_current_paths(array: &Array) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for entry in array {
@@ -163,65 +213,64 @@ fn collect_current_paths(array: &Array) -> BTreeSet<String> {
     out
 }
 
-/// Find every index whose entry's path matches `target`.
 fn positions_with_path(array: &Array, target: &str) -> Vec<usize> {
     let mut out = Vec::new();
-    for (i, v) in array.iter().enumerate() {
-        if read_entry_path(v).as_deref() == Some(target) {
+    for (i, value) in array.iter().enumerate() {
+        if read_entry_path(value).as_deref() == Some(target) {
             out.push(i);
         }
     }
     out
 }
 
-/// Extract `path` from either a bare-string entry or an inline-table entry.
+fn position_with_path(array: &Array, target: &str) -> Option<usize> {
+    array
+        .iter()
+        .enumerate()
+        .find_map(|(i, value)| (read_entry_path(value).as_deref() == Some(target)).then_some(i))
+}
+
 fn read_entry_path(item: &Value) -> Option<String> {
-    if let Some(s) = item.as_str() {
-        return Some(s.to_owned());
+    if let Some(path) = item.as_str() {
+        return Some(path.to_owned());
     }
-    if let Some(t) = item.as_inline_table() {
-        return t.get("path").and_then(Value::as_str).map(ToOwned::to_owned);
+    if let Some(table) = item.as_inline_table() {
+        return table
+            .get("path")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned);
     }
     None
 }
 
-/// Build a TOML value for one ban entry. Uses bare string when the
-/// message is empty; inline-table form (path + reason) otherwise.
-///
-/// clippy's `disallowed-methods` schema names the field `reason`; we
-/// keep that wire name even though our internal API calls it `message`.
+fn read_entry_reason(item: &Value) -> Option<String> {
+    item.as_inline_table()
+        .and_then(|table| table.get("reason").and_then(Value::as_str))
+        .map(ToOwned::to_owned)
+}
+
+fn ban_value_matches(item: &Value, required: &BanEntry) -> bool {
+    read_entry_path(item).as_deref() == Some(required.path.as_str())
+        && (required.message.is_empty()
+            || read_entry_reason(item).as_deref() == Some(required.message.as_str()))
+}
+
 fn ban_value(entry: &BanEntry) -> Value {
+    // Required ban entries are writable array items.
     if entry.message.is_empty() {
         Value::from(entry.path.as_str())
     } else {
-        let mut t = InlineTable::new();
-        let _ = t.insert("path", Value::from(entry.path.as_str()));
-        let _ = t.insert("reason", Value::from(entry.message.as_str()));
-        Value::InlineTable(t)
+        let mut table = InlineTable::new();
+        let _ = table.insert("path", Value::from(entry.path.as_str()));
+        let _ = table.insert("reason", Value::from(entry.message.as_str()));
+        Value::InlineTable(table)
     }
 }
 
-/// Human-readable rendering of a `BanEntry` for finding `expected` text.
 fn format_entry(entry: &BanEntry) -> String {
     if entry.message.is_empty() {
         format!("path={}", entry.path)
     } else {
         format!("path={} reason={}", entry.path, entry.message)
-    }
-}
-
-/// If every contribution is `IsExactly`, return the union of entries.
-fn is_exactly_only(merged: &Vec<(Provenance, BansAssertion)>) -> Option<Vec<BanEntry>> {
-    let mut combined = Vec::new();
-    for (_, a) in merged {
-        match a {
-            BansAssertion::IsExactly(v) => combined.extend(v.iter().cloned()),
-            BansAssertion::Contains(_) | BansAssertion::Excludes(_) => return None,
-        }
-    }
-    if combined.is_empty() {
-        None
-    } else {
-        Some(combined)
     }
 }

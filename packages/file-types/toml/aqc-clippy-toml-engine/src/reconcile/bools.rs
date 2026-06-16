@@ -1,28 +1,53 @@
 //! Reconciliation for clippy.toml boolean settings.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
 use toml_edit::{DocumentMut, Item, value};
 
-use crate::reconcile::util::all_provenances;
 use crate::requirement::BoolAssertion;
 
-/// Apply every boolean-setting contribution.
+/// Apply every boolean-setting requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_key: &BTreeMap<String, Vec<(Provenance, BoolAssertion)>>,
+    merged_by_key: &BTreeMap<String, ResolvedRequirement<BoolAssertion, BoolAssertion>>,
     findings: &mut Vec<Finding>,
 ) {
     for (key, merged) in merged_by_key {
-        let attribution = all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_one(doc, key, assertion, &attribution, findings);
-        }
+        let attribution = attribution_for(doc, key, merged);
+        apply_one(doc, key, &merged.merged, &attribution, findings);
+    }
+}
+
+fn attribution_for(
+    doc: &DocumentMut,
+    key: &str,
+    resolved: &ResolvedRequirement<BoolAssertion, BoolAssertion>,
+) -> Vec<Provenance> {
+    let current = doc.get(key);
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| assertion_fails(current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        resolved
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect()
+    } else {
+        filtered
+    }
+}
+
+fn assertion_fails(current: Option<&Item>, assertion: &BoolAssertion) -> bool {
+    let current_bool = current.and_then(Item::as_bool);
+    match assertion {
+        BoolAssertion::Equals(want, _) => current_bool != Some(*want),
+        BoolAssertion::Present(_) => current_bool.is_none(),
+        BoolAssertion::Absent(_) => current.is_some(),
     }
 }
 

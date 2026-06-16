@@ -1,28 +1,56 @@
 //! Reconciliation for clippy.toml string-valued (enum-style) settings.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, Severity};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
 use toml_edit::{DocumentMut, Item, value};
 
-use crate::reconcile::util::all_provenances;
 use crate::requirement::StringAssertion;
 
-/// Apply every string-setting contribution.
+/// Apply every string-setting requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_key: &BTreeMap<String, Vec<(Provenance, StringAssertion)>>,
+    merged_by_key: &BTreeMap<String, ResolvedRequirement<StringAssertion, StringAssertion>>,
     findings: &mut Vec<Finding>,
 ) {
     for (key, merged) in merged_by_key {
-        let attribution = all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_one(doc, key, assertion, &attribution, findings);
+        let attribution = attribution_for(doc, key, merged);
+        apply_one(doc, key, &merged.merged, &attribution, findings);
+    }
+}
+
+fn attribution_for(
+    doc: &DocumentMut,
+    key: &str,
+    resolved: &ResolvedRequirement<StringAssertion, StringAssertion>,
+) -> Vec<Provenance> {
+    let current = doc.get(key);
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| assertion_fails(current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        resolved
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect()
+    } else {
+        filtered
+    }
+}
+
+fn assertion_fails(current: Option<&Item>, assertion: &StringAssertion) -> bool {
+    let current_str = current.and_then(Item::as_str);
+    match assertion {
+        StringAssertion::Equals(want, _) => current_str != Some(want.as_str()),
+        StringAssertion::OneOf(allowed, _) => {
+            !current_str.is_some_and(|value| allowed.contains(value))
         }
+        StringAssertion::Present(_) => current_str.is_none(),
+        StringAssertion::Absent(_) => current.is_some(),
     }
 }
 

@@ -6,6 +6,5 @@ mod dispatch;
 mod enums;
 mod msrv;
 mod thresholds;
-mod util;
 
 pub(crate) use dispatch::apply;

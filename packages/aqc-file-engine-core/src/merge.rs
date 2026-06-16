@@ -1,243 +1,518 @@
-//! The shared merge machinery: how contributions for one file converge.
+//! Shared merge machinery for file-engine requirements.
 //!
-//! When many policies (via many adapters) write the same file, their
-//! requirements all reach one engine as collected `(Provenance, assertion)`
-//! lists. This module is the single place that knows *how* to combine them:
-//! union the lists, then resolve each key to one value or a conflict. It
-//! names no file type; each engine's assertion types implement [`Resolve`],
-//! and nothing else (the broker, the adapters) touches this code.
-
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
+//! Adapters emit plain engine requirements tagged with provenance. Engine merge
+//! code composes those plain requirements into resolved values, while keeping
+//! the collected assertions needed for precise findings.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::types::{Msg, Provenance};
+use crate::toml_helpers::parse_version_tuple;
+use crate::types::{ConfigScalar, Provenance};
 
-/// One key on which sources irreconcilably disagree, with each source's value.
-///
-/// `key` is relative to the field; the engine prepends the field path to form
-/// the full in-file key on the resulting `Finding::PolicyConflict`.
+/// One key on which policies irreconcilably disagree, with each value.
 #[derive(Debug, Clone)]
 pub struct ConflictEntry {
     /// The disagreeing key.
     pub key: String,
-    /// Which resolution rule fired: `scalar-disagree`, `set-key-disagree`,
-    /// or `exact-mismatch`.
+    /// Which composition rule found the conflict.
     pub reason: String,
-    /// Each contributing provenance paired with its value, rendered for display.
+    /// Each provenance paired with its value, rendered for display.
     pub contributors: Vec<(Provenance, String)>,
 }
 
-/// An assertion type that knows how to resolve multiple contributions for one
-/// key into a single value, pushing a [`ConflictEntry`] for genuine disagreement.
-///
-/// This is the single decoupling seam: every file engine's assertion types
-/// implement it; the generic strategies below do the work; the broker and the
-/// adapters never call it.
-pub trait Resolve: Sized + Clone {
-    /// Resolve all contributions for one key (under `key`, the field's in-file
-    /// path). Returns the merged value, or `None` and pushes one or more
-    /// `ConflictEntry`s when the contributions cannot be reconciled.
-    fn resolve(
-        key: &str,
-        contributions: Vec<(Provenance, Self)>,
-        conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<Self>;
+/// A composed requirement plus the policy assertions used to compose it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedRequirement<Merged, A> {
+    pub merged: Merged,
+    pub collected: Vec<(Provenance, A)>,
 }
 
-/// Resolve a set of contributions that must all hold the same value.
-///
-/// Different values → one conflict keyed by `key`, tagged with `reason`, and
-/// `None`. The two public entry points differ only in the reason they record.
-fn resolve_all_equal<T>(
+/// Product requirement for collections of identifiable file items.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemRequirements<Item> {
+    pub required: Vec<(Item, String)>,
+    pub banned: Vec<(Item, String)>,
+    pub closed: Option<String>,
+}
+
+impl<Item> Default for ItemRequirements<Item> {
+    fn default() -> Self {
+        Self {
+            required: Vec::new(),
+            banned: Vec::new(),
+            closed: None,
+        }
+    }
+}
+
+/// Resolved item requirements with attribution on every member.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedItemRequirements<Item>
+where
+    Item: FileItemRequirement,
+{
+    pub required: BTreeMap<Item::Identity, ResolvedRequirement<Item, (Item, String)>>,
+    pub banned: BTreeMap<Item::Identity, ResolvedRequirement<Item, String>>,
+    pub closed_by: Vec<(Provenance, String)>,
+}
+
+impl<Item> Default for ResolvedItemRequirements<Item>
+where
+    Item: FileItemRequirement,
+{
+    fn default() -> Self {
+        Self {
+            required: BTreeMap::new(),
+            banned: BTreeMap::new(),
+            closed_by: Vec::new(),
+        }
+    }
+}
+
+/// A file-item requirement that can identify and compose matching policy input.
+pub trait FileItemRequirement: Sized + Clone {
+    type Identity: Ord + Clone;
+
+    fn merge_identity(&self) -> Self::Identity;
+
+    fn compose_item(
+        key: &str,
+        items: Vec<(Provenance, (Self, String))>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<ResolvedRequirement<Self, (Self, String)>>;
+}
+
+/// Requirement for collections where the file key is the item identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyedItem<Value> {
+    pub file_key: String,
+    pub value: Value,
+}
+
+/// Product requirement for list-like TOML fields.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ListRequirements {
+    pub contains: BTreeMap<String, String>,
+    pub excludes: BTreeMap<String, String>,
+    pub exact: Option<(Vec<String>, String)>,
+}
+
+/// Resolved list requirements with per-item and exact-list attribution.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedListRequirements {
+    pub contains: BTreeMap<String, ResolvedRequirement<(), String>>,
+    pub excludes: BTreeMap<String, ResolvedRequirement<(), String>>,
+    pub exact: Option<ResolvedRequirement<Vec<String>, (Vec<String>, String)>>,
+}
+
+/// Assertion types that compose several policy assertions into one value.
+pub trait Resolve: Sized + Clone {
+    type Merged: Clone;
+
+    fn resolve(
+        key: &str,
+        items: Vec<(Provenance, Self)>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<ResolvedRequirement<Self::Merged, Self>>;
+}
+
+/// Compose assertions keyed by field name.
+pub fn resolve_map<K, A>(
+    input: Vec<(Provenance, BTreeMap<K, A>)>,
+    key_path: impl Fn(&K) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> BTreeMap<K, ResolvedRequirement<A::Merged, A>>
+where
+    K: Ord + Clone,
+    A: Resolve,
+{
+    let mut by_key: BTreeMap<K, Vec<(Provenance, A)>> = BTreeMap::new();
+    for (prov, map) in input {
+        for (key, assertion) in map {
+            by_key
+                .entry(key)
+                .or_default()
+                .push((prov.clone(), assertion));
+        }
+    }
+
+    let mut out = BTreeMap::new();
+    for (key, items) in by_key {
+        if let Some(resolved) = A::resolve(&key_path(&key), items, conflicts) {
+            let _ = out.insert(key, resolved);
+        }
+    }
+    out
+}
+
+/// Compose an optional singleton assertion.
+pub fn resolve_maybe<A>(
     key: &str,
-    reason: &str,
-    contributions: Vec<(Provenance, T)>,
+    input: Vec<(Provenance, Option<A>)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedRequirement<A::Merged, A>>
+where
+    A: Resolve,
+{
+    let items = input
+        .into_iter()
+        .filter_map(|(prov, value)| value.map(|assertion| (prov, assertion)))
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        None
+    } else {
+        A::resolve(key, items, conflicts)
+    }
+}
+
+/// Compose file-item collection requirements.
+pub fn resolve_items<Item>(
+    key: &str,
+    input: Vec<(Provenance, ItemRequirements<Item>)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> ResolvedItemRequirements<Item>
+where
+    Item: FileItemRequirement,
+    Item::Identity: ToString,
+{
+    let mut required: BTreeMap<Item::Identity, Vec<(Provenance, (Item, String))>> = BTreeMap::new();
+    let mut banned: BTreeMap<Item::Identity, Vec<(Provenance, (Item, String))>> = BTreeMap::new();
+    let mut closed_by = Vec::new();
+    let mut closed_inputs: Vec<(Provenance, String, BTreeSet<Item::Identity>)> = Vec::new();
+
+    for (prov, items) in input {
+        let allowed = items
+            .required
+            .iter()
+            .map(|(item, _)| item.merge_identity())
+            .collect::<BTreeSet<_>>();
+        for (item, msg) in items.required {
+            required
+                .entry(item.merge_identity())
+                .or_default()
+                .push((prov.clone(), (item, msg)));
+        }
+        for (item, msg) in items.banned {
+            banned
+                .entry(item.merge_identity())
+                .or_default()
+                .push((prov.clone(), (item, msg)));
+        }
+        if let Some(msg) = items.closed {
+            closed_inputs.push((prov.clone(), msg.clone(), allowed));
+            closed_by.push((prov, msg));
+        }
+    }
+
+    let mut resolved_required = BTreeMap::new();
+    for (identity, items) in required {
+        let path = format!("{}.{}", key, identity.to_string());
+        if let Some(resolved) = Item::compose_item(&path, items, conflicts) {
+            let _ = resolved_required.insert(identity, resolved);
+        }
+    }
+
+    let mut resolved_banned = BTreeMap::new();
+    for (identity, items) in banned {
+        let Some((_, (first, _))) = items.first() else {
+            continue;
+        };
+        let _ = resolved_banned.insert(
+            identity,
+            ResolvedRequirement {
+                merged: first.clone(),
+                collected: items
+                    .into_iter()
+                    .map(|(prov, (_, msg))| (prov, msg))
+                    .collect(),
+            },
+        );
+    }
+
+    for identity in resolved_required.keys() {
+        if let Some(ban) = resolved_banned.get(identity) {
+            let mut contributors = Vec::new();
+            if let Some(req) = resolved_required.get(identity) {
+                contributors.extend(req.collected.iter().map(|(prov, entry)| {
+                    let _ = entry;
+                    (prov.clone(), "required".to_owned())
+                }));
+            }
+            contributors.extend(
+                ban.collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "banned".to_owned())),
+            );
+            conflicts.push(ConflictEntry {
+                key: format!("{}.{}", key, identity.to_string()),
+                reason: "item-required-and-banned".to_owned(),
+                contributors,
+            });
+        }
+    }
+
+    for (closer, _, allowed) in &closed_inputs {
+        for (identity, req) in &resolved_required {
+            if allowed.contains(identity) {
+                continue;
+            }
+            let mut contributors = vec![(closer.clone(), "closed".to_owned())];
+            contributors.extend(
+                req.collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "required".to_owned())),
+            );
+            conflicts.push(ConflictEntry {
+                key: format!("{}.{}", key, identity.to_string()),
+                reason: "closed-collection-rejects-unlisted-required-item".to_owned(),
+                contributors,
+            });
+        }
+    }
+
+    ResolvedItemRequirements {
+        required: resolved_required,
+        banned: resolved_banned,
+        closed_by,
+    }
+}
+
+/// Compose list product requirements.
+pub fn resolve_list(
+    key: &str,
+    items: Vec<(Provenance, ListRequirements)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> ResolvedListRequirements {
+    let mut contains: BTreeMap<String, Vec<(Provenance, String)>> = BTreeMap::new();
+    let mut excludes: BTreeMap<String, Vec<(Provenance, String)>> = BTreeMap::new();
+    let mut exact_items = Vec::new();
+
+    for (prov, list) in items {
+        for (name, msg) in list.contains {
+            contains.entry(name).or_default().push((prov.clone(), msg));
+        }
+        for (name, msg) in list.excludes {
+            excludes.entry(name).or_default().push((prov.clone(), msg));
+        }
+        if let Some(exact) = list.exact {
+            exact_items.push((prov, exact));
+        }
+    }
+
+    let mut resolved_contains = BTreeMap::new();
+    for (name, collected) in contains {
+        let _ = resolved_contains.insert(
+            name,
+            ResolvedRequirement {
+                merged: (),
+                collected,
+            },
+        );
+    }
+
+    let mut resolved_excludes = BTreeMap::new();
+    for (name, collected) in excludes {
+        let _ = resolved_excludes.insert(
+            name,
+            ResolvedRequirement {
+                merged: (),
+                collected,
+            },
+        );
+    }
+
+    for name in resolved_contains.keys() {
+        if let Some(exclude) = resolved_excludes.get(name) {
+            let mut contributors = Vec::new();
+            if let Some(include) = resolved_contains.get(name) {
+                contributors.extend(
+                    include
+                        .collected
+                        .iter()
+                        .map(|(prov, _)| (prov.clone(), "contains".to_owned())),
+                );
+            }
+            contributors.extend(
+                exclude
+                    .collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "excludes".to_owned())),
+            );
+            conflicts.push(ConflictEntry {
+                key: format!("{key}.{name}"),
+                reason: "list-contains-and-excludes".to_owned(),
+                contributors,
+            });
+        }
+    }
+
+    let exact = resolve_exact_list(key, exact_items, conflicts);
+    if let Some(exact) = &exact {
+        let allowed = exact.merged.iter().cloned().collect::<BTreeSet<_>>();
+        for (name, include) in &resolved_contains {
+            if !allowed.contains(name) {
+                let mut contributors = exact
+                    .collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "exact".to_owned()))
+                    .collect::<Vec<_>>();
+                contributors.extend(
+                    include
+                        .collected
+                        .iter()
+                        .map(|(prov, _)| (prov.clone(), "contains".to_owned())),
+                );
+                conflicts.push(ConflictEntry {
+                    key: format!("{key}.{name}"),
+                    reason: "list-exact-missing-contained-item".to_owned(),
+                    contributors,
+                });
+            }
+        }
+        for (name, exclude) in &resolved_excludes {
+            if allowed.contains(name) {
+                let mut contributors = exact
+                    .collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "exact".to_owned()))
+                    .collect::<Vec<_>>();
+                contributors.extend(
+                    exclude
+                        .collected
+                        .iter()
+                        .map(|(prov, _)| (prov.clone(), "excludes".to_owned())),
+                );
+                conflicts.push(ConflictEntry {
+                    key: format!("{key}.{name}"),
+                    reason: "list-exact-contains-excluded-item".to_owned(),
+                    contributors,
+                });
+            }
+        }
+    }
+
+    ResolvedListRequirements {
+        contains: resolved_contains,
+        excludes: resolved_excludes,
+        exact,
+    }
+}
+
+/// Compose assertions that must all be the same semantic value.
+pub fn resolve_scalar<T>(
+    key: &str,
+    items: Vec<(Provenance, T)>,
     render: impl Fn(&T) -> String,
     conflicts: &mut Vec<ConflictEntry>,
-) -> Option<T>
+) -> Option<ResolvedRequirement<T, T>>
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
-    let mut iter = contributions.into_iter();
-    let (first_prov, first) = iter.next()?;
-    let mut contributors: Vec<(Provenance, String)> = vec![(first_prov, render(&first))];
-    let mut disagree = false;
-    for (prov, value) in iter {
-        if value != first {
-            disagree = true;
-        }
-        contributors.push((prov, render(&value)));
-    }
+    resolve_all_equal(key, "scalar-disagree", items, render, conflicts)
+}
+
+/// Compose exact-list assertions.
+pub fn resolve_exact_list(
+    key: &str,
+    items: Vec<(Provenance, (Vec<String>, String))>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedRequirement<Vec<String>, (Vec<String>, String)>> {
+    let resolved = resolve_all_equal(
+        key,
+        "exact-mismatch",
+        items,
+        |(list, _)| format!("{list:?}"),
+        conflicts,
+    )?;
+    Some(ResolvedRequirement {
+        merged: resolved.merged.0,
+        collected: resolved.collected,
+    })
+}
+
+/// Compose semantic values and retain every assertion.
+pub fn resolve_all_equal<T>(
+    key: &str,
+    reason: &str,
+    items: Vec<(Provenance, T)>,
+    render: impl Fn(&T) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedRequirement<T, T>>
+where
+    T: PartialEq + Clone,
+{
+    let mut iter = items.iter();
+    let (_, first) = iter.next()?;
+    let disagree = iter.any(|(_, value)| value != first);
     if disagree {
         conflicts.push(ConflictEntry {
             key: key.to_owned(),
             reason: reason.to_owned(),
-            contributors,
+            contributors: items
+                .iter()
+                .map(|(prov, value)| (prov.clone(), render(value)))
+                .collect(),
         });
         None
     } else {
-        Some(first)
+        Some(ResolvedRequirement {
+            merged: first.clone(),
+            collected: items,
+        })
     }
 }
 
-/// Resolve a scalar: every contribution must hold the same value.
-///
-/// Different values → one conflict keyed by `key` (`scalar-disagree`), and `None`.
-pub fn resolve_scalar<T>(
+/// Compose two optional scalar fields inside a larger entry.
+pub fn compose_optional_field<T>(
     key: &str,
-    contributions: Vec<(Provenance, T)>,
+    items: Vec<(Provenance, Option<T>)>,
     render: impl Fn(&T) -> String,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> Option<T>
 where
-    T: PartialEq,
+    T: PartialEq + Clone,
 {
-    resolve_all_equal(key, "scalar-disagree", contributions, render, conflicts)
-}
-
-/// Resolve an "exactly this" assertion: every contribution must be identical.
-///
-/// Same value-level check as [`resolve_scalar`]; the resolution for
-/// `IsExactly`-style assertions (no key-wise union), tagged `exact-mismatch`.
-pub fn resolve_exact<T>(
-    key: &str,
-    contributions: Vec<(Provenance, T)>,
-    render: impl Fn(&T) -> String,
-    conflicts: &mut Vec<ConflictEntry>,
-) -> Option<T>
-where
-    T: PartialEq,
-{
-    resolve_all_equal(key, "exact-mismatch", contributions, render, conflicts)
-}
-
-/// Merge a set of `key -> value` maps.
-///
-/// The keys union; a key present in more than one map with different values →
-/// one conflict keyed by `key_prefix.<k>`, and that key is dropped from the
-/// result.
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "merge_map is the map-merge strategy; the name reads at call sites and is the public verb."
-)]
-pub fn merge_map<V>(
-    key_prefix: &str,
-    contributions: Vec<(Provenance, BTreeMap<String, V>)>,
-    render: impl Fn(&V) -> String,
-    conflicts: &mut Vec<ConflictEntry>,
-) -> BTreeMap<String, V>
-where
-    V: PartialEq + Clone,
-{
-    merge_map_by(key_prefix, contributions, V::clone, render, conflicts)
-}
-
-/// Merge a set of `key -> value` maps, comparing entries via `project`.
-///
-/// Like [`merge_map`], but agreement is decided on the projected value — the
-/// way engines exclude the policy-authored message from the comparison (two
-/// policies asserting the same semantic value with different messages agree;
-/// the first entry wins).
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "merge_map_by is the projected variant of merge_map; the names pair at call sites."
-)]
-pub fn merge_map_by<V, P>(
-    key_prefix: &str,
-    contributions: Vec<(Provenance, BTreeMap<String, V>)>,
-    project: impl Fn(&V) -> P,
-    render: impl Fn(&V) -> String,
-    conflicts: &mut Vec<ConflictEntry>,
-) -> BTreeMap<String, V>
-where
-    P: PartialEq,
-{
-    let mut by_key: BTreeMap<String, Vec<(Provenance, V)>> = BTreeMap::new();
-    for (prov, map) in contributions {
-        for (k, v) in map {
-            by_key.entry(k).or_default().push((prov.clone(), v));
-        }
+    let present = items
+        .into_iter()
+        .filter_map(|(prov, value)| value.map(|inner| (prov, inner)))
+        .collect::<Vec<_>>();
+    if present.is_empty() {
+        None
+    } else {
+        resolve_scalar(key, present, render, conflicts).map(|resolved| resolved.merged)
     }
-    let mut out: BTreeMap<String, V> = BTreeMap::new();
-    for (k, entries) in by_key {
-        let full_key = format!("{key_prefix}.{k}");
-        let mut iter = entries.into_iter();
-        let Some((first_prov, first_val)) = iter.next() else {
-            continue;
-        };
-        let mut contributors: Vec<(Provenance, String)> = vec![(first_prov, render(&first_val))];
-        let mut disagree = false;
-        for (prov, value) in iter {
-            if project(&value) != project(&first_val) {
-                disagree = true;
+}
+
+/// Ordered, deduplicated union of string lists.
+#[must_use]
+pub fn compose_string_list(items: Vec<Vec<String>>) -> Vec<String> {
+    let mut out = Vec::new();
+    for list in items {
+        for item in list {
+            if !out.iter().any(|seen| seen == &item) {
+                out.push(item);
             }
-            contributors.push((prov, render(&value)));
-        }
-        if disagree {
-            conflicts.push(ConflictEntry {
-                key: full_key,
-                reason: "set-key-disagree".to_owned(),
-                contributors,
-            });
-        } else {
-            let _ = out.insert(k, first_val);
         }
     }
     out
 }
 
-/// First-wins union of string-keyed maps (used for `Excludes`-style unions
-/// where the value is the policy message and carries no agreement semantics).
+/// Union of string sets.
 #[must_use]
-pub fn union_first_wins<V>(maps: Vec<BTreeMap<String, V>>) -> BTreeMap<String, V> {
-    let mut out: BTreeMap<String, V> = BTreeMap::new();
-    for map in maps {
-        for (k, v) in map {
-            let _ = out.entry(k).or_insert(v);
-        }
-    }
-    out
+pub fn compose_string_set(items: Vec<BTreeSet<String>>) -> BTreeSet<String> {
+    items.into_iter().flatten().collect()
 }
 
-/// Ordered, deduplicated union of `(list, message)` contributions; the first
-/// message wins. Pure union; never conflicts.
+/// Highest version-like floor, retaining the winning message.
 #[must_use]
-pub fn union_string_lists(lists: Vec<(Vec<String>, Msg)>) -> (Vec<String>, Msg) {
-    let mut items: Vec<String> = Vec::new();
-    let mut msg: Option<Msg> = None;
-    for (list, m) in lists {
-        if msg.is_none() {
-            msg = Some(m);
-        }
-        for it in list {
-            if !items.iter().any(|e| e == &it) {
-                items.push(it);
-            }
-        }
-    }
-    (items, msg.unwrap_or_default())
+pub fn strongest_version_floor(items: Vec<(String, String)>) -> (String, String) {
+    items
+        .into_iter()
+        .max_by(|(a, _), (b, _)| parse_version_tuple(a).cmp(&parse_version_tuple(b)))
+        .unwrap_or_default()
 }
 
-/// Union of `(set, message)` contributions; the first message wins.
-#[must_use]
-pub fn union_string_sets(sets: Vec<(BTreeSet<String>, Msg)>) -> (BTreeSet<String>, Msg) {
-    let mut items: BTreeSet<String> = BTreeSet::new();
-    let mut msg: Option<Msg> = None;
-    for (set, m) in sets {
-        if msg.is_none() {
-            msg = Some(m);
-        }
-        items.extend(set);
-    }
-    (items, msg.unwrap_or_default())
-}
-
-/// Semantic equality of two keyed `(value, message)` entry maps: keys and
-/// values must match; the messages never participate.
+/// Semantic equality of two keyed `(value, message)` maps.
 #[must_use]
 pub fn keyed_entries_eq<S: PartialEq, M>(
     a: &BTreeMap<String, (S, M)>,
@@ -245,85 +520,69 @@ pub fn keyed_entries_eq<S: PartialEq, M>(
 ) -> bool {
     a.len() == b.len()
         && a.iter()
-            .zip(b)
-            .all(|((ka, (sa, _)), (kb, (sb, _)))| ka == kb && sa == sb)
+            .all(|(key, (left, _))| b.get(key).is_some_and(|(right, _)| left == right))
 }
 
-/// Union two optional collected-assertion lists by concatenation.
-#[must_use]
-pub fn union_optional<A>(
-    a: Option<Vec<(Provenance, A)>>,
-    b: Option<Vec<(Provenance, A)>>,
-) -> Option<Vec<(Provenance, A)>> {
-    match (a, b) {
-        (Some(mut x), Some(mut y)) => {
-            x.append(&mut y);
-            Some(x)
-        }
-        (x, None) => x,
-        (None, y) => y,
-    }
-}
-
-/// Union one field across requirements: per shared key, the collected
-/// assertion lists concatenate.
-pub fn union_field<K, A>(
-    into: &mut BTreeMap<K, Vec<(Provenance, A)>>,
-    other: BTreeMap<K, Vec<(Provenance, A)>>,
-) where
-    K: Ord,
-{
-    for (k, mut pairs) in other {
-        into.entry(k).or_default().append(&mut pairs);
-    }
-}
-
-/// Resolve one field after union.
-///
-/// Per key, run [`Resolve::resolve`] over its collected assertions; a resolved
-/// value is re-paired with every contributing provenance (so the apply phase
-/// keeps full attribution); a conflict drops the key. `key_of` maps a field
-/// key to its in-file path prefix.
-pub fn resolve_field<K, A>(
-    field: BTreeMap<K, Vec<(Provenance, A)>>,
-    key_of: impl Fn(&K) -> String,
-    conflicts: &mut Vec<ConflictEntry>,
-) -> BTreeMap<K, Vec<(Provenance, A)>>
+impl<Value> FileItemRequirement for KeyedItem<Value>
 where
-    K: Ord,
-    A: Resolve,
+    Value: PartialEq + Clone,
 {
-    let mut out: BTreeMap<K, Vec<(Provenance, A)>> = BTreeMap::new();
-    for (k, pairs) in field {
-        let provenances: Vec<Provenance> = pairs.iter().map(|(p, _)| p.clone()).collect();
-        let key = key_of(&k);
-        if let Some(resolved) = A::resolve(&key, pairs, conflicts) {
-            let repaired = provenances
-                .into_iter()
-                .map(|p| (p, resolved.clone()))
-                .collect();
-            let _ = out.insert(k, repaired);
-        }
+    type Identity = String;
+
+    fn merge_identity(&self) -> Self::Identity {
+        self.file_key.clone()
     }
-    out
+
+    fn compose_item(
+        key: &str,
+        items: Vec<(Provenance, (Self, String))>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
+        compose_item_by(key, items, |item| item.value.clone(), conflicts)
+    }
 }
 
-/// Resolve an optional single-assertion field (e.g. `features`).
-pub fn resolve_optional<A>(
+impl Resolve for ConfigScalar {
+    type Merged = Self;
+
+    fn resolve(
+        key: &str,
+        items: Vec<(Provenance, Self)>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
+        resolve_scalar(key, items, |item| format!("{item:?}"), conflicts)
+    }
+}
+
+/// Generic item composer for semantic-value equality.
+pub fn compose_item_by<Item, Semantic>(
     key: &str,
-    field: Option<Vec<(Provenance, A)>>,
+    items: Vec<(Provenance, (Item, String))>,
+    project: impl Fn(&Item) -> Semantic,
     conflicts: &mut Vec<ConflictEntry>,
-) -> Option<Vec<(Provenance, A)>>
+) -> Option<ResolvedRequirement<Item, (Item, String)>>
 where
-    A: Resolve,
+    Item: Clone,
+    Semantic: PartialEq,
 {
-    let pairs = field?;
-    let provenances: Vec<Provenance> = pairs.iter().map(|(p, _)| p.clone()).collect();
-    let resolved = A::resolve(key, pairs, conflicts)?;
-    Some(
-        provenances
-            .into_iter()
-            .map(|p| (p, resolved.clone()))
-            .collect(),
-    )
+    let mut iter = items.iter();
+    let (_, (first, _)) = iter.next()?;
+    let first_semantic = project(first);
+    let disagree = iter.any(|(_, (entry, _))| project(entry) != first_semantic);
+    if disagree {
+        conflicts.push(ConflictEntry {
+            key: key.to_owned(),
+            reason: "set-key-disagree".to_owned(),
+            contributors: items
+                .iter()
+                .map(|(prov, _)| (prov.clone(), "required".to_owned()))
+                .collect(),
+        });
+        None
+    } else {
+        Some(ResolvedRequirement {
+            merged: first.clone(),
+            collected: items,
+        })
+    }
 }

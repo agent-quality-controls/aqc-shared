@@ -1,31 +1,63 @@
 //! Reconciliation for clippy.toml's `msrv` key.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, Provenance, Severity, parse_version_tuple};
+use aqc_file_engine_core::{
+    Finding, Provenance, ResolvedRequirement, Severity, parse_version_tuple,
+};
 use toml_edit::{DocumentMut, Item, value};
 
-use crate::reconcile::util::all_provenances;
 use crate::requirement::MsrvAssertion;
 
-/// Apply every `msrv` contribution to the document.
+/// Apply the resolved `msrv` requirement to the document.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: &Vec<(Provenance, MsrvAssertion)>,
+    merged: &ResolvedRequirement<MsrvAssertion, MsrvAssertion>,
     findings: &mut Vec<Finding>,
 ) {
-    let attribution = all_provenances(merged);
     let current = doc
         .get("msrv")
         .and_then(Item::as_str)
         .map(ToOwned::to_owned);
+    let attribution = attribution_for(current.as_deref(), merged);
 
-    for (_, assertion) in merged {
-        apply_one(doc, current.as_deref(), assertion, &attribution, findings);
+    apply_one(
+        doc,
+        current.as_deref(),
+        &merged.merged,
+        &attribution,
+        findings,
+    );
+}
+
+fn attribution_for(
+    current: Option<&str>,
+    resolved: &ResolvedRequirement<MsrvAssertion, MsrvAssertion>,
+) -> Vec<Provenance> {
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| assertion_fails(current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        resolved
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect()
+    } else {
+        filtered
+    }
+}
+
+fn assertion_fails(current: Option<&str>, assertion: &MsrvAssertion) -> bool {
+    match assertion {
+        MsrvAssertion::Equals(want, _) => current != Some(want.as_str()),
+        MsrvAssertion::AtLeast(min, _) => !current.is_some_and(|value| ge_version(value, min)),
+        MsrvAssertion::OneOf(allowed, _) => !current.is_some_and(|value| allowed.contains(value)),
+        MsrvAssertion::Present(_) => current.is_none(),
+        MsrvAssertion::Absent(_) => current.is_some(),
     }
 }
 

@@ -3,20 +3,21 @@
 use std::path::{Path, PathBuf};
 
 use aqc_file_engine_core::{
-    Engine, EngineOutput, EngineRequirement, FileEngine, merged_reconcile, parse_or_report,
+    Engine, EngineOutput, EngineRequirement, FileEngine, Provenance, merged_reconcile,
+    parse_or_report,
 };
 
 use crate::reconcile;
-use crate::requirement::ClippyTomlRequirement;
+use crate::requirement::{ClippyTomlRequirements, ResolvedClippyTomlRequirements};
 
 /// `clippy.toml` engine.
 #[derive(Debug, Default)]
 pub struct ClippyTomlEngine;
 
-impl FileEngine<ClippyTomlRequirement> for ClippyTomlEngine {
+impl FileEngine<ResolvedClippyTomlRequirements> for ClippyTomlEngine {
     fn reconcile(
         current_bytes: Option<&[u8]>,
-        requirement: &ClippyTomlRequirement,
+        requirement: &ResolvedClippyTomlRequirements,
     ) -> EngineOutput {
         let (mut doc, mut findings) = parse_or_report(current_bytes, "clippy.toml");
         reconcile::apply(&mut doc, requirement, &mut findings);
@@ -39,14 +40,14 @@ impl Engine for ClippyTomlEngine {
     fn reconcile(
         &self,
         current: Option<&[u8]>,
-        reqs: &[Box<dyn EngineRequirement>],
+        reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     ) -> EngineOutput {
         merged_reconcile(
             current,
             reqs,
             "clippy.toml",
-            ClippyTomlRequirement::merge,
-            <Self as FileEngine<ClippyTomlRequirement>>::reconcile,
+            ClippyTomlRequirements::merge,
+            <Self as FileEngine<ResolvedClippyTomlRequirements>>::reconcile,
         )
     }
 }

@@ -4,68 +4,115 @@
 //! Lazy: check-only field assertions (`OneOf`, `Present`) and vacuous removals
 //! create no tables.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};
 use toml_edit::{DocumentMut, Item};
 
 use crate::reconcile::util::{
-    all_provenances, ensure_table_at, push_mismatch, render_item, render_scalar, scalar_item,
-    scalar_matches, table_at, table_at_mut,
+    attribution as resolved_attribution, ensure_table_at, push_mismatch, render_item,
+    render_scalar, scalar_item, scalar_matches, table_at, table_at_mut,
 };
-use crate::requirement::{ProfileAssertion, ProfileFieldAssertion};
+use crate::requirement::{ProfileFieldAssertion, ResolvedProfileRequirements};
 
-/// Apply every `[profile.<name>]` contribution.
+/// Apply every `[profile.<name>]` requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_profile: &BTreeMap<String, Vec<(Provenance, ProfileAssertion)>>,
+    merged_by_profile: &BTreeMap<String, ResolvedProfileRequirements>,
     findings: &mut Vec<Finding>,
 ) {
-    for (profile, merged) in merged_by_profile {
-        let attribution = all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_profile(doc, profile, assertion, &attribution, findings);
-        }
+    for (profile, requirement) in merged_by_profile {
+        apply_profile(doc, profile, requirement, findings);
     }
 }
 
-/// Apply one `ProfileAssertion` (its direct fields, build-override, overrides).
+/// Apply one profile requirement.
 fn apply_profile(
     doc: &mut DocumentMut,
     profile: &str,
-    assertion: &ProfileAssertion,
-    attribution: &[Provenance],
+    requirement: &ResolvedProfileRequirements,
     findings: &mut Vec<Finding>,
 ) {
-    for (field, fa) in &assertion.fields {
+    for (field, fa) in &requirement.fields {
         let path = vec!["profile".to_owned(), profile.to_owned()];
         let display = format!("[profile.{profile}]");
-        apply_field(doc, &path, &display, field, fa, attribution, findings);
+        apply_resolved_field(doc, &path, &display, field, fa, findings);
     }
-    for (field, fa) in &assertion.build_override {
+    if let Some(build_override) = &requirement.build_override {
         let path = vec![
             "profile".to_owned(),
             profile.to_owned(),
             "build-override".to_owned(),
         ];
         let display = format!("[profile.{profile}.build-override]");
-        apply_field(doc, &path, &display, field, fa, attribution, findings);
-    }
-    for (spec, fields) in &assertion.package_overrides {
-        for (field, fa) in fields {
-            let path = vec![
-                "profile".to_owned(),
-                profile.to_owned(),
-                "package".to_owned(),
-                spec.clone(),
-            ];
-            let display = format!("[profile.{profile}.package.{spec}]");
-            apply_field(doc, &path, &display, field, fa, attribution, findings);
+        for (field, fa) in &build_override.fields {
+            apply_resolved_field(doc, &path, &display, field, fa, findings);
         }
+    }
+    for (spec, nested) in &requirement.package_overrides {
+        let path = vec![
+            "profile".to_owned(),
+            profile.to_owned(),
+            "package".to_owned(),
+            spec.clone(),
+        ];
+        let display = format!("[profile.{profile}.package.{spec}]");
+        for (field, fa) in &nested.fields {
+            apply_resolved_field(doc, &path, &display, field, fa, findings);
+        }
+    }
+}
+
+fn apply_resolved_field(
+    doc: &mut DocumentMut,
+    path: &[String],
+    display: &str,
+    field: &str,
+    resolved: &ResolvedRequirement<ProfileFieldAssertion, ProfileFieldAssertion>,
+    findings: &mut Vec<Finding>,
+) {
+    let attribution = profile_field_attribution_for(doc, path, field, resolved);
+    apply_field(
+        doc,
+        path,
+        display,
+        field,
+        &resolved.merged,
+        &attribution,
+        findings,
+    );
+}
+
+fn profile_field_attribution_for(
+    doc: &DocumentMut,
+    path: &[String],
+    field: &str,
+    resolved: &ResolvedRequirement<ProfileFieldAssertion, ProfileFieldAssertion>,
+) -> Vec<Provenance> {
+    let current = field_item(doc, path, field);
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| profile_assertion_fails(current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        resolved_attribution(resolved)
+    } else {
+        filtered
+    }
+}
+
+fn profile_assertion_fails(current: Option<&Item>, assertion: &ProfileFieldAssertion) -> bool {
+    match assertion {
+        ProfileFieldAssertion::Equals(want, _) => {
+            !current.is_some_and(|item| scalar_matches(item, want))
+        }
+        ProfileFieldAssertion::OneOf(allowed, _) => {
+            !current.is_some_and(|item| allowed.iter().any(|allowed| scalar_matches(item, allowed)))
+        }
+        ProfileFieldAssertion::Present(_) => current.is_none(),
+        ProfileFieldAssertion::Absent(_) => current.is_some(),
     }
 }
 

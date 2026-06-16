@@ -28,15 +28,15 @@ pub use engine::{Engine, FileEngine, merged_reconcile};
 pub use finding::Finding;
 #[cfg(feature = "api")]
 pub use merge::{
-    ConflictEntry, Resolve, keyed_entries_eq, merge_map, merge_map_by, resolve_exact,
-    resolve_field, resolve_optional, resolve_scalar, union_field, union_first_wins, union_optional,
-    union_string_lists, union_string_sets,
+    ConflictEntry, FileItemRequirement, ItemRequirements, KeyedItem, ListRequirements, Resolve,
+    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, compose_item_by,
+    compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,
+    resolve_all_equal, resolve_items, resolve_list, resolve_map, resolve_maybe, resolve_scalar,
+    strongest_version_floor,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;
 #[cfg(feature = "api")]
 pub use toml_helpers::{parse_or_report, parse_version_tuple};
 #[cfg(feature = "api")]
-pub use types::{
-    ConfigScalar, EngineOutput, Msg, OnEmpty, OnEmptyClass, PolicyId, Provenance, Severity,
-};
+pub use types::{ConfigScalar, EngineOutput, OnEmpty, OnEmptyClass, Provenance, Severity};

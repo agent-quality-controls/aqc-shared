@@ -1,36 +1,43 @@
 //! `[workspace].<key>` assertions (resolver, members, exclude, default-members).
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, resolve_scalar,
-    union_string_lists, union_string_sets,
+    ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
+    ResolvedListRequirements, ResolvedRequirement, resolve_list,
 };
 
 /// What must hold about a direct `[workspace]` key.
 ///
 /// Equality (and therefore merge agreement) compares the semantic value only;
-/// the policy-authored [`Msg`] never participates.
+/// the policy-authored message never participates.
 #[derive(Debug, Clone)]
 pub enum WorkspaceFieldAssertion {
     /// The key equals this value (`resolver = "3"`).
-    Equals(ConfigScalar, Msg),
+    Equals(ConfigScalar, String),
     /// The key's value is one of these (check-only).
-    OneOf(BTreeSet<String>, Msg),
-    /// The list key contains every element (`members` contains `"packages/*"`).
-    ListContains(Vec<String>, Msg),
-    /// The list key contains none of these elements.
-    ListExcludes(BTreeSet<String>, Msg),
-    /// The list key equals exactly this list.
-    ListIsExactly(Vec<String>, Msg),
+    OneOf(BTreeSet<String>, String),
+    /// List product requirements for this key.
+    List(ListRequirements),
     /// The key is set, to anything (check-only).
-    Present(Msg),
+    Present(String),
     /// The key is not set.
-    Absent(Msg),
+    Absent(String),
+}
+
+/// Resolved workspace field assertion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolvedWorkspaceFieldAssertion {
+    /// The key equals this value.
+    Equals(ConfigScalar, String),
+    /// The key's value is one of these.
+    OneOf(BTreeSet<String>, String),
+    /// Resolved list product requirements for this key.
+    List(ResolvedListRequirements),
+    /// The key is set, to anything.
+    Present(String),
+    /// The key is not set.
+    Absent(String),
 }
 
 /// Semantic equality: messages excluded.
@@ -38,10 +45,8 @@ impl PartialEq for WorkspaceFieldAssertion {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Equals(a, _), Self::Equals(b, _)) => a == b,
-            (Self::OneOf(a, _), Self::OneOf(b, _))
-            | (Self::ListExcludes(a, _), Self::ListExcludes(b, _)) => a == b,
-            (Self::ListContains(a, _), Self::ListContains(b, _))
-            | (Self::ListIsExactly(a, _), Self::ListIsExactly(b, _)) => a == b,
+            (Self::OneOf(a, _), Self::OneOf(b, _)) => a == b,
+            (Self::List(a), Self::List(b)) => a == b,
             (Self::Present(_), Self::Present(_)) | (Self::Absent(_), Self::Absent(_)) => true,
             _ => false,
         }
@@ -49,72 +54,174 @@ impl PartialEq for WorkspaceFieldAssertion {
 }
 
 impl Resolve for WorkspaceFieldAssertion {
+    type Merged = ResolvedWorkspaceFieldAssertion;
+
     fn resolve(
         key: &str,
-        contributions: Vec<(Provenance, Self)>,
+        items: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<Self> {
-        if contributions
-            .iter()
-            .all(|(_, a)| matches!(a, Self::ListContains(..)))
-        {
-            return Some(union_list_contains(contributions));
+    ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
+        if let Some(resolved) = resolve_list_or_present(key, &items, conflicts) {
+            return resolved.map(|merged| ResolvedRequirement {
+                merged,
+                collected: items,
+            });
         }
-        if contributions
-            .iter()
-            .all(|(_, a)| matches!(a, Self::ListExcludes(..)))
-        {
-            return Some(union_list_excludes(contributions));
+        if items.iter().any(|(_, a)| matches!(a, Self::Absent(_))) {
+            if items.iter().all(|(_, a)| matches!(a, Self::Absent(_))) {
+                return Some(ResolvedRequirement {
+                    merged: ResolvedWorkspaceFieldAssertion::Absent(first_msg(&items)),
+                    collected: items,
+                });
+            }
+            push_conflict(key, &items, conflicts);
+            return None;
         }
-        resolve_scalar(key, contributions, |a| format!("{a:?}"), conflicts)
+        resolve_scalar_assertions(key, items, conflicts)
     }
 }
 
 impl OnEmptyClass for WorkspaceFieldAssertion {
     fn on_empty(&self) -> OnEmpty {
         match self {
-            Self::Equals(..)
-            | Self::ListContains(..)
-            | Self::ListExcludes(..)
-            | Self::ListIsExactly(..)
-            | Self::Absent(..) => OnEmpty::Writes,
+            Self::Equals(..) | Self::List(..) | Self::Absent(..) => OnEmpty::Writes,
             Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
 }
 
-/// Union `ListContains` element lists via the core helper.
-fn union_list_contains(
-    contributions: Vec<(Provenance, WorkspaceFieldAssertion)>,
-) -> WorkspaceFieldAssertion {
-    let lists = contributions
-        .into_iter()
-        .filter_map(|(_, a)| {
-            if let WorkspaceFieldAssertion::ListContains(list, m) = a {
-                Some((list, m))
-            } else {
-                None
-            }
-        })
-        .collect();
-    let (items, msg) = union_string_lists(lists);
-    WorkspaceFieldAssertion::ListContains(items, msg)
+impl OnEmptyClass for ResolvedWorkspaceFieldAssertion {
+    fn on_empty(&self) -> OnEmpty {
+        match self {
+            Self::Equals(..) | Self::List(..) | Self::Absent(..) => OnEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
+        }
+    }
 }
 
-/// Union `ListExcludes` element sets via the core helper.
-fn union_list_excludes(
-    contributions: Vec<(Provenance, WorkspaceFieldAssertion)>,
-) -> WorkspaceFieldAssertion {
-    let sets = contributions
-        .into_iter()
-        .filter_map(|(_, a)| {
-            if let WorkspaceFieldAssertion::ListExcludes(set, m) = a {
-                Some((set, m))
-            } else {
-                None
-            }
+fn resolve_list_or_present(
+    key: &str,
+    items: &[(Provenance, WorkspaceFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<Option<ResolvedWorkspaceFieldAssertion>> {
+    let has_list = items
+        .iter()
+        .any(|(_, a)| matches!(a, WorkspaceFieldAssertion::List(_)));
+    if !has_list {
+        return None;
+    }
+    if !items.iter().all(|(_, a)| {
+        matches!(
+            a,
+            WorkspaceFieldAssertion::List(_) | WorkspaceFieldAssertion::Present(_)
+        )
+    }) {
+        push_conflict(key, items, conflicts);
+        return Some(None);
+    }
+    let list_items = items
+        .iter()
+        .filter_map(|(prov, assertion)| match assertion {
+            WorkspaceFieldAssertion::List(list) => Some((prov.clone(), list.clone())),
+            _ => None,
         })
         .collect();
-    let (items, msg) = union_string_sets(sets);
-    WorkspaceFieldAssertion::ListExcludes(items, msg)
+    Some(Some(ResolvedWorkspaceFieldAssertion::List(resolve_list(
+        key, list_items, conflicts,
+    ))))
+}
+
+fn resolve_scalar_assertions(
+    key: &str,
+    items: Vec<(Provenance, WorkspaceFieldAssertion)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedRequirement<ResolvedWorkspaceFieldAssertion, WorkspaceFieldAssertion>> {
+    let equals = items
+        .iter()
+        .filter_map(|(_, assertion)| match assertion {
+            WorkspaceFieldAssertion::Equals(value, msg) => Some((value.clone(), msg.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let oneof = intersect_oneofs(
+        items
+            .iter()
+            .filter_map(|(_, assertion)| match assertion {
+                WorkspaceFieldAssertion::OneOf(values, msg) => Some((values.clone(), msg.clone())),
+                _ => None,
+            })
+            .collect(),
+    );
+
+    let merged = if equals.windows(2).any(|pair| pair[0].0 != pair[1].0) {
+        push_conflict(key, &items, conflicts);
+        return None;
+    } else if let Some((value, msg)) = equals.first() {
+        if oneof
+            .as_ref()
+            .is_some_and(|(allowed, _)| !allowed.contains(&scalar_text(value)))
+        {
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        ResolvedWorkspaceFieldAssertion::Equals(value.clone(), msg.clone())
+    } else if let Some((allowed, msg)) = oneof {
+        if allowed.is_empty() {
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        ResolvedWorkspaceFieldAssertion::OneOf(allowed, msg)
+    } else {
+        ResolvedWorkspaceFieldAssertion::Present(first_msg(&items))
+    };
+
+    Some(ResolvedRequirement {
+        merged,
+        collected: items,
+    })
+}
+
+fn intersect_oneofs(oneofs: Vec<(BTreeSet<String>, String)>) -> Option<(BTreeSet<String>, String)> {
+    let mut iter = oneofs.into_iter();
+    let (mut out, msg) = iter.next()?;
+    for (next, _) in iter {
+        out = out.intersection(&next).cloned().collect();
+    }
+    Some((out, msg))
+}
+
+fn first_msg(items: &[(Provenance, WorkspaceFieldAssertion)]) -> String {
+    items
+        .iter()
+        .find_map(|(_, assertion)| match assertion {
+            WorkspaceFieldAssertion::Equals(_, msg)
+            | WorkspaceFieldAssertion::OneOf(_, msg)
+            | WorkspaceFieldAssertion::Present(msg)
+            | WorkspaceFieldAssertion::Absent(msg) => Some(msg.clone()),
+            WorkspaceFieldAssertion::List(_) => None,
+        })
+        .unwrap_or_default()
+}
+
+fn scalar_text(value: &ConfigScalar) -> String {
+    match value {
+        ConfigScalar::Str(value) => value.clone(),
+        ConfigScalar::Int(value) => value.to_string(),
+        ConfigScalar::Bool(value) => value.to_string(),
+    }
+}
+
+fn push_conflict(
+    key: &str,
+    items: &[(Provenance, WorkspaceFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    conflicts.push(ConflictEntry {
+        key: key.to_owned(),
+        reason: "scalar-disagree".to_owned(),
+        contributors: items
+            .iter()
+            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
+            .collect(),
+    });
 }

@@ -15,11 +15,11 @@ mod requirement;
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    BanEntry, BansAssertion, BoolAssertion, ClippyTomlRequirement, MsrvAssertion, StringAssertion,
-    ThresholdsAssertion,
+    BanEntry, BoolAssertion, ClippyTomlRequirements, MsrvAssertion, NumericAssertion,
+    StringAssertion,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value
-/// returned by `<ClippyTomlRequirement as EngineRequirement>::engine_id`.
+/// returned by `<ClippyTomlRequirements as EngineRequirement>::engine_id`.
 #[cfg(feature = "api")]
 pub const ENGINE_ID: &str = "aqc-clippy-toml-engine";

@@ -1,93 +1,133 @@
 //! Reconcile `[features]`.
 //!
-//! Lazy: an `Excludes`-only requirement against a missing `[features]` table
+//! Lazy: a ban-only requirement against a missing `[features]` table
 //! writes nothing. The table is fetched mutably only on a write.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, Provenance, Severity};
+use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
 use toml_edit::{Array, DocumentMut, Item, Table, Value};
 
-use crate::reconcile::util::{all_provenances, ensure_table, read_string_array, table_ref};
-use crate::requirement::FeatureSetAssertion;
+use crate::reconcile::util::{ensure_table, read_string_array, table_ref};
+use crate::requirement::FeatureMembers;
 
-/// Apply the `[features]` contribution (single field on the requirement).
+/// Apply the `[features]` requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: Option<&Vec<(Provenance, FeatureSetAssertion)>>,
+    merged: Option<&ResolvedItemRequirements<KeyedItem<FeatureMembers>>>,
     findings: &mut Vec<Finding>,
 ) {
     let Some(merged) = merged else { return };
-    let attribution = all_provenances(merged);
-    for (_, assertion) in merged {
-        match assertion {
-            FeatureSetAssertion::Contains(map) | FeatureSetAssertion::IsExactly(map) => {
-                apply_contains(doc, map, &attribution, findings);
-            }
-            FeatureSetAssertion::Excludes(names) => {
-                apply_excludes(doc, names, &attribution, findings);
-            }
-        }
+    for entry in merged.required.values() {
+        let feature = &entry.merged.file_key;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let msg = entry
+            .collected
+            .first()
+            .map(|(_, (_, msg))| msg.clone())
+            .unwrap_or_default();
+        apply_required(
+            doc,
+            feature,
+            &entry.merged.value,
+            &msg,
+            &attribution,
+            findings,
+        );
     }
-    if let Some(exact) = is_exactly_only(merged) {
-        apply_exact_extras(doc, &exact, &attribution, findings);
+    for entry in merged.banned.values() {
+        let feature = &entry.merged.file_key;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let msg = entry
+            .collected
+            .first()
+            .map(|(_, msg)| msg.clone())
+            .unwrap_or_default();
+        apply_banned(doc, feature, &msg, &attribution, findings);
+    }
+    if !merged.closed_by.is_empty() {
+        let attribution = merged
+            .closed_by
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let allowed = merged
+            .required
+            .values()
+            .map(|entry| entry.merged.file_key.clone())
+            .collect();
+        apply_exact_extras(doc, &allowed, &attribution, findings);
     }
 }
 
 /// Each `(feature, enable_list)` must be present and equal.
-fn apply_contains(
+fn apply_required(
     doc: &mut DocumentMut,
-    map: &BTreeMap<String, (BTreeSet<String>, String)>,
+    feature: &str,
+    want: &FeatureMembers,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    for (feature, (want, msg)) in map {
-        let current =
-            table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, feature));
-        let current_set: BTreeSet<String> = current.iter().cloned().collect();
-        if current_set == *want {
-            continue;
-        }
-        findings.push(Finding::Mismatch {
-            key: format!("[features].{feature}"),
-            current: Some(format!("{current:?}")),
-            expected: format!("{want:?}"),
-            message: msg.clone(),
-            severity: Severity::Error,
-            attribution: attribution.to_vec(),
-        });
-        write_list(ensure_table(doc, "features"), feature, want);
+    let current = table_ref(doc, "features").and_then(|t| read_feature_entry(t, feature));
+    if current
+        .as_ref()
+        .is_some_and(|items| items.iter().cloned().collect::<BTreeSet<_>>() == want.members)
+    {
+        return;
     }
+    findings.push(Finding::Mismatch {
+        key: format!("[features].{feature}"),
+        current: current.map(|items| format!("{items:?}")),
+        expected: format!("{:?}", want.members),
+        message: msg.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+    write_list(ensure_table(doc, "features"), feature, want);
+}
+
+fn read_feature_entry(table: &Table, feature: &str) -> Option<Vec<String>> {
+    let item = table.get(feature)?;
+    let arr = item.as_array()?;
+    Some(
+        arr.iter()
+            .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+            .collect(),
+    )
 }
 
 /// Each named feature must be absent (vacuous when the table is missing).
-fn apply_excludes(
+fn apply_banned(
     doc: &mut DocumentMut,
-    names: &BTreeMap<String, String>,
+    feature: &str,
+    msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    for (feature, msg) in names {
-        if !table_ref(doc, "features").is_some_and(|t| t.contains_key(feature)) {
-            continue;
-        }
-        let current =
-            table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, feature));
-        findings.push(Finding::Mismatch {
-            key: format!("[features].{feature}"),
-            current: Some(format!("{current:?}")),
-            expected: "absent".to_owned(),
-            message: msg.clone(),
-            severity: Severity::Error,
-            attribution: attribution.to_vec(),
-        });
-        if let Some(t) = doc.get_mut("features").and_then(Item::as_table_mut) {
-            let _ = t.remove(feature);
-        }
+    if !table_ref(doc, "features").is_some_and(|t| t.contains_key(feature)) {
+        return;
+    }
+    let current =
+        table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, feature));
+    findings.push(Finding::Mismatch {
+        key: format!("[features].{feature}"),
+        current: Some(format!("{current:?}")),
+        expected: "absent".to_owned(),
+        message: msg.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+    if let Some(t) = doc.get_mut("features").and_then(Item::as_table_mut) {
+        let _ = t.remove(feature);
     }
 }
 
@@ -109,7 +149,7 @@ fn apply_exact_extras(
         findings.push(Finding::Mismatch {
             key: format!("[features].{extra}"),
             current: Some(format!("{current:?}")),
-            expected: "absent (IsExactly)".to_owned(),
+            expected: "absent (closed table)".to_owned(),
             message: String::new(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
@@ -121,26 +161,10 @@ fn apply_exact_extras(
 }
 
 /// Write `feature = ["a", "b", ...]`.
-fn write_list(table: &mut Table, feature: &str, impls: &BTreeSet<String>) {
+fn write_list(table: &mut Table, feature: &str, value: &FeatureMembers) {
     let mut arr = Array::new();
-    for i in impls {
+    for i in &value.members {
         arr.push(Value::from(i.as_str()));
     }
     table[feature] = Item::Value(Value::Array(arr));
-}
-
-/// Union of allowed feature names if every contribution is `IsExactly`; else `None`.
-fn is_exactly_only(merged: &Vec<(Provenance, FeatureSetAssertion)>) -> Option<BTreeSet<String>> {
-    let mut combined: BTreeSet<String> = BTreeSet::new();
-    for (_, assertion) in merged {
-        match assertion {
-            FeatureSetAssertion::IsExactly(map) => combined.extend(map.keys().cloned()),
-            FeatureSetAssertion::Contains(_) | FeatureSetAssertion::Excludes(_) => return None,
-        }
-    }
-    if combined.is_empty() {
-        None
-    } else {
-        Some(combined)
-    }
 }

@@ -5,29 +5,26 @@
 //! needs a `name` the engine cannot invent). `Absent`: remove the whole table
 //! when present (vacuous when already missing).
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, Provenance};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement};
 use toml_edit::{DocumentMut, Item, Table};
 
-use crate::reconcile::util::{all_provenances, push_mismatch};
+use crate::reconcile::util::{attribution as resolved_attribution, push_mismatch};
 use crate::requirement::{ManifestSection, SectionPresenceAssertion};
 
-/// Apply every section-presence contribution.
+/// Apply every section-presence requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_section: &BTreeMap<ManifestSection, Vec<(Provenance, SectionPresenceAssertion)>>,
+    merged_by_section: &BTreeMap<
+        ManifestSection,
+        ResolvedRequirement<SectionPresenceAssertion, SectionPresenceAssertion>,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (section, merged) in merged_by_section {
-        let attribution = all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_one(doc, *section, assertion, &attribution, findings);
-        }
+        let attribution = resolved_attribution(merged);
+        apply_one(doc, *section, &merged.merged, &attribution, findings);
     }
 }
 

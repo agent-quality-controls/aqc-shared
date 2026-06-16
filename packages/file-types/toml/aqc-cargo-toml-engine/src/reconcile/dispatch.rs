@@ -8,19 +8,19 @@ use super::{
     dependencies, features, lints, package_fields, package_lints, patch, profiles,
     section_presence, target_tables, workspace_fields,
 };
-use crate::requirement::CargoTomlRequirement;
+use crate::requirement::ResolvedCargoTomlRequirements;
 
 /// Walk every section of `requirement`, applying its assertions to `doc` and
 /// accumulating findings.
 ///
 /// The requirement is destructured exhaustively (no `..`): a field added to
-/// `CargoTomlRequirement` stops this function compiling until it is wired.
+/// `ResolvedCargoTomlRequirements` stops this function compiling until it is wired.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    requirement: &CargoTomlRequirement,
+    requirement: &ResolvedCargoTomlRequirements,
     findings: &mut Vec<Finding>,
 ) {
-    let CargoTomlRequirement {
+    let ResolvedCargoTomlRequirements {
         package_lints,
         workspace_lints,
         package_fields,
@@ -31,11 +31,7 @@ pub(crate) fn apply(
         workspace_dependencies,
         features,
         profiles,
-        lib_fields,
-        bin_targets,
-        example_targets,
-        test_targets,
-        bench_targets,
+        targets,
         patch,
     } = requirement;
 
@@ -59,10 +55,10 @@ pub(crate) fn apply(
     patch::apply_workspace_dependencies(doc, workspace_dependencies.as_ref(), findings);
     features::apply(doc, features.as_ref(), findings);
     profiles::apply(doc, profiles, findings);
-    target_tables::apply_lib(doc, lib_fields, findings);
-    target_tables::apply_named(doc, "bin", bin_targets, findings);
-    target_tables::apply_named(doc, "example", example_targets, findings);
-    target_tables::apply_named(doc, "test", test_targets, findings);
-    target_tables::apply_named(doc, "bench", bench_targets, findings);
+    target_tables::apply_lib(doc, &targets.lib_fields, findings);
+    target_tables::apply_named(doc, "bin", &targets.bin_targets, findings);
+    target_tables::apply_named(doc, "example", &targets.example_targets, findings);
+    target_tables::apply_named(doc, "test", &targets.test_targets, findings);
+    target_tables::apply_named(doc, "bench", &targets.bench_targets, findings);
     patch::apply(doc, patch, findings);
 }

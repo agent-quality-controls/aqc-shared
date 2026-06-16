@@ -3,18 +3,22 @@
 use std::path::{Path, PathBuf};
 
 use aqc_file_engine_core::{
-    Engine, EngineOutput, EngineRequirement, FileEngine, merged_reconcile, parse_or_report,
+    Engine, EngineOutput, EngineRequirement, FileEngine, Provenance, merged_reconcile,
+    parse_or_report,
 };
 
 use crate::reconcile;
-use crate::requirement::CargoTomlRequirement;
+use crate::requirement::{CargoTomlRequirements, ResolvedCargoTomlRequirements};
 
 /// `Cargo.toml` engine.
 #[derive(Debug, Default)]
 pub struct CargoTomlEngine;
 
-impl FileEngine<CargoTomlRequirement> for CargoTomlEngine {
-    fn reconcile(current_bytes: Option<&[u8]>, requirement: &CargoTomlRequirement) -> EngineOutput {
+impl FileEngine<ResolvedCargoTomlRequirements> for CargoTomlEngine {
+    fn reconcile(
+        current_bytes: Option<&[u8]>,
+        requirement: &ResolvedCargoTomlRequirements,
+    ) -> EngineOutput {
         let (mut doc, mut findings) = parse_or_report(current_bytes, "Cargo.toml");
         reconcile::apply(&mut doc, requirement, &mut findings);
         EngineOutput {
@@ -36,14 +40,14 @@ impl Engine for CargoTomlEngine {
     fn reconcile(
         &self,
         current: Option<&[u8]>,
-        reqs: &[Box<dyn EngineRequirement>],
+        reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     ) -> EngineOutput {
         merged_reconcile(
             current,
             reqs,
             "Cargo.toml",
-            CargoTomlRequirement::merge,
-            <Self as FileEngine<CargoTomlRequirement>>::reconcile,
+            CargoTomlRequirements::merge,
+            <Self as FileEngine<ResolvedCargoTomlRequirements>>::reconcile,
         )
     }
 }

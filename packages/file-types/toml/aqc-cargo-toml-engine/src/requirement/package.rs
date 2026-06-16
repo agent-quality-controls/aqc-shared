@@ -1,14 +1,10 @@
 //! `[package].<field>` / `[workspace.package].<field>` assertions.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve,
-    parse_version_tuple, resolve_scalar, union_string_lists, union_string_sets,
+    ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
+    ResolvedListRequirements, ResolvedRequirement, parse_version_tuple, resolve_list,
 };
 
 /// What must hold about a single `[package].<field>` (or
@@ -16,27 +12,42 @@ use aqc_file_engine_core::{
 /// fields; the engine knows from the field key which shape applies.
 ///
 /// Equality (and therefore merge agreement) compares the semantic value only;
-/// the policy-authored [`Msg`] never participates.
+/// the policy-authored message never participates.
 #[derive(Debug, Clone)]
 pub enum PackageFieldAssertion {
     /// The field equals this value (string, integer, or bool form).
-    Equals(ConfigScalar, Msg),
+    Equals(ConfigScalar, String),
     /// Version-ordered floor (rust-version, version, edition).
-    AtLeastVersion(String, Msg),
+    AtLeastVersion(String, String),
     /// The field's value is one of these (check-only: the engine cannot pick).
-    OneOf(BTreeSet<String>, Msg),
-    /// The list field contains every element.
-    ListContains(Vec<String>, Msg),
-    /// The list field contains none of these elements.
-    ListExcludes(BTreeSet<String>, Msg),
-    /// The list field equals exactly this list.
-    ListIsExactly(Vec<String>, Msg),
+    OneOf(BTreeSet<String>, String),
+    /// List product requirements for this field.
+    List(ListRequirements),
     /// The field uses workspace inheritance: `<field>.workspace = true`.
-    InheritsWorkspace(Msg),
+    InheritsWorkspace(String),
     /// The field is set, to anything (check-only).
-    Present(Msg),
+    Present(String),
     /// The field is not set.
-    Absent(Msg),
+    Absent(String),
+}
+
+/// Resolved package/workspace-package field assertion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolvedPackageFieldAssertion {
+    /// The field equals this value.
+    Equals(ConfigScalar, String),
+    /// Version-ordered floor.
+    AtLeastVersion(String, String),
+    /// The field's value is one of these.
+    OneOf(BTreeSet<String>, String),
+    /// Resolved list product requirements for this field.
+    List(ResolvedListRequirements),
+    /// The field uses workspace inheritance.
+    InheritsWorkspace(String),
+    /// The field is set, to anything.
+    Present(String),
+    /// The field is not set.
+    Absent(String),
 }
 
 /// Semantic equality: messages excluded.
@@ -45,10 +56,8 @@ impl PartialEq for PackageFieldAssertion {
         match (self, other) {
             (Self::Equals(a, _), Self::Equals(b, _)) => a == b,
             (Self::AtLeastVersion(a, _), Self::AtLeastVersion(b, _)) => a == b,
-            (Self::OneOf(a, _), Self::OneOf(b, _))
-            | (Self::ListExcludes(a, _), Self::ListExcludes(b, _)) => a == b,
-            (Self::ListContains(a, _), Self::ListContains(b, _))
-            | (Self::ListIsExactly(a, _), Self::ListIsExactly(b, _)) => a == b,
+            (Self::OneOf(a, _), Self::OneOf(b, _)) => a == b,
+            (Self::List(a), Self::List(b)) => a == b,
             (Self::InheritsWorkspace(_), Self::InheritsWorkspace(_))
             | (Self::Present(_), Self::Present(_))
             | (Self::Absent(_), Self::Absent(_)) => true,
@@ -58,33 +67,27 @@ impl PartialEq for PackageFieldAssertion {
 }
 
 impl Resolve for PackageFieldAssertion {
+    type Merged = ResolvedPackageFieldAssertion;
+
     fn resolve(
         key: &str,
-        contributions: Vec<(Provenance, Self)>,
+        items: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<Self> {
-        // Two floors compose to the higher floor (max-wins), not a conflict:
-        // `AtLeastVersion` is jointly satisfiable by definition.
-        if contributions
-            .iter()
-            .all(|(_, a)| matches!(a, Self::AtLeastVersion(..)))
-        {
-            return Some(max_floor(contributions));
+    ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
+        if let Some(resolved) = resolve_list_or_present(key, &items, conflicts) {
+            return resolved.map(|merged| ResolvedRequirement {
+                merged,
+                collected: items,
+            });
         }
-        // Set-family variants union their elements; everything else must agree.
-        if contributions
-            .iter()
-            .all(|(_, a)| matches!(a, Self::ListContains(..)))
-        {
-            return Some(union_list_contains(contributions));
+        if let Some(resolved) = resolve_absent_or_inheritance(key, &items, conflicts) {
+            return resolved.map(|merged| ResolvedRequirement {
+                merged,
+                collected: items,
+            });
         }
-        if contributions
-            .iter()
-            .all(|(_, a)| matches!(a, Self::ListExcludes(..)))
-        {
-            return Some(union_list_excludes(contributions));
-        }
-        resolve_scalar(key, contributions, |a| format!("{a:?}"), conflicts)
+
+        resolve_scalar_assertions(key, items, conflicts)
     }
 }
 
@@ -93,9 +96,7 @@ impl OnEmptyClass for PackageFieldAssertion {
         match self {
             Self::Equals(..)
             | Self::AtLeastVersion(..)
-            | Self::ListContains(..)
-            | Self::ListExcludes(..)
-            | Self::ListIsExactly(..)
+            | Self::List(..)
             | Self::InheritsWorkspace(..)
             | Self::Absent(..) => OnEmpty::Writes,
             Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
@@ -103,57 +104,229 @@ impl OnEmptyClass for PackageFieldAssertion {
     }
 }
 
-/// Resolve all-`AtLeastVersion` contributions to the highest floor: two
-/// "at least X" requirements are jointly satisfied by the larger X. The
-/// winning floor's message is kept.
-fn max_floor(contributions: Vec<(Provenance, PackageFieldAssertion)>) -> PackageFieldAssertion {
-    let mut best: Option<(String, Msg)> = None;
-    for (_, assertion) in contributions {
-        if let PackageFieldAssertion::AtLeastVersion(version, msg) = assertion {
-            let take = best
-                .as_ref()
-                .is_none_or(|(b, _)| parse_version_tuple(&version) > parse_version_tuple(b));
-            if take {
-                best = Some((version, msg));
-            }
+impl OnEmptyClass for ResolvedPackageFieldAssertion {
+    fn on_empty(&self) -> OnEmpty {
+        match self {
+            Self::Equals(..)
+            | Self::AtLeastVersion(..)
+            | Self::List(..)
+            | Self::InheritsWorkspace(..)
+            | Self::Absent(..) => OnEmpty::Writes,
+            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
         }
     }
-    let (version, msg) = best.unwrap_or_else(|| (String::new(), String::new()));
-    PackageFieldAssertion::AtLeastVersion(version, msg)
 }
 
-/// Union `ListContains` element lists via the core helper.
-fn union_list_contains(
-    contributions: Vec<(Provenance, PackageFieldAssertion)>,
-) -> PackageFieldAssertion {
-    let lists = contributions
-        .into_iter()
-        .filter_map(|(_, a)| {
-            if let PackageFieldAssertion::ListContains(list, m) = a {
-                Some((list, m))
+fn resolve_list_or_present(
+    key: &str,
+    items: &[(Provenance, PackageFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<Option<ResolvedPackageFieldAssertion>> {
+    let has_list = items
+        .iter()
+        .any(|(_, a)| matches!(a, PackageFieldAssertion::List(_)));
+    if !has_list {
+        return None;
+    }
+    if !items.iter().all(|(_, a)| {
+        matches!(
+            a,
+            PackageFieldAssertion::List(_) | PackageFieldAssertion::Present(_)
+        )
+    }) {
+        push_conflict(key, items, conflicts);
+        return Some(None);
+    }
+    let list_items = items
+        .iter()
+        .filter_map(|(prov, assertion)| match assertion {
+            PackageFieldAssertion::List(list) => Some((prov.clone(), list.clone())),
+            _ => None,
+        })
+        .collect();
+    let resolved = resolve_list(key, list_items, conflicts);
+    Some(Some(ResolvedPackageFieldAssertion::List(resolved)))
+}
+
+fn resolve_absent_or_inheritance(
+    key: &str,
+    items: &[(Provenance, PackageFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<Option<ResolvedPackageFieldAssertion>> {
+    if items
+        .iter()
+        .any(|(_, a)| matches!(a, PackageFieldAssertion::Absent(_)))
+    {
+        if items
+            .iter()
+            .all(|(_, a)| matches!(a, PackageFieldAssertion::Absent(_)))
+        {
+            return Some(Some(ResolvedPackageFieldAssertion::Absent(first_msg(
+                items,
+            ))));
+        }
+        push_conflict(key, items, conflicts);
+        return Some(None);
+    }
+    let has_inheritance = items
+        .iter()
+        .any(|(_, a)| matches!(a, PackageFieldAssertion::InheritsWorkspace(_)));
+    if !has_inheritance {
+        return None;
+    }
+    if items.iter().all(|(_, a)| {
+        matches!(
+            a,
+            PackageFieldAssertion::InheritsWorkspace(_) | PackageFieldAssertion::Present(_)
+        )
+    }) {
+        return Some(Some(ResolvedPackageFieldAssertion::InheritsWorkspace(
+            inheritance_msg(items),
+        )));
+    }
+    push_conflict(key, items, conflicts);
+    Some(None)
+}
+
+fn resolve_scalar_assertions(
+    key: &str,
+    items: Vec<(Provenance, PackageFieldAssertion)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedRequirement<ResolvedPackageFieldAssertion, PackageFieldAssertion>> {
+    let equals = items
+        .iter()
+        .filter_map(|(_, assertion)| match assertion {
+            PackageFieldAssertion::Equals(value, msg) => Some((value.clone(), msg.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let floors = items
+        .iter()
+        .filter_map(|(_, assertion)| {
+            if let PackageFieldAssertion::AtLeastVersion(version, msg) = assertion {
+                Some((version.clone(), msg.clone()))
             } else {
                 None
             }
         })
-        .collect();
-    let (items, msg) = union_string_lists(lists);
-    PackageFieldAssertion::ListContains(items, msg)
+        .collect::<Vec<_>>();
+    let oneofs = items
+        .iter()
+        .filter_map(|(_, assertion)| match assertion {
+            PackageFieldAssertion::OneOf(values, msg) => Some((values.clone(), msg.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if equals.windows(2).any(|pair| pair[0].0 != pair[1].0) {
+        push_conflict(key, &items, conflicts);
+        return None;
+    }
+    let oneof = intersect_oneofs(oneofs);
+    let floor = strongest_floor(floors);
+
+    let merged = if let Some((value, msg)) = equals.first() {
+        let value_text = scalar_text(value);
+        if oneof
+            .as_ref()
+            .is_some_and(|(allowed, _)| !allowed.contains(&value_text))
+            || floor
+                .as_ref()
+                .is_some_and(|(min, _)| parse_version_tuple(&value_text) < parse_version_tuple(min))
+        {
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        ResolvedPackageFieldAssertion::Equals(value.clone(), msg.clone())
+    } else if let Some((min, min_msg)) = floor {
+        if let Some((allowed, allowed_msg)) = oneof {
+            let filtered = allowed
+                .into_iter()
+                .filter(|value| parse_version_tuple(value) >= parse_version_tuple(&min))
+                .collect::<BTreeSet<_>>();
+            if filtered.is_empty() {
+                push_conflict(key, &items, conflicts);
+                return None;
+            }
+            ResolvedPackageFieldAssertion::OneOf(filtered, allowed_msg)
+        } else {
+            ResolvedPackageFieldAssertion::AtLeastVersion(min, min_msg)
+        }
+    } else if let Some((allowed, msg)) = oneof {
+        if allowed.is_empty() {
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        ResolvedPackageFieldAssertion::OneOf(allowed, msg)
+    } else {
+        ResolvedPackageFieldAssertion::Present(first_msg(&items))
+    };
+
+    Some(ResolvedRequirement {
+        merged,
+        collected: items,
+    })
 }
 
-/// Union `ListExcludes` element sets via the core helper.
-fn union_list_excludes(
-    contributions: Vec<(Provenance, PackageFieldAssertion)>,
-) -> PackageFieldAssertion {
-    let sets = contributions
+fn intersect_oneofs(oneofs: Vec<(BTreeSet<String>, String)>) -> Option<(BTreeSet<String>, String)> {
+    let mut iter = oneofs.into_iter();
+    let (mut out, msg) = iter.next()?;
+    for (next, _) in iter {
+        out = out.intersection(&next).cloned().collect();
+    }
+    Some((out, msg))
+}
+
+fn strongest_floor(floors: Vec<(String, String)>) -> Option<(String, String)> {
+    floors
         .into_iter()
-        .filter_map(|(_, a)| {
-            if let PackageFieldAssertion::ListExcludes(set, m) = a {
-                Some((set, m))
-            } else {
-                None
-            }
+        .max_by(|(a, _), (b, _)| parse_version_tuple(a).cmp(&parse_version_tuple(b)))
+}
+
+fn first_msg(items: &[(Provenance, PackageFieldAssertion)]) -> String {
+    items
+        .iter()
+        .find_map(|(_, assertion)| match assertion {
+            PackageFieldAssertion::Equals(_, msg)
+            | PackageFieldAssertion::AtLeastVersion(_, msg)
+            | PackageFieldAssertion::OneOf(_, msg)
+            | PackageFieldAssertion::InheritsWorkspace(msg)
+            | PackageFieldAssertion::Present(msg)
+            | PackageFieldAssertion::Absent(msg) => Some(msg.clone()),
+            PackageFieldAssertion::List(_) => None,
         })
-        .collect();
-    let (items, msg) = union_string_sets(sets);
-    PackageFieldAssertion::ListExcludes(items, msg)
+        .unwrap_or_default()
+}
+
+fn inheritance_msg(items: &[(Provenance, PackageFieldAssertion)]) -> String {
+    items
+        .iter()
+        .find_map(|(_, assertion)| match assertion {
+            PackageFieldAssertion::InheritsWorkspace(msg) => Some(msg.clone()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+fn scalar_text(value: &ConfigScalar) -> String {
+    match value {
+        ConfigScalar::Str(value) => value.clone(),
+        ConfigScalar::Int(value) => value.to_string(),
+        ConfigScalar::Bool(value) => value.to_string(),
+    }
+}
+
+fn push_conflict(
+    key: &str,
+    items: &[(Provenance, PackageFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    conflicts.push(ConflictEntry {
+        key: key.to_owned(),
+        reason: "scalar-disagree".to_owned(),
+        contributors: items
+            .iter()
+            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
+            .collect(),
+    });
 }

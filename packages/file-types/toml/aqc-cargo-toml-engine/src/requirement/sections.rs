@@ -1,6 +1,8 @@
 //! Table-level existence assertions per manifest section.
 
-use aqc_file_engine_core::{ConflictEntry, Msg, OnEmpty, Provenance, Resolve, resolve_scalar};
+use aqc_file_engine_core::{
+    ConflictEntry, OnEmpty, Provenance, Resolve, ResolvedRequirement, resolve_scalar,
+};
 
 /// The manifest sections whose *existence* is controllable. Closed set (D7):
 /// presence control only for sections whose content is either covered by a
@@ -55,9 +57,9 @@ impl ManifestSection {
 #[derive(Debug, Clone)]
 pub enum SectionPresenceAssertion {
     /// The table exists (content unconstrained here).
-    Present(Msg),
+    Present(String),
     /// The table does not exist.
-    Absent(Msg),
+    Absent(String),
 }
 
 /// Semantic equality: messages excluded.
@@ -71,12 +73,14 @@ impl PartialEq for SectionPresenceAssertion {
 }
 
 impl Resolve for SectionPresenceAssertion {
+    type Merged = Self;
+
     fn resolve(
         key: &str,
-        contributions: Vec<(Provenance, Self)>,
+        items: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<Self> {
-        resolve_scalar(key, contributions, |a| format!("{a:?}"), conflicts)
+    ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
+        resolve_scalar(key, items, |a| format!("{a:?}"), conflicts)
     }
 }
 

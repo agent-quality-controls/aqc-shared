@@ -1,28 +1,21 @@
-//! `[profile.<name>]` assertions, including `[profile.<n>.package.<spec>]`
-//! overrides and `build-override`.
+//! `[profile.<name>]` requirements.
 
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, Msg, OnEmpty, OnEmptyClass, Provenance, Resolve, merge_map,
+    ConfigScalar, ConflictEntry, OnEmpty, OnEmptyClass, Provenance, Resolve, ResolvedRequirement,
+    resolve_map,
 };
 
-/// What must hold about a single profile field (`opt-level`, `lto`, ...).
-///
-/// Equality (and therefore merge agreement) ignores the policy message.
+/// What must hold about a single profile field.
 #[derive(Debug, Clone)]
 pub enum ProfileFieldAssertion {
-    /// The field equals this value (`opt-level = 3`, `lto = "thin"`).
-    Equals(ConfigScalar, Msg),
-    /// The field's value is one of these (check-only).
-    OneOf(Vec<ConfigScalar>, Msg),
-    /// The field is set, to anything (check-only).
-    Present(Msg),
-    /// The field is not set.
-    Absent(Msg),
+    Equals(ConfigScalar, String),
+    OneOf(Vec<ConfigScalar>, String),
+    Present(String),
+    Absent(String),
 }
 
-/// Semantic equality: messages excluded.
 impl PartialEq for ProfileFieldAssertion {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -31,6 +24,28 @@ impl PartialEq for ProfileFieldAssertion {
             (Self::Present(_), Self::Present(_)) | (Self::Absent(_), Self::Absent(_)) => true,
             _ => false,
         }
+    }
+}
+
+impl Resolve for ProfileFieldAssertion {
+    type Merged = Self;
+
+    fn resolve(
+        key: &str,
+        items: Vec<(Provenance, Self)>,
+        conflicts: &mut Vec<ConflictEntry>,
+    ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
+        if items.iter().any(|(_, a)| matches!(a, Self::Absent(_))) {
+            if items.iter().all(|(_, a)| matches!(a, Self::Absent(_))) {
+                return Some(ResolvedRequirement {
+                    merged: Self::Absent(first_msg(&items)),
+                    collected: items,
+                });
+            }
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        resolve_scalar_assertions(key, items, conflicts)
     }
 }
 
@@ -43,84 +58,152 @@ impl OnEmptyClass for ProfileFieldAssertion {
     }
 }
 
-/// One profile table's field assertions, keyed by field name.
-pub type ProfileFields = BTreeMap<String, ProfileFieldAssertion>;
+fn resolve_scalar_assertions(
+    key: &str,
+    items: Vec<(Provenance, ProfileFieldAssertion)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedRequirement<ProfileFieldAssertion, ProfileFieldAssertion>> {
+    let equals = items
+        .iter()
+        .filter_map(|(_, assertion)| match assertion {
+            ProfileFieldAssertion::Equals(value, msg) => Some((value.clone(), msg.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let oneof = intersect_oneofs(
+        items
+            .iter()
+            .filter_map(|(_, assertion)| match assertion {
+                ProfileFieldAssertion::OneOf(values, msg) => Some((values.clone(), msg.clone())),
+                _ => None,
+            })
+            .collect(),
+    );
 
-/// Per-package-spec override contributions gathered during resolve.
-type OverrideContributions = BTreeMap<String, Vec<(Provenance, ProfileFields)>>;
+    let merged = if equals.windows(2).any(|pair| pair[0].0 != pair[1].0) {
+        push_conflict(key, &items, conflicts);
+        return None;
+    } else if let Some((value, msg)) = equals.first() {
+        if oneof
+            .as_ref()
+            .is_some_and(|(allowed, _)| !allowed.contains(value))
+        {
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        ProfileFieldAssertion::Equals(value.clone(), msg.clone())
+    } else if let Some((allowed, msg)) = oneof {
+        if allowed.is_empty() {
+            push_conflict(key, &items, conflicts);
+            return None;
+        }
+        ProfileFieldAssertion::OneOf(allowed, msg)
+    } else {
+        ProfileFieldAssertion::Present(first_msg(&items))
+    };
 
-/// What must hold about a `[profile.<name>]` table: its direct fields, its
-/// per-package overrides, and its `build-override` table.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ProfileAssertion {
-    /// Direct `[profile.<name>].<field>` assertions, keyed by field.
-    pub fields: ProfileFields,
-    /// `[profile.<name>.package."<spec>"].<field>`, keyed by package spec
-    /// then field.
-    pub package_overrides: BTreeMap<String, ProfileFields>,
-    /// `[profile.<name>.build-override].<field>`, keyed by field.
-    pub build_override: ProfileFields,
+    Some(ResolvedRequirement {
+        merged,
+        collected: items,
+    })
 }
 
-impl Resolve for ProfileAssertion {
-    fn resolve(
+fn intersect_oneofs(
+    oneofs: Vec<(Vec<ConfigScalar>, String)>,
+) -> Option<(Vec<ConfigScalar>, String)> {
+    let mut iter = oneofs.into_iter();
+    let (mut out, msg) = iter.next()?;
+    for (next, _) in iter {
+        out.retain(|item| next.contains(item));
+    }
+    Some((out, msg))
+}
+
+fn first_msg(items: &[(Provenance, ProfileFieldAssertion)]) -> String {
+    items
+        .iter()
+        .find_map(|(_, assertion)| match assertion {
+            ProfileFieldAssertion::Equals(_, msg)
+            | ProfileFieldAssertion::OneOf(_, msg)
+            | ProfileFieldAssertion::Present(msg)
+            | ProfileFieldAssertion::Absent(msg) => Some(msg.clone()),
+        })
+        .unwrap_or_default()
+}
+
+fn push_conflict(
+    key: &str,
+    items: &[(Provenance, ProfileFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    conflicts.push(ConflictEntry {
+        key: key.to_owned(),
+        reason: "scalar-disagree".to_owned(),
+        contributors: items
+            .iter()
+            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
+            .collect(),
+    });
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ProfileRequirements {
+    pub fields: BTreeMap<String, ProfileFieldAssertion>,
+    pub package_overrides: BTreeMap<String, ProfileRequirements>,
+    pub build_override: Option<Box<ProfileRequirements>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedProfileRequirements {
+    pub fields: BTreeMap<String, ResolvedRequirement<ProfileFieldAssertion, ProfileFieldAssertion>>,
+    pub package_overrides: BTreeMap<String, ResolvedProfileRequirements>,
+    pub build_override: Option<Box<ResolvedProfileRequirements>>,
+}
+
+impl ProfileRequirements {
+    pub fn resolve(
         key: &str,
-        contributions: Vec<(Provenance, Self)>,
+        items: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<Self> {
-        // Union the three maps per key; per-key disagreement conflicts.
-        let mut fields_contribs = Vec::new();
-        let mut build_contribs = Vec::new();
-        let mut override_contribs: OverrideContributions = BTreeMap::new();
-        for (prov, a) in contributions {
-            fields_contribs.push((prov.clone(), a.fields));
-            build_contribs.push((prov.clone(), a.build_override));
-            for (spec, map) in a.package_overrides {
-                override_contribs
-                    .entry(spec)
+    ) -> ResolvedProfileRequirements {
+        let mut fields = Vec::new();
+        let mut overrides: BTreeMap<String, Vec<(Provenance, ProfileRequirements)>> =
+            BTreeMap::new();
+        let mut build = Vec::new();
+
+        for (prov, profile) in items {
+            fields.push((prov.clone(), profile.fields));
+            for (name, nested) in profile.package_overrides {
+                overrides
+                    .entry(name)
                     .or_default()
-                    .push((prov.clone(), map));
+                    .push((prov.clone(), nested));
+            }
+            if let Some(nested) = profile.build_override {
+                build.push((prov, *nested));
             }
         }
-        let render = |a: &ProfileFieldAssertion| format!("{a:?}");
-        let fields = merge_map(key, fields_contribs, render, conflicts);
-        let build_override = merge_map(
-            &format!("{key}.build-override"),
-            build_contribs,
-            render,
-            conflicts,
-        );
+
         let mut package_overrides = BTreeMap::new();
-        for (spec, contribs) in override_contribs {
-            let merged = merge_map(
-                &format!("{key}.package.{spec}"),
-                contribs,
-                render,
-                conflicts,
-            );
-            let _ = package_overrides.insert(spec, merged);
+        for (name, nested) in overrides {
+            let nested_key = format!("{key}.package.{name}");
+            let _ = package_overrides.insert(name, Self::resolve(&nested_key, nested, conflicts));
         }
-        Some(Self {
-            fields,
+
+        let build_override = if build.is_empty() {
+            None
+        } else {
+            Some(Box::new(Self::resolve(
+                &format!("{key}.build-override"),
+                build,
+                conflicts,
+            )))
+        };
+
+        ResolvedProfileRequirements {
+            fields: resolve_map(fields, |field| format!("{key}.{field}"), conflicts),
             package_overrides,
             build_override,
-        })
-    }
-}
-
-impl OnEmptyClass for ProfileAssertion {
-    fn on_empty(&self) -> OnEmpty {
-        // Writable when every contained field assertion is writable.
-        let all_fields = self
-            .fields
-            .values()
-            .chain(self.build_override.values())
-            .chain(self.package_overrides.values().flat_map(BTreeMap::values));
-        for a in all_fields {
-            if a.on_empty() == OnEmpty::ChecksOnly {
-                return OnEmpty::ChecksOnly;
-            }
         }
-        OnEmpty::Writes
     }
 }

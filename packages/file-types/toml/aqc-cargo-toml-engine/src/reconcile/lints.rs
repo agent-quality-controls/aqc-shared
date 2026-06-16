@@ -1,42 +1,20 @@
-//! Reconcile `[lints.<tool>]` / `[workspace.lints.<tool>]` tables.
-//!
-//! Each entry on disk can take two forms (both valid cargo TOML):
-//!
-//! ```toml
-//! unwrap_used = "deny"                              # bare string
-//! all = { level = "deny", priority = -1 }           # inline table
-//! ```
-//!
-//! For group lints the inline-table form with `priority = -1` is load-bearing.
-//! Policy intent is the assertion's optional `priority` slot: `Some(i)` writes
-//! inline-table form, `None` writes bare string. The engine reads both.
-//!
-//! Lazy: an `Excludes`-only requirement against a missing table creates no
-//! table (no write, no finding). Tables are fetched mutably only on a write.
+//! Reconcile `[lints.<tool>]` and `[workspace.lints.<tool>]` tables.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, Severity};
+use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
 use toml_edit::{DocumentMut, InlineTable, Item, Table, Value, value};
 
-use crate::reconcile::util::{all_provenances, ensure_nested, ensure_table, table_ref};
-use crate::requirement::LintLevelsAssertion;
+use crate::reconcile::util::{ensure_nested, ensure_table, table_ref};
+use crate::requirement::LintSetting as RequiredLintSetting;
 
-/// Where a lints root lives: top-level `[lints]` or nested `[workspace.lints]`.
 #[derive(Clone, Copy)]
 pub(crate) enum LintRoot {
-    /// `[lints]`.
     Package,
-    /// `[workspace.lints]`.
     Workspace,
 }
 
 impl LintRoot {
-    /// The finding-path prefix (`lints` / `workspace.lints`).
     const fn prefix(self) -> &'static str {
         match self {
             Self::Package => "lints",
@@ -45,11 +23,10 @@ impl LintRoot {
     }
 }
 
-/// Apply every `[lints.<tool>]` (or `[workspace.lints.<tool>]`) contribution.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     root: LintRoot,
-    merged_by_tool: &BTreeMap<String, Vec<(Provenance, LintLevelsAssertion)>>,
+    merged_by_tool: &BTreeMap<String, ResolvedItemRequirements<KeyedItem<RequiredLintSetting>>>,
     findings: &mut Vec<Finding>,
 ) {
     for (tool, merged) in merged_by_tool {
@@ -57,7 +34,6 @@ pub(crate) fn apply(
     }
 }
 
-/// Read-only view of the tool's table, if it exists.
 fn tool_ref<'a>(doc: &'a DocumentMut, root: LintRoot, tool: &str) -> Option<&'a Table> {
     let lints_root = match root {
         LintRoot::Package => table_ref(doc, "lints"),
@@ -68,7 +44,6 @@ fn tool_ref<'a>(doc: &'a DocumentMut, root: LintRoot, tool: &str) -> Option<&'a 
     lints_root.get(tool).and_then(Item::as_table)
 }
 
-/// Mutable view of the tool's table, creating roots lazily (call only on write).
 fn tool_mut<'a>(doc: &'a mut DocumentMut, root: LintRoot, tool: &str) -> &'a mut Table {
     let lints_root = match root {
         LintRoot::Package => ensure_table(doc, "lints"),
@@ -80,7 +55,6 @@ fn tool_mut<'a>(doc: &'a mut DocumentMut, root: LintRoot, tool: &str) -> &'a mut
     ensure_nested(lints_root, tool)
 }
 
-/// Mutable view of an existing tool table (removals only; no creation).
 fn tool_mut_existing<'a>(
     doc: &'a mut DocumentMut,
     root: LintRoot,
@@ -96,128 +70,168 @@ fn tool_mut_existing<'a>(
     lints_root.get_mut(tool).and_then(Item::as_table_mut)
 }
 
-/// Apply contributions for one tool's lint table.
 fn apply_tool(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &[(Provenance, LintLevelsAssertion)],
+    merged: &ResolvedItemRequirements<KeyedItem<RequiredLintSetting>>,
     findings: &mut Vec<Finding>,
 ) {
-    for (_, assertion) in merged {
-        match assertion {
-            LintLevelsAssertion::Contains(map) | LintLevelsAssertion::IsExactly(map) => {
-                apply_contains(doc, root, tool, merged, map, findings);
-            }
-            LintLevelsAssertion::Excludes(map) => {
-                apply_excludes(doc, root, tool, merged, map, findings);
-            }
-        }
+    for entry in merged.required.values() {
+        let lint = &entry.merged.file_key;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let level = &entry.merged.value.level;
+        let priority = entry.merged.value.priority;
+        let message = entry
+            .collected
+            .first()
+            .map(|(_, (_, msg))| msg.clone())
+            .unwrap_or_default();
+        apply_required(
+            doc,
+            root,
+            tool,
+            lint,
+            level,
+            priority,
+            &message,
+            &attribution,
+            findings,
+        );
     }
-    if let Some(exact) = is_exactly_only(merged) {
-        apply_exact_extras(doc, root, tool, merged, &exact, findings);
+    for entry in merged.banned.values() {
+        let lint = &entry.merged.file_key;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let message = entry
+            .collected
+            .first()
+            .map(|(_, msg)| msg.clone())
+            .unwrap_or_default();
+        apply_banned(doc, root, tool, lint, &message, &attribution, findings);
+    }
+    if !merged.closed_by.is_empty() {
+        let allowed = merged
+            .required
+            .values()
+            .map(|entry| entry.merged.file_key.clone())
+            .collect();
+        let attribution = merged
+            .closed_by
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        apply_closed_extras(doc, root, tool, &allowed, &attribution, findings);
     }
 }
 
-/// `Contains` / `IsExactly` per-key: write each in the form its priority implies.
-fn apply_contains(
+fn apply_required(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &[(Provenance, LintLevelsAssertion)],
-    map: &BTreeMap<String, (String, Option<i64>, String)>,
+    lint: &str,
+    level: &str,
+    priority: Option<i64>,
+    message: &str,
+    attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    for (lint, (level, priority, message)) in map {
-        let on_disk = tool_ref(doc, root, tool).and_then(|t| read_entry(t, lint));
-        if matches_policy(on_disk.as_ref(), level, *priority) {
-            continue;
-        }
-        findings.push(Finding::Mismatch {
-            key: format!("[{}.{tool}].{lint}", root.prefix()),
-            current: on_disk.map(|e| display_entry(&e)),
-            expected: display_expected(level, *priority),
-            message: message.clone(),
-            severity: Severity::Error,
-            attribution: contributors_for_lint(merged, lint),
-        });
-        tool_mut(doc, root, tool)[lint] = write_entry(level, *priority);
+    let on_disk = tool_ref(doc, root, tool).and_then(|t| read_entry(t, lint));
+    if matches_policy(on_disk.as_ref(), level, priority) {
+        return;
+    }
+    findings.push(Finding::Mismatch {
+        key: format!("[{}.{tool}].{lint}", root.prefix()),
+        current: on_disk.map(|entry| display_entry(&entry)),
+        expected: display_expected(level, priority),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+    tool_mut(doc, root, tool)[lint] = write_entry(level, priority);
+}
+
+fn apply_banned(
+    doc: &mut DocumentMut,
+    root: LintRoot,
+    tool: &str,
+    lint: &str,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    let Some(current) = tool_ref(doc, root, tool).and_then(|t| {
+        t.get(lint).map(|item| {
+            read_entry(t, lint)
+                .map(|entry| display_entry(&entry))
+                .unwrap_or_else(|| item.to_string().trim().to_owned())
+        })
+    }) else {
+        return;
+    };
+    findings.push(Finding::Mismatch {
+        key: format!("[{}.{tool}].{lint}", root.prefix()),
+        current: Some(current),
+        expected: "absent".to_owned(),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+    if let Some(table) = tool_mut_existing(doc, root, tool) {
+        let _ = table.remove(lint);
     }
 }
 
-/// `Excludes`: remove any of the named keys (vacuous when the table is absent).
-fn apply_excludes(
+fn apply_closed_extras(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    merged: &[(Provenance, LintLevelsAssertion)],
-    map: &BTreeMap<String, String>,
-    findings: &mut Vec<Finding>,
-) {
-    for (lint, message) in map {
-        let Some(entry) = tool_ref(doc, root, tool).and_then(|t| read_entry(t, lint)) else {
-            continue;
-        };
-        findings.push(Finding::Mismatch {
-            key: format!("[{}.{tool}].{lint}", root.prefix()),
-            current: Some(display_entry(&entry)),
-            expected: "absent".to_owned(),
-            message: message.clone(),
-            severity: Severity::Error,
-            attribution: contributors_for_lint(merged, lint),
-        });
-        if let Some(t) = tool_mut_existing(doc, root, tool) {
-            let _ = t.remove(lint);
-        }
-    }
-}
-
-/// Drop on-disk keys not in any `IsExactly` contribution.
-fn apply_exact_extras(
-    doc: &mut DocumentMut,
-    root: LintRoot,
-    tool: &str,
-    merged: &[(Provenance, LintLevelsAssertion)],
-    exact: &BTreeMap<String, (String, Option<i64>, String)>,
+    allowed: &BTreeSet<String>,
+    attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     let Some(table) = tool_ref(doc, root, tool) else {
         return;
     };
-    let on_disk: BTreeSet<String> = table.iter().map(|(k, _)| k.to_owned()).collect();
-    let allowed: BTreeSet<String> = exact.keys().cloned().collect();
-    let extras: Vec<String> = on_disk.difference(&allowed).cloned().collect();
+    let on_disk = table
+        .iter()
+        .map(|(key, _)| key.to_owned())
+        .collect::<BTreeSet<_>>();
+    let extras = on_disk.difference(allowed).cloned().collect::<Vec<_>>();
     for extra in &extras {
         let current = tool_ref(doc, root, tool)
-            .and_then(|t| read_entry(t, extra))
-            .map(|e| display_entry(&e));
+            .and_then(|table| read_entry(table, extra))
+            .map(|entry| display_entry(&entry));
         findings.push(Finding::Mismatch {
             key: format!("[{}.{tool}].{extra}", root.prefix()),
             current,
-            expected: "absent (IsExactly)".to_owned(),
+            expected: "absent (closed table)".to_owned(),
             message: String::new(),
             severity: Severity::Error,
-            attribution: all_provenances(merged),
+            attribution: attribution.to_vec(),
         });
-        if let Some(t) = tool_mut_existing(doc, root, tool) {
-            let _ = t.remove(extra);
+        if let Some(table) = tool_mut_existing(doc, root, tool) {
+            let _ = table.remove(extra);
         }
     }
 }
 
-/// One on-disk lint-table entry, typed.
-struct LintEntry {
-    /// Lint level (`"deny"`, `"warn"`, `"allow"`, `"forbid"`).
+struct DiskLintSetting {
     level: String,
-    /// Priority field for inline-table form; `None` for bare-string form.
     priority: Option<i64>,
 }
 
-/// Parse the on-disk entry for `key`, accepting bare string or inline table.
-fn read_entry(table: &Table, key: &str) -> Option<LintEntry> {
+fn read_entry(table: &Table, key: &str) -> Option<DiskLintSetting> {
     let item = table.get(key)?;
     if let Some(s) = item.as_str() {
-        return Some(LintEntry {
+        return Some(DiskLintSetting {
             level: s.to_owned(),
             priority: None,
         });
@@ -228,83 +242,42 @@ fn read_entry(table: &Table, key: &str) -> Option<LintEntry> {
             .and_then(Value::as_str)
             .map(ToOwned::to_owned)?;
         let priority = t.get("priority").and_then(Value::as_integer);
-        return Some(LintEntry { level, priority });
+        return Some(DiskLintSetting { level, priority });
     }
     None
 }
 
-/// True if the on-disk entry already matches what the policy asks for.
-fn matches_policy(on_disk: Option<&LintEntry>, level: &str, priority: Option<i64>) -> bool {
-    on_disk.is_some_and(|e| e.level == level && e.priority == priority)
+fn matches_policy(on_disk: Option<&DiskLintSetting>, level: &str, priority: Option<i64>) -> bool {
+    on_disk.is_some_and(|entry| entry.level == level && entry.priority == priority)
 }
 
-/// Build the item to write, picking bare string or inline table by priority.
 fn write_entry(level: &str, priority: Option<i64>) -> Item {
     priority.map_or_else(
         || value(level.to_owned()),
         |p| {
-            let mut t = InlineTable::new();
-            let _ = t.insert("level", Value::from(level));
-            let _ = t.insert("priority", Value::from(p));
-            Item::Value(Value::InlineTable(t))
+            let mut table = InlineTable::new();
+            let _ = table.insert("level", Value::from(level));
+            let _ = table.insert("priority", Value::from(p));
+            Item::Value(Value::InlineTable(table))
         },
     )
 }
 
-/// Render an on-disk entry for the finding's `current` field.
-fn display_entry(e: &LintEntry) -> String {
-    e.priority.map_or_else(
-        || e.level.clone(),
-        |p| format!("{{ level = \"{level}\", priority = {p} }}", level = e.level),
+fn display_entry(entry: &DiskLintSetting) -> String {
+    entry.priority.map_or_else(
+        || entry.level.clone(),
+        |priority| {
+            format!(
+                "{{ level = \"{level}\", priority = {priority} }}",
+                level = entry.level
+            )
+        },
     )
 }
 
-/// Render the expected entry for the finding's `expected` field.
 fn display_expected(level: &str, priority: Option<i64>) -> String {
     priority.map_or_else(
         || level.to_owned(),
         |p| format!("{{ level = \"{level}\", priority = {p} }}"),
     )
-}
-
-/// Provenances of contributions that mention `lint`.
-fn contributors_for_lint(
-    merged: &[(Provenance, LintLevelsAssertion)],
-    lint: &str,
-) -> Vec<Provenance> {
-    let mut out = Vec::new();
-    for (provenance, assertion) in merged {
-        let mentions = match assertion {
-            LintLevelsAssertion::Contains(map) | LintLevelsAssertion::IsExactly(map) => {
-                map.contains_key(lint)
-            }
-            LintLevelsAssertion::Excludes(map) => map.contains_key(lint),
-        };
-        if mentions {
-            out.push(provenance.clone());
-        }
-    }
-    out
-}
-
-/// Union of allowed keys if every contribution is `IsExactly`; else `None`.
-fn is_exactly_only(
-    merged: &[(Provenance, LintLevelsAssertion)],
-) -> Option<BTreeMap<String, (String, Option<i64>, String)>> {
-    let mut combined: BTreeMap<String, (String, Option<i64>, String)> = BTreeMap::new();
-    for (_, assertion) in merged {
-        match assertion {
-            LintLevelsAssertion::IsExactly(map) => {
-                for (k, v) in map {
-                    let _ = combined.insert(k.clone(), v.clone());
-                }
-            }
-            LintLevelsAssertion::Contains(_) | LintLevelsAssertion::Excludes(_) => return None,
-        }
-    }
-    if combined.is_empty() {
-        None
-    } else {
-        Some(combined)
-    }
 }

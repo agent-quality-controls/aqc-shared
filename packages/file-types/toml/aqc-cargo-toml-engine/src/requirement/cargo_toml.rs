@@ -1,210 +1,345 @@
-//! The `Cargo.toml` requirement aggregate: the struct-of-fields-per-target
-//! plus its merge phase and the erased `EngineRequirement` impl.
+//! `Cargo.toml` requirement aggregate and merge phase.
 
 #![expect(
     clippy::disallowed_types,
-    reason = "`Any` is used only in the `EngineRequirement::as_any` impl; the broker uses it to downcast `Box<dyn EngineRequirement>` back to this concrete `Req` type at dispatch time."
+    reason = "`Any` is used only for EngineRequirement downcast dispatch."
 )]
 
 use core::any::Any;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConflictEntry, EngineRequirement, Provenance};
+use aqc_file_engine_core::{
+    ConflictEntry, EngineRequirement, FileItemRequirement, ItemRequirements, KeyedItem, Provenance,
+    ResolvedItemRequirements, ResolvedRequirement, resolve_items, resolve_map,
+};
 
-use super::dependencies::{DependencyScope, DependencySetAssertion};
-use super::features::FeatureSetAssertion;
-use super::lints::{LintLevelsAssertion, PackageLintsAssertion};
-use super::package::PackageFieldAssertion;
-use super::profiles::ProfileAssertion;
+use super::dependencies::{DependencyIdentity, DependencyRequirement, DependencyScope};
+use super::features::FeatureMembers;
+use super::lints::{LintSetting, PackageLintsAssertion, ResolvedPackageLintsAssertion};
+use super::package::{PackageFieldAssertion, ResolvedPackageFieldAssertion};
+use super::profiles::{ProfileRequirements, ResolvedProfileRequirements};
 use super::sections::{ManifestSection, SectionPresenceAssertion};
-use super::targets::{TargetFieldAssertion, TargetTableAssertion};
-use super::workspace::WorkspaceFieldAssertion;
+use super::targets::ResolvedTargetRequirements;
+use super::targets::TargetRequirements;
+use super::workspace::{ResolvedWorkspaceFieldAssertion, WorkspaceFieldAssertion};
 
-/// Declarative requirement for the `Cargo.toml` engine.
-///
-/// One field per addressable target. Each field's value is the collected
-/// per-policy assertions: `Vec<(Provenance, A)>` (or a per-key map thereof).
-#[expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 #[derive(Debug, Clone, Default)]
-pub struct CargoTomlRequirement {
-    /// The `[lints]` either/or decision: inherit the workspace tables or
-    /// carry inline `[lints.<tool>]` tables (one key; cargo forbids both).
-    pub package_lints: Option<Vec<(Provenance, PackageLintsAssertion)>>,
-    /// `[workspace.lints.<tool>]`, keyed by tool.
-    pub workspace_lints: BTreeMap<String, Vec<(Provenance, LintLevelsAssertion)>>,
-    /// `[package].<field>`, keyed by field name.
-    pub package_fields: BTreeMap<String, Vec<(Provenance, PackageFieldAssertion)>>,
-    /// `[workspace.package].<field>`, keyed by field name.
-    pub workspace_package_fields: BTreeMap<String, Vec<(Provenance, PackageFieldAssertion)>>,
-    /// `[workspace].<key>` (resolver, members, exclude, default-members).
-    pub workspace_fields: BTreeMap<String, Vec<(Provenance, WorkspaceFieldAssertion)>>,
-    /// Table-level existence per manifest section.
-    pub section_presence: BTreeMap<ManifestSection, Vec<(Provenance, SectionPresenceAssertion)>>,
-    /// Dependency tables, keyed by scope (kind + optional `cfg` target).
-    pub dependencies: BTreeMap<DependencyScope, Vec<(Provenance, DependencySetAssertion)>>,
-    /// `[workspace.dependencies]`.
-    pub workspace_dependencies: Option<Vec<(Provenance, DependencySetAssertion)>>,
-    /// `[features]`.
-    pub features: Option<Vec<(Provenance, FeatureSetAssertion)>>,
-    /// `[profile.<name>]`, keyed by profile name.
-    pub profiles: BTreeMap<String, Vec<(Provenance, ProfileAssertion)>>,
-    /// `[lib].<field>`, keyed by field name (singleton target table).
-    pub lib_fields: BTreeMap<String, Vec<(Provenance, TargetFieldAssertion)>>,
-    /// `[[bin]]` entries, keyed by target name.
-    pub bin_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
-    /// `[[example]]` entries, keyed by target name.
-    pub example_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
-    /// `[[test]]` entries, keyed by target name.
-    pub test_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
-    /// `[[bench]]` entries, keyed by target name.
-    pub bench_targets: BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
-    /// `[patch.<registry>]`, keyed by registry name.
-    pub patch: BTreeMap<String, Vec<(Provenance, DependencySetAssertion)>>,
+pub struct CargoTomlRequirements {
+    pub package_lints: Option<PackageLintsAssertion>,
+    pub workspace_lints: BTreeMap<String, ItemRequirements<KeyedItem<LintSetting>>>,
+    pub package_fields: BTreeMap<String, PackageFieldAssertion>,
+    pub workspace_package_fields: BTreeMap<String, PackageFieldAssertion>,
+    pub workspace_fields: BTreeMap<String, WorkspaceFieldAssertion>,
+    pub section_presence: BTreeMap<ManifestSection, SectionPresenceAssertion>,
+    pub dependencies: BTreeMap<DependencyScope, ItemRequirements<DependencyRequirement>>,
+    pub workspace_dependencies: Option<ItemRequirements<DependencyRequirement>>,
+    pub features: Option<ItemRequirements<KeyedItem<FeatureMembers>>>,
+    pub profiles: BTreeMap<String, ProfileRequirements>,
+    pub targets: TargetRequirements,
+    pub patch: BTreeMap<String, ItemRequirements<DependencyRequirement>>,
 }
 
-impl CargoTomlRequirement {
-    /// Merge a slice of requirements (all routed to this engine for one file)
-    /// into one resolved requirement plus any per-key conflicts.
-    ///
-    /// Phase 1 of reconciliation: pure, disk-independent. Per field, union the
-    /// contributions, then resolve each key (identical → collapse, set/map →
-    /// union keys, disagreement → [`ConflictEntry`]). The engine turns each
-    /// entry into a `Finding::ConflictingRequirements`.
+#[rustfmt::skip]
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedCargoTomlRequirements {
+    pub package_lints: Option<ResolvedPackageLintsAssertion>,
+    pub workspace_lints: BTreeMap<String, ResolvedItemRequirements<KeyedItem<LintSetting>>>,
+    pub package_fields:
+        BTreeMap<String, ResolvedRequirement<ResolvedPackageFieldAssertion, PackageFieldAssertion>>,
+    pub workspace_package_fields:
+        BTreeMap<String, ResolvedRequirement<ResolvedPackageFieldAssertion, PackageFieldAssertion>>,
+    pub workspace_fields:
+        BTreeMap<String, ResolvedRequirement<ResolvedWorkspaceFieldAssertion, WorkspaceFieldAssertion>>,
+    pub section_presence: BTreeMap<ManifestSection, ResolvedRequirement<SectionPresenceAssertion, SectionPresenceAssertion>>,
+    pub dependencies: BTreeMap<DependencyScope, ResolvedItemRequirements<DependencyRequirement>>,
+    pub workspace_dependencies: Option<ResolvedItemRequirements<DependencyRequirement>>,
+    pub features: Option<ResolvedItemRequirements<KeyedItem<FeatureMembers>>>,
+    pub profiles: BTreeMap<String, ResolvedProfileRequirements>,
+    pub targets: ResolvedTargetRequirements,
+    pub patch: BTreeMap<String, ResolvedItemRequirements<DependencyRequirement>>,
+}
+
+impl CargoTomlRequirements {
     #[must_use]
-    #[expect(
-        clippy::type_complexity,
-        reason = "(Self, Vec<ConflictEntry>) is the natural two-output shape: the resolved requirement plus the conflicts that dropped keys."
-    )]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "One union line + one resolve line per manifest target; splitting would scatter the per-field iteration the drift-control rule wants in one place."
-    )]
-    pub fn merge(reqs: &[&Self]) -> (Self, Vec<ConflictEntry>) {
-        let mut u = Self::default();
-        for r in reqs {
-            u.package_lints = aqc_file_engine_core::union_optional(
-                u.package_lints.take(),
-                r.package_lints.clone(),
-            );
-            aqc_file_engine_core::union_field(&mut u.workspace_lints, r.workspace_lints.clone());
-            aqc_file_engine_core::union_field(&mut u.package_fields, r.package_fields.clone());
-            aqc_file_engine_core::union_field(
-                &mut u.workspace_package_fields,
-                r.workspace_package_fields.clone(),
-            );
-            aqc_file_engine_core::union_field(&mut u.workspace_fields, r.workspace_fields.clone());
-            aqc_file_engine_core::union_field(&mut u.section_presence, r.section_presence.clone());
-            aqc_file_engine_core::union_field(&mut u.dependencies, r.dependencies.clone());
-            u.workspace_dependencies = aqc_file_engine_core::union_optional(
-                u.workspace_dependencies.take(),
-                r.workspace_dependencies.clone(),
-            );
-            u.features =
-                aqc_file_engine_core::union_optional(u.features.take(), r.features.clone());
-            aqc_file_engine_core::union_field(&mut u.profiles, r.profiles.clone());
-            aqc_file_engine_core::union_field(&mut u.lib_fields, r.lib_fields.clone());
-            aqc_file_engine_core::union_field(&mut u.bin_targets, r.bin_targets.clone());
-            aqc_file_engine_core::union_field(&mut u.example_targets, r.example_targets.clone());
-            aqc_file_engine_core::union_field(&mut u.test_targets, r.test_targets.clone());
-            aqc_file_engine_core::union_field(&mut u.bench_targets, r.bench_targets.clone());
-            aqc_file_engine_core::union_field(&mut u.patch, r.patch.clone());
-        }
+    pub fn merge(
+        reqs: Vec<(Provenance, CargoTomlRequirements)>,
+    ) -> (ResolvedCargoTomlRequirements, Vec<ConflictEntry>) {
         let mut conflicts = Vec::new();
-        let out = Self {
-            package_lints: aqc_file_engine_core::resolve_optional(
-                "[lints]",
-                u.package_lints,
+
+        let package_lints = PackageLintsAssertion::resolve(
+            "[lints]",
+            reqs.iter()
+                .filter_map(|(prov, req)| {
+                    req.package_lints
+                        .clone()
+                        .map(|assertion| (prov.clone(), assertion))
+                })
+                .collect(),
+            &mut conflicts,
+        );
+
+        let workspace_lints = resolve_item_map(
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.workspace_lints.clone()))
+                .collect(),
+            |tool| format!("[workspace.lints.{tool}]"),
+            &mut conflicts,
+        );
+
+        let dependencies = resolve_item_map(
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.dependencies.clone()))
+                .collect(),
+            DependencyScope::table_path,
+            &mut conflicts,
+        );
+        for (scope, merged) in &dependencies {
+            push_dependency_identity_overlaps(&scope.table_path(), merged, &mut conflicts);
+        }
+
+        let patch = resolve_item_map(
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.patch.clone()))
+                .collect(),
+            |registry| format!("[patch.{registry}]"),
+            &mut conflicts,
+        );
+        for (registry, merged) in &patch {
+            push_dependency_identity_overlaps(
+                &format!("[patch.{registry}]"),
+                merged,
+                &mut conflicts,
+            );
+        }
+
+        let profiles = resolve_profile_map(
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.profiles.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+
+        let targets = TargetRequirements::resolve(
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.targets.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+
+        let workspace_dependencies = resolve_maybe_items(
+            "[workspace.dependencies]",
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.workspace_dependencies.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+        if let Some(merged) = &workspace_dependencies {
+            push_dependency_identity_overlaps("[workspace.dependencies]", merged, &mut conflicts);
+        }
+
+        let features = resolve_maybe_items(
+            "[features]",
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.features.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+
+        let out = ResolvedCargoTomlRequirements {
+            package_lints,
+            workspace_lints,
+            package_fields: resolve_map(
+                reqs.iter()
+                    .map(|(prov, req)| (prov.clone(), req.package_fields.clone()))
+                    .collect(),
+                |field| format!("[package].{field}"),
                 &mut conflicts,
             ),
-            workspace_lints: aqc_file_engine_core::resolve_field(
-                u.workspace_lints,
-                |t| format!("[workspace.lints.{t}]"),
+            workspace_package_fields: resolve_map(
+                reqs.iter()
+                    .map(|(prov, req)| (prov.clone(), req.workspace_package_fields.clone()))
+                    .collect(),
+                |field| format!("[workspace.package].{field}"),
                 &mut conflicts,
             ),
-            package_fields: aqc_file_engine_core::resolve_field(
-                u.package_fields,
-                |f| format!("[package].{f}"),
+            workspace_fields: resolve_map(
+                reqs.iter()
+                    .map(|(prov, req)| (prov.clone(), req.workspace_fields.clone()))
+                    .collect(),
+                |field| format!("[workspace].{field}"),
                 &mut conflicts,
             ),
-            workspace_package_fields: aqc_file_engine_core::resolve_field(
-                u.workspace_package_fields,
-                |f| format!("[workspace.package].{f}"),
+            section_presence: resolve_map(
+                reqs.iter()
+                    .map(|(prov, req)| (prov.clone(), req.section_presence.clone()))
+                    .collect(),
+                |section: &ManifestSection| section.table_path().to_owned(),
                 &mut conflicts,
             ),
-            workspace_fields: aqc_file_engine_core::resolve_field(
-                u.workspace_fields,
-                |f| format!("[workspace].{f}"),
-                &mut conflicts,
-            ),
-            section_presence: aqc_file_engine_core::resolve_field(
-                u.section_presence,
-                |s: &ManifestSection| s.table_path().to_owned(),
-                &mut conflicts,
-            ),
-            dependencies: aqc_file_engine_core::resolve_field(
-                u.dependencies,
-                DependencyScope::table_path,
-                &mut conflicts,
-            ),
-            workspace_dependencies: aqc_file_engine_core::resolve_optional(
-                "[workspace.dependencies]",
-                u.workspace_dependencies,
-                &mut conflicts,
-            ),
-            features: aqc_file_engine_core::resolve_optional(
-                "[features]",
-                u.features,
-                &mut conflicts,
-            ),
-            profiles: aqc_file_engine_core::resolve_field(
-                u.profiles,
-                |p| format!("[profile.{p}]"),
-                &mut conflicts,
-            ),
-            lib_fields: aqc_file_engine_core::resolve_field(
-                u.lib_fields,
-                |f| format!("[lib].{f}"),
-                &mut conflicts,
-            ),
-            bin_targets: aqc_file_engine_core::resolve_field(
-                u.bin_targets,
-                |n| format!("[[bin]].{n}"),
-                &mut conflicts,
-            ),
-            example_targets: aqc_file_engine_core::resolve_field(
-                u.example_targets,
-                |n| format!("[[example]].{n}"),
-                &mut conflicts,
-            ),
-            test_targets: aqc_file_engine_core::resolve_field(
-                u.test_targets,
-                |n| format!("[[test]].{n}"),
-                &mut conflicts,
-            ),
-            bench_targets: aqc_file_engine_core::resolve_field(
-                u.bench_targets,
-                |n| format!("[[bench]].{n}"),
-                &mut conflicts,
-            ),
-            patch: aqc_file_engine_core::resolve_field(
-                u.patch,
-                |r| format!("[patch.{r}]"),
-                &mut conflicts,
-            ),
+            dependencies,
+            workspace_dependencies,
+            features,
+            profiles,
+            targets,
+            patch,
         };
+
         (out, conflicts)
     }
 }
 
-impl EngineRequirement for CargoTomlRequirement {
+impl EngineRequirement for CargoTomlRequirements {
     fn engine_id(&self) -> &'static str {
         crate::ENGINE_ID
     }
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+fn resolve_item_map<K, Item>(
+    input: Vec<(Provenance, BTreeMap<K, ItemRequirements<Item>>)>,
+    key_path: impl Fn(&K) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> BTreeMap<K, ResolvedItemRequirements<Item>>
+where
+    K: Ord + Clone,
+    Item: FileItemRequirement,
+    Item::Identity: ToString,
+{
+    let mut by_key: BTreeMap<K, Vec<(Provenance, ItemRequirements<Item>)>> = BTreeMap::new();
+    for (prov, map) in input {
+        for (key, items) in map {
+            by_key.entry(key).or_default().push((prov.clone(), items));
+        }
+    }
+    by_key
+        .into_iter()
+        .map(|(key, items)| {
+            let path = key_path(&key);
+            (key, resolve_items(&path, items, conflicts))
+        })
+        .collect()
+}
+
+fn resolve_maybe_items<Item>(
+    key: &str,
+    input: Vec<(Provenance, Option<ItemRequirements<Item>>)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedItemRequirements<Item>>
+where
+    Item: FileItemRequirement,
+    Item::Identity: ToString,
+{
+    let items = input
+        .into_iter()
+        .filter_map(|(prov, item_requirements)| item_requirements.map(|inner| (prov, inner)))
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        None
+    } else {
+        Some(resolve_items(key, items, conflicts))
+    }
+}
+
+fn resolve_profile_map(
+    input: Vec<(Provenance, BTreeMap<String, ProfileRequirements>)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> BTreeMap<String, ResolvedProfileRequirements> {
+    let mut by_key: BTreeMap<String, Vec<(Provenance, ProfileRequirements)>> = BTreeMap::new();
+    for (prov, map) in input {
+        for (profile, req) in map {
+            by_key.entry(profile).or_default().push((prov.clone(), req));
+        }
+    }
+    by_key
+        .into_iter()
+        .map(|(profile, items)| {
+            let key = format!("[profile.{profile}]");
+            (
+                profile,
+                ProfileRequirements::resolve(&key, items, conflicts),
+            )
+        })
+        .collect()
+}
+
+fn push_dependency_identity_overlaps(
+    key: &str,
+    merged: &ResolvedItemRequirements<DependencyRequirement>,
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    push_dependency_file_key_package_conflicts(key, merged, conflicts);
+
+    for (identity, requirement) in &merged.required {
+        if matches!(identity, DependencyIdentity::Invalid) {
+            conflicts.push(ConflictEntry {
+                key: format!("{key}.<invalid>"),
+                reason: "invalid-dependency-requirement".to_owned(),
+                contributors: requirement
+                    .collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "missing file_key or package".to_owned()))
+                    .collect(),
+            });
+        }
+    }
+    for (identity, requirement) in &merged.banned {
+        if matches!(identity, DependencyIdentity::Invalid) {
+            conflicts.push(ConflictEntry {
+                key: format!("{key}.<invalid>"),
+                reason: "invalid-dependency-requirement".to_owned(),
+                contributors: requirement
+                    .collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "missing file_key or package".to_owned()))
+                    .collect(),
+            });
+        }
+    }
+}
+
+fn push_dependency_file_key_package_conflicts(
+    key: &str,
+    merged: &ResolvedItemRequirements<DependencyRequirement>,
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    let mut packages_by_key: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut contributors_by_key: BTreeMap<String, Vec<(Provenance, String)>> = BTreeMap::new();
+    for requirement in merged.required.values() {
+        let Some(file_key) = requirement.merged.file_key.as_ref() else {
+            continue;
+        };
+        let effective_package = requirement
+            .merged
+            .value
+            .package
+            .as_deref()
+            .unwrap_or(file_key)
+            .to_owned();
+        let _ = packages_by_key
+            .entry(file_key.clone())
+            .or_default()
+            .insert(effective_package.clone());
+        contributors_by_key
+            .entry(file_key.clone())
+            .or_default()
+            .extend(requirement.collected.iter().map(|(prov, _)| {
+                (
+                    prov.clone(),
+                    format!("file_key {file_key} package {effective_package}"),
+                )
+            }));
+    }
+    for (file_key, packages) in packages_by_key {
+        if packages.len() <= 1 {
+            continue;
+        }
+        conflicts.push(ConflictEntry {
+            key: format!("{key}.{file_key}"),
+            reason: "dependency-file-key-package-conflict".to_owned(),
+            contributors: contributors_by_key.remove(&file_key).unwrap_or_default(),
+        });
     }
 }

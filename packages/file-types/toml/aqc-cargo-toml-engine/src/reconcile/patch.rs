@@ -1,35 +1,33 @@
-//! Reconcile `[patch.<registry>]` tables. Reuses the dependency-set helpers
+//! Reconcile `[patch.<registry>]` tables. Reuses the dependency helpers
 //! against the nested `[patch.<registry>]` table.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, Provenance};
+use aqc_file_engine_core::{Finding, ResolvedItemRequirements};
 use toml_edit::DocumentMut;
 
 use crate::reconcile::dependencies::{SetRule, apply_set};
-use crate::requirement::DependencySetAssertion;
+use crate::requirement::DependencyRequirement;
 
-/// Apply every `[patch.<registry>]` contribution.
+/// Apply every `[patch.<registry>]` requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_registry: &BTreeMap<String, Vec<(Provenance, DependencySetAssertion)>>,
+    merged_by_registry: &BTreeMap<String, ResolvedItemRequirements<DependencyRequirement>>,
     findings: &mut Vec<Finding>,
 ) {
     for (registry, merged) in merged_by_registry {
         let path = vec!["patch".to_owned(), registry.clone()];
         let display = format!("[patch.{registry}]");
-        apply_set(doc, &path, &display, SetRule::Standard, merged, findings);
+        // Package-only patch entries are not writable; the shared helper emits
+        // UnwritableRequiredKey when it cannot use a `file_key`.
+        apply_set(doc, &path, &display, SetRule::Patch, merged, findings);
     }
 }
 
-/// Apply the single `[workspace.dependencies]` contribution.
+/// Apply the single `[workspace.dependencies]` requirement.
 pub(crate) fn apply_workspace_dependencies(
     doc: &mut DocumentMut,
-    merged: Option<&Vec<(Provenance, DependencySetAssertion)>>,
+    merged: Option<&ResolvedItemRequirements<DependencyRequirement>>,
     findings: &mut Vec<Finding>,
 ) {
     let Some(merged) = merged else { return };

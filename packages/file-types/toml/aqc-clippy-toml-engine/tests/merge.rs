@@ -1,267 +1,388 @@
-//! Behavior probes for `ClippyTomlRequirement::merge` (the merge phase).
-//!
-//! The module is named `merge` so the test paths read `merge::disjoint`,
-//! `merge::conflict`, `merge::identical` (the manifest's verification names).
+use std::collections::{BTreeMap, BTreeSet};
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)>; declared openly (taxonomy decision 2026-06-07)."
-)]
 use toml_edit as _;
 
-mod merge {
-    use std::collections::BTreeMap;
+use aqc_clippy_toml_engine::{
+    BanEntry, BoolAssertion, ClippyTomlEngine, ClippyTomlRequirements, MsrvAssertion,
+    NumericAssertion, StringAssertion,
+};
+use aqc_file_engine_core::{
+    Engine, EngineOutput, EngineRequirement, Finding, ItemRequirements, Provenance,
+};
 
-    use aqc_clippy_toml_engine::{
-        BanEntry, BansAssertion, BoolAssertion, ClippyTomlRequirement, ThresholdsAssertion,
+fn prov(policy: &str) -> Provenance {
+    Provenance {
+        policy: policy.to_owned(),
+    }
+}
+
+fn clippy_findings(reqs: Vec<(Provenance, ClippyTomlRequirements)>) -> Vec<Finding> {
+    clippy_output(Some(b""), reqs).findings
+}
+
+fn clippy_output(
+    bytes: Option<&[u8]>,
+    reqs: Vec<(Provenance, ClippyTomlRequirements)>,
+) -> EngineOutput {
+    let reqs = reqs
+        .into_iter()
+        .map(|(p, r)| (p, Box::new(r) as Box<dyn EngineRequirement>))
+        .collect::<Vec<_>>();
+    ClippyTomlEngine.reconcile(bytes, &reqs)
+}
+
+fn ban(path: &str) -> BanEntry {
+    BanEntry {
+        path: path.to_owned(),
+        message: "ban".to_owned(),
+    }
+}
+
+fn ban_items(
+    required: Vec<(BanEntry, String)>,
+    banned: Vec<(BanEntry, String)>,
+    closed: Option<String>,
+) -> ItemRequirements<BanEntry> {
+    ItemRequirements {
+        required,
+        banned,
+        closed,
+    }
+}
+
+#[test]
+fn clippy_bans_required_and_banned_different_keys_compose() {
+    let table = ban_items(
+        vec![(ban("std::mem::forget"), "ban".to_owned())],
+        vec![(ban("std::mem::transmute"), "no ban".to_owned())],
+        None,
+    );
+    let req = ClippyTomlRequirements {
+        disallowed_methods: table,
+        ..ClippyTomlRequirements::default()
     };
-    use aqc_file_engine_core::Provenance;
+    let (_, findings) = ClippyTomlRequirements::merge(vec![(prov("p1"), req)]);
+    assert!(findings.is_empty());
+}
 
-    /// Wrap one policy's assertion as a single-entry collected list.
-    fn one_assertion<A>(policy: &str, assertion: A) -> Vec<(Provenance, A)> {
-        vec![(
-            Provenance {
-                policy: policy.to_owned(),
-            },
-            assertion,
-        )]
-    }
+#[test]
+fn clippy_bans_required_and_banned_same_key_conflict() {
+    let table = ban_items(
+        vec![(ban("std::mem::forget"), "ban".to_owned())],
+        vec![(ban("std::mem::forget"), "remove".to_owned())],
+        None,
+    );
+    let req = ClippyTomlRequirements {
+        disallowed_methods: table,
+        ..ClippyTomlRequirements::default()
+    };
+    let findings = clippy_findings(vec![(prov("p1"), req)]);
+    assert!(matches!(
+        findings
+            .iter()
+            .find(|f| matches!(f, Finding::ConflictingRequirements { .. })),
+        Some(Finding::ConflictingRequirements { .. })
+    ));
+}
 
-    /// A requirement asserting `disallowed-methods` bans from one policy.
-    fn bans_req(policy: &str, assertion: BansAssertion) -> ClippyTomlRequirement {
-        ClippyTomlRequirement {
-            disallowed_methods: Some(one_assertion(policy, assertion)),
-            ..ClippyTomlRequirement::default()
-        }
-    }
-
-    /// A requirement asserting `thresholds` from one policy.
-    fn thresholds_req(policy: &str, assertion: ThresholdsAssertion) -> ClippyTomlRequirement {
-        ClippyTomlRequirement {
-            thresholds: Some(one_assertion(policy, assertion)),
-            ..ClippyTomlRequirement::default()
-        }
-    }
-
-    /// One `(name, (value, message))` map with a single entry.
-    #[expect(
-        clippy::type_complexity,
-        reason = "BTreeMap<String, (value, message)> mirrors the value-carrying ThresholdsAssertion variants' shape."
-    )]
-    fn one_threshold(name: &str, value: u64, message: &str) -> BTreeMap<String, (u64, String)> {
-        let mut m = BTreeMap::new();
-        let _ = m.insert(name.to_owned(), (value, message.to_owned()));
-        m
-    }
-
-    /// Count the ban entries in a requirement's `disallowed-methods` field.
-    fn ban_count(req: &ClippyTomlRequirement) -> usize {
-        req.disallowed_methods.as_ref().map_or(0, |m| {
-            m.first().map_or(0, |(_, assertion)| match assertion {
-                BansAssertion::Contains(v) | BansAssertion::IsExactly(v) => v.len(),
-                BansAssertion::Excludes(_) => 0,
-            })
-        })
-    }
-
-    /// A requirement asserting one boolean setting from one policy.
-    fn bool_req(policy: &str, setting: &str, assertion: BoolAssertion) -> ClippyTomlRequirement {
-        let mut r = ClippyTomlRequirement::default();
-        let _ = r.bools.insert(
-            setting.to_owned(),
-            vec![(
-                Provenance {
-                    policy: policy.to_owned(),
-                },
-                assertion,
-            )],
-        );
-        r
-    }
-
-    /// A requirement asserting `<setting> == <value>` (with a policy message).
-    fn equals_req(
-        policy: &str,
-        setting: &str,
-        value: bool,
-        message: &str,
-    ) -> ClippyTomlRequirement {
-        bool_req(
-            policy,
-            setting,
-            BoolAssertion::Equals(value, message.to_owned()),
+#[test]
+fn clippy_ban_path_conflict_uses_item_identity() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            vec![(ban("std::env::set_var"), "ban".to_owned())],
+            vec![(ban("std::env::set_var"), "remove".to_owned())],
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let findings = clippy_findings(vec![(prov("p1"), req)]);
+    assert!(findings.iter().any(|finding| {
+        matches!(
+            finding,
+            Finding::ConflictingRequirements { key, .. }
+                if key.contains("std::env::set_var")
         )
-    }
+    }));
+}
 
-    #[test]
-    fn disjoint() {
-        let a = equals_req("p1", "allow-dbg-in-tests", true, "tests may dbg");
-        let b = equals_req("p2", "allow-print-in-tests", false, "no prints");
-        let (merged, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert!(conflicts.is_empty(), "disjoint keys must not conflict");
-        assert!(
-            merged.bools.contains_key("allow-dbg-in-tests"),
-            "first setting survives the merge"
-        );
-        assert!(
-            merged.bools.contains_key("allow-print-in-tests"),
-            "second setting survives the merge"
-        );
-    }
+#[test]
+fn init_writes_clippy_ban_array_item() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            vec![(ban("std::env::set_var"), "ban".to_owned())],
+            Vec::new(),
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(None, vec![(prov("p1"), req)]);
+    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    assert!(text.contains("disallowed-methods"));
+    assert!(text.contains("path = \"std::env::set_var\""));
+    assert!(text.contains("reason = \"ban\""));
+}
 
-    #[test]
-    fn identical() {
-        // Same semantic value, different policy-authored messages: must agree.
-        let a = equals_req("p1", "allow-dbg-in-tests", true, "reason from p1");
-        let b = equals_req("p2", "allow-dbg-in-tests", true, "reason from p2");
-        let (merged, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert!(
-            conflicts.is_empty(),
-            "same value with differing messages agrees (message is not the disagreement)"
-        );
-        assert!(
-            merged.bools.contains_key("allow-dbg-in-tests"),
-            "the agreed setting survives"
-        );
-    }
+#[test]
+fn required_clippy_ban_updates_missing_reason() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            vec![(ban("std::env::set_var"), "ban".to_owned())],
+            Vec::new(),
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(b"disallowed-methods = [\"std::env::set_var\"]\n"),
+        vec![(prov("p1"), req)],
+    );
+    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    assert!(text.contains("reason = \"ban\""));
+    assert_eq!(output.findings.len(), 1);
+}
 
-    #[test]
-    fn conflict() {
-        let a = equals_req("p1", "allow-dbg-in-tests", true, "tests may dbg");
-        let b = equals_req("p2", "allow-dbg-in-tests", false, "tests may not dbg");
-        let (merged, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert_eq!(
-            conflicts.len(),
-            1,
-            "one per-key conflict for the disagreement"
-        );
-        assert!(
-            conflicts.iter().any(|c| c.key == "allow-dbg-in-tests"),
-            "the conflict names the disagreeing in-file key"
-        );
-        assert!(
-            conflicts.iter().all(|c| c.contributors.len() == 2),
-            "both disagreeing policies are named"
-        );
-        assert!(
-            !merged.bools.contains_key("allow-dbg-in-tests"),
-            "the conflicting setting is dropped, not written"
-        );
-    }
+#[test]
+fn required_clippy_ban_handles_non_array_without_panic() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            vec![(ban("std::env::set_var"), "ban".to_owned())],
+            Vec::new(),
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(b"disallowed-methods = \"bad\"\n"),
+        vec![(prov("p1"), req)],
+    );
+    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    assert!(text.contains("path = \"std::env::set_var\""));
+    assert!(!output.findings.is_empty());
+}
 
-    #[test]
-    fn bans_same_path_different_message_agrees() {
-        let a = bans_req(
-            "p1",
-            BansAssertion::Contains(vec![BanEntry {
-                path: "std::mem::forget".to_owned(),
-                message: "leaks".to_owned(),
-            }]),
-        );
-        let b = bans_req(
-            "p2",
-            BansAssertion::Contains(vec![BanEntry {
-                path: "std::mem::forget".to_owned(),
-                message: "use drop instead".to_owned(),
-            }]),
-        );
-        let (merged, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert!(
-            conflicts.is_empty(),
-            "same ban path with differing messages agrees"
-        );
-        assert_eq!(
-            ban_count(&merged),
-            1,
-            "the shared ban path is unioned to a single entry"
-        );
-    }
+#[test]
+fn banned_clippy_ban_removes_duplicate_entries() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            Vec::new(),
+            vec![(ban("std::env::set_var"), "remove".to_owned())],
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(
+            b"disallowed-methods = [\"std::env::set_var\", { path = \"std::env::set_var\", reason = \"x\" }]\n",
+        ),
+        vec![(prov("p1"), req)],
+    );
+    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    assert!(!text.contains("std::env::set_var"));
+    assert_eq!(output.findings.len(), 2);
+}
 
-    #[test]
-    fn bans_disjoint_paths_union() {
-        let a = bans_req(
-            "p1",
-            BansAssertion::Contains(vec![BanEntry {
-                path: "a::b".to_owned(),
-                message: "m1".to_owned(),
-            }]),
-        );
-        let b = bans_req(
-            "p2",
-            BansAssertion::Contains(vec![BanEntry {
-                path: "c::d".to_owned(),
-                message: "m2".to_owned(),
-            }]),
-        );
-        let (merged, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert!(conflicts.is_empty(), "disjoint ban paths must not conflict");
-        assert_eq!(
-            ban_count(&merged),
-            2,
-            "both disjoint ban paths survive the union"
-        );
-    }
+#[test]
+fn clippy_banned_absent_does_not_create_empty_array() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            Vec::new(),
+            vec![(ban("std::mem::forget"), "remove".to_owned())],
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);
+    assert!(output.findings.is_empty());
+    assert_eq!(String::from_utf8(output.expected_bytes).expect("utf8"), "");
+}
 
-    #[test]
-    fn thresholds_same_value_different_message_agrees() {
-        let a = thresholds_req(
-            "p1",
-            ThresholdsAssertion::Equals(one_threshold("too-many-lines-threshold", 100, "m1")),
-        );
-        let b = thresholds_req(
-            "p2",
-            ThresholdsAssertion::Equals(one_threshold("too-many-lines-threshold", 100, "m2")),
-        );
-        let (_, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert!(
-            conflicts.is_empty(),
-            "same threshold value with differing messages agrees"
-        );
-    }
+#[test]
+fn clippy_closed_absent_does_not_create_empty_array() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(Vec::new(), Vec::new(), Some("closed".to_owned())),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);
+    assert!(output.findings.is_empty());
+    assert_eq!(String::from_utf8(output.expected_bytes).expect("utf8"), "");
+}
 
-    #[test]
-    fn thresholds_same_key_different_value_conflicts() {
-        let a = thresholds_req(
-            "p1",
-            ThresholdsAssertion::Equals(one_threshold("too-many-lines-threshold", 100, "m1")),
-        );
-        let b = thresholds_req(
-            "p2",
-            ThresholdsAssertion::Equals(one_threshold("too-many-lines-threshold", 200, "m2")),
-        );
-        let (_, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert_eq!(
-            conflicts.len(),
-            1,
-            "differing threshold values conflict on one key"
-        );
-        assert!(
-            conflicts
-                .iter()
-                .any(|c| c.key == "[thresholds].too-many-lines-threshold"),
-            "the conflict names the per-key in-file path"
-        );
-    }
+#[test]
+fn clippy_thresholds_compose_per_key() {
+    let left = ClippyTomlRequirements {
+        thresholds: BTreeMap::from([(
+            "too-many-lines-threshold".to_owned(),
+            NumericAssertion::AtMost(100, "limit".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let right = ClippyTomlRequirements {
+        thresholds: BTreeMap::from([(
+            "too-many-lines-threshold".to_owned(),
+            NumericAssertion::AtMost(80, "stricter".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let (merged, conflicts) =
+        ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+    let NumericAssertion::AtMost(value, _) = merged.thresholds["too-many-lines-threshold"].merged
+    else {
+        panic!("expected NumericAssertion");
+    };
+    assert!(conflicts.is_empty());
+    assert_eq!(value, 80);
+}
 
-    #[test]
-    fn thresholds_cross_variant_conflicts() {
-        let a = thresholds_req(
-            "p1",
-            ThresholdsAssertion::Equals(one_threshold("too-many-lines-threshold", 100, "m1")),
-        );
-        let b = thresholds_req(
-            "p2",
-            ThresholdsAssertion::AtMost(one_threshold("too-many-lines-threshold", 100, "m2")),
-        );
-        let (merged, conflicts) = ClippyTomlRequirement::merge(&[&a, &b]);
-        assert_eq!(
-            conflicts.len(),
-            1,
-            "mixed threshold variants fall through to a scalar conflict"
-        );
-        assert!(
-            merged.thresholds.is_none(),
-            "the conflicting thresholds field is dropped, not written"
-        );
-    }
+#[test]
+fn clippy_threshold_range_bounds_compose() {
+    let left = ClippyTomlRequirements {
+        thresholds: BTreeMap::from([(
+            "too-many-lines-threshold".to_owned(),
+            NumericAssertion::AtLeast(40, "floor".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let right = ClippyTomlRequirements {
+        thresholds: BTreeMap::from([(
+            "too-many-lines-threshold".to_owned(),
+            NumericAssertion::AtMost(80, "ceiling".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let (merged, conflicts) =
+        ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+    let NumericAssertion::Range(min, max, _) = merged.thresholds["too-many-lines-threshold"].merged
+    else {
+        panic!("expected NumericAssertion::Range");
+    };
+    assert!(conflicts.is_empty());
+    assert_eq!((min, max), (40, 80));
+}
+
+#[test]
+fn clippy_msrv_keeps_strongest_floor() {
+    let left = ClippyTomlRequirements {
+        msrv: Some(MsrvAssertion::AtLeast("1.80".to_owned(), "old".to_owned())),
+        ..ClippyTomlRequirements::default()
+    };
+    let right = ClippyTomlRequirements {
+        msrv: Some(MsrvAssertion::AtLeast("1.85".to_owned(), "new".to_owned())),
+        ..ClippyTomlRequirements::default()
+    };
+    let (merged, conflicts) =
+        ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+    let MsrvAssertion::AtLeast(version, _) = &merged.msrv.expect("msrv").merged else {
+        panic!("expected AtLeast");
+    };
+    assert!(conflicts.is_empty());
+    assert_eq!(version, "1.85");
+}
+
+#[test]
+fn clippy_scalar_implication_cases_compose() {
+    let mut allowed = BTreeSet::new();
+    let _ = allowed.insert("warn".to_owned());
+    let left = ClippyTomlRequirements {
+        enums: BTreeMap::from([(
+            "disallowed-names".to_owned(),
+            StringAssertion::Equals("warn".to_owned(), "equals".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let right = ClippyTomlRequirements {
+        enums: BTreeMap::from([(
+            "disallowed-names".to_owned(),
+            StringAssertion::OneOf(allowed, "one".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let mut third = ClippyTomlRequirements::default();
+    let _ = third.enums.insert(
+        "disallowed-names".to_owned(),
+        StringAssertion::Present("present".to_owned()),
+    );
+    let (merged, conflicts) = ClippyTomlRequirements::merge(vec![
+        (prov("p1"), left),
+        (prov("p2"), right),
+        (prov("p3"), third),
+    ]);
+    assert!(conflicts.is_empty());
+    assert!(matches!(
+        merged.enums["disallowed-names"].merged,
+        StringAssertion::Equals(ref value, _) if value == "warn"
+    ));
+}
+
+#[test]
+fn clippy_scalar_implication_attributes_only_failed_assertions() {
+    let mut allowed = BTreeSet::new();
+    let _ = allowed.insert("warn".to_owned());
+    let _ = allowed.insert("deny".to_owned());
+    let equals_policy = ClippyTomlRequirements {
+        enums: BTreeMap::from([(
+            "mode".to_owned(),
+            StringAssertion::Equals("deny".to_owned(), "equals".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let oneof_policy = ClippyTomlRequirements {
+        enums: BTreeMap::from([(
+            "mode".to_owned(),
+            StringAssertion::OneOf(allowed, "one".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let present_policy = ClippyTomlRequirements {
+        enums: BTreeMap::from([(
+            "mode".to_owned(),
+            StringAssertion::Present("present".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(
+            br#"mode = "warn"
+"#,
+        ),
+        vec![
+            (prov("equals-policy"), equals_policy),
+            (prov("oneof-policy"), oneof_policy),
+            (prov("present-policy"), present_policy),
+        ],
+    );
+    let mismatch = output
+        .findings
+        .iter()
+        .find(|finding| matches!(finding, Finding::Mismatch { message, .. } if message == "equals"))
+        .expect("equals mismatch");
+    assert!(matches!(
+        mismatch,
+        Finding::Mismatch { attribution, .. }
+            if attribution.iter().any(|p| p.policy == "equals-policy")
+                && attribution.iter().all(|p| p.policy != "oneof-policy" && p.policy != "present-policy")
+    ));
+}
+
+#[test]
+fn clippy_scalar_incompatible_cases_conflict() {
+    let left = ClippyTomlRequirements {
+        bools: BTreeMap::from([(
+            "allow-dbg-in-tests".to_owned(),
+            BoolAssertion::Equals(true, "yes".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let right = ClippyTomlRequirements {
+        bools: BTreeMap::from([(
+            "allow-dbg-in-tests".to_owned(),
+            BoolAssertion::Equals(false, "no".to_owned()),
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+    let findings = clippy_findings(vec![(prov("p1"), left), (prov("p2"), right)]);
+    assert!(
+        findings
+            .iter()
+            .any(|f| matches!(f, Finding::ConflictingRequirements { .. }))
+    );
 }

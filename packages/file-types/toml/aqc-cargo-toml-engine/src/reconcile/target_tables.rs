@@ -6,17 +6,15 @@
 //! check-only field does not create a missing entry (it cannot be satisfied
 //! by writing); all-writable `Fields` create the entry with its name.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, OnEmpty, OnEmptyClass, Provenance};
+use aqc_file_engine_core::{Finding, OnEmpty, OnEmptyClass, Provenance, ResolvedRequirement};
 use toml_edit::{DocumentMut, Item, Table, value};
 
 use crate::reconcile::util;
-use crate::requirement::{TargetFieldAssertion, TargetTableAssertion};
+use crate::requirement::{
+    ResolvedTargetFieldAssertion, ResolvedTargetTableAssertion, TargetFieldAssertion,
+};
 
 /// Where a target field lives: the singleton `[lib]` table or a named
 /// array-of-tables entry.
@@ -42,54 +40,56 @@ impl FieldLoc<'_> {
     }
 }
 
-/// Apply every `[lib].<field>` contribution.
+/// Apply every `[lib].<field>` requirement.
 pub(crate) fn apply_lib(
     doc: &mut DocumentMut,
-    merged_by_field: &BTreeMap<String, Vec<(Provenance, TargetFieldAssertion)>>,
+    merged_by_field: &BTreeMap<
+        String,
+        ResolvedRequirement<ResolvedTargetFieldAssertion, crate::requirement::TargetFieldAssertion>,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (field, merged) in merged_by_field {
-        let attribution = util::all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_field(
-                doc,
-                &FieldLoc::Lib,
-                field,
-                assertion,
-                &attribution,
-                findings,
-            );
-        }
+        let attribution = field_attribution_for(doc, &FieldLoc::Lib, field, merged);
+        apply_field(
+            doc,
+            &FieldLoc::Lib,
+            field,
+            &merged.merged,
+            &attribution,
+            findings,
+        );
     }
 }
 
-/// Apply every named `[[<kind>]]` target contribution.
+/// Apply every named `[[<kind>]]` target requirement.
 pub(crate) fn apply_named(
     doc: &mut DocumentMut,
     kind: &str,
-    merged_by_name: &BTreeMap<String, Vec<(Provenance, TargetTableAssertion)>>,
+    merged_by_name: &BTreeMap<
+        String,
+        ResolvedRequirement<ResolvedTargetTableAssertion, crate::requirement::TargetTableAssertion>,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (name, merged) in merged_by_name {
-        let attribution = util::all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_named_one(doc, kind, name, assertion, &attribution, findings);
-        }
+        let attribution = util::attribution(merged);
+        apply_named_one(doc, kind, name, &merged.merged, &attribution, findings);
     }
 }
 
-/// Apply one `TargetTableAssertion` against the named entry.
+/// Apply one resolved target table assertion against the named entry.
 fn apply_named_one(
     doc: &mut DocumentMut,
     kind: &str,
     name: &str,
-    assertion: &TargetTableAssertion,
+    assertion: &ResolvedTargetTableAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     let exists = entry_index(doc, kind, name).is_some();
     match assertion {
-        TargetTableAssertion::Present(msg) => {
+        ResolvedTargetTableAssertion::Present(msg) => {
             if exists {
                 return;
             }
@@ -103,7 +103,7 @@ fn apply_named_one(
             );
             let _ = ensure_entry(doc, kind, name);
         }
-        TargetTableAssertion::Absent(msg) => {
+        ResolvedTargetTableAssertion::Absent(msg) => {
             let Some(index) = entry_index(doc, kind, name) else {
                 return;
             };
@@ -119,7 +119,7 @@ fn apply_named_one(
                 let _ = aot.remove(index);
             }
         }
-        TargetTableAssertion::Fields(map) => {
+        ResolvedTargetTableAssertion::Fields(map) => {
             if !exists && assertion.on_empty() == OnEmpty::ChecksOnly {
                 // Cannot be satisfied by writing: report the missing entry only.
                 util::push_mismatch(
@@ -144,25 +144,67 @@ fn apply_named_one(
                 let _ = ensure_entry(doc, kind, name);
             }
             let loc = FieldLoc::Entry { kind, name };
-            for (field, field_assertion) in map {
-                apply_field(doc, &loc, field, field_assertion, attribution, findings);
+            for (field, field_resolved) in map {
+                let field_attribution = field_attribution_for(doc, &loc, field, field_resolved);
+                apply_field(
+                    doc,
+                    &loc,
+                    field,
+                    &field_resolved.merged,
+                    &field_attribution,
+                    findings,
+                );
             }
         }
     }
 }
 
-/// Apply one `TargetFieldAssertion` at `loc`.
+fn field_attribution_for(
+    doc: &DocumentMut,
+    loc: &FieldLoc<'_>,
+    field: &str,
+    resolved: &ResolvedRequirement<ResolvedTargetFieldAssertion, TargetFieldAssertion>,
+) -> Vec<Provenance> {
+    let current = read_field(doc, loc, field);
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| field_assertion_fails(current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        util::attribution(resolved)
+    } else {
+        filtered
+    }
+}
+
+fn field_assertion_fails(current: Option<&Item>, assertion: &TargetFieldAssertion) -> bool {
+    match assertion {
+        TargetFieldAssertion::Equals(want, _) => {
+            !current.is_some_and(|item| util::scalar_matches(item, want))
+        }
+        TargetFieldAssertion::OneOf(allowed, _) => !current
+            .and_then(Item::as_str)
+            .is_some_and(|value| allowed.contains(value)),
+        TargetFieldAssertion::List(_) => false,
+        TargetFieldAssertion::Present(_) => current.is_none(),
+        TargetFieldAssertion::Absent(_) => current.is_some(),
+    }
+}
+
+/// Apply one resolved target field assertion at `loc`.
 fn apply_field(
     doc: &mut DocumentMut,
     loc: &FieldLoc<'_>,
     field: &str,
-    assertion: &TargetFieldAssertion,
+    assertion: &ResolvedTargetFieldAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     let path = format!("{}.{field}", loc.prefix());
     match assertion {
-        TargetFieldAssertion::Equals(want, msg) => {
+        ResolvedTargetFieldAssertion::Equals(want, msg) => {
             if read_field(doc, loc, field).is_some_and(|i| util::scalar_matches(i, want)) {
                 return;
             }
@@ -177,7 +219,7 @@ fn apply_field(
             );
             ensure_loc(doc, loc)[field] = util::scalar_item(want);
         }
-        TargetFieldAssertion::OneOf(allowed, msg) => {
+        ResolvedTargetFieldAssertion::OneOf(allowed, msg) => {
             let current = read_field(doc, loc, field).and_then(Item::as_str);
             if current.is_some_and(|c| allowed.contains(c)) {
                 return;
@@ -192,13 +234,75 @@ fn apply_field(
                 attribution,
             );
         }
-        TargetFieldAssertion::ListContains(items, msg) => {
-            apply_list_contains(doc, loc, field, path, items, msg, attribution, findings);
+        ResolvedTargetFieldAssertion::List(list) => {
+            for (item, entry) in &list.contains {
+                let item_attribution = util::attribution(entry);
+                let msg = entry
+                    .collected
+                    .first()
+                    .map(|(_, msg)| msg.as_str())
+                    .unwrap_or_default();
+                apply_list_contains(
+                    doc,
+                    loc,
+                    field,
+                    path.clone(),
+                    core::slice::from_ref(item),
+                    msg,
+                    &item_attribution,
+                    findings,
+                );
+            }
+            if let Some(exact) = &list.exact {
+                let exact_attribution = util::attribution(exact);
+                let msg = exact
+                    .collected
+                    .first()
+                    .map(|(_, (_, msg))| msg.as_str())
+                    .unwrap_or_default();
+                apply_list_is_exactly(
+                    doc,
+                    loc,
+                    field,
+                    path.clone(),
+                    &exact.merged,
+                    msg,
+                    &exact_attribution,
+                    findings,
+                );
+            }
+            for (item, entry) in &list.excludes {
+                let on_disk = read_field_array(doc, loc, field);
+                let blocked = BTreeSet::from([item.clone()]);
+                let present = on_disk
+                    .iter()
+                    .filter(|item| blocked.contains(*item))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if !present.is_empty() {
+                    let item_attribution = util::attribution(entry);
+                    let msg = entry
+                        .collected
+                        .first()
+                        .map(|(_, msg)| msg.as_str())
+                        .unwrap_or_default();
+                    util::push_mismatch(
+                        findings,
+                        path.clone(),
+                        Some(format!("{on_disk:?}")),
+                        format!("excludes {present:?}"),
+                        msg.to_owned(),
+                        &item_attribution,
+                    );
+                    let kept = on_disk
+                        .into_iter()
+                        .filter(|item| !blocked.contains(item))
+                        .collect::<Vec<_>>();
+                    util::write_string_array(ensure_loc(doc, loc), field, &kept);
+                }
+            }
         }
-        TargetFieldAssertion::ListIsExactly(items, msg) => {
-            apply_list_is_exactly(doc, loc, field, path, items, msg, attribution, findings);
-        }
-        TargetFieldAssertion::Present(msg) => {
+        ResolvedTargetFieldAssertion::Present(msg) => {
             if read_field(doc, loc, field).is_some() {
                 return;
             }
@@ -211,7 +315,7 @@ fn apply_field(
                 attribution,
             );
         }
-        TargetFieldAssertion::Absent(msg) => {
+        ResolvedTargetFieldAssertion::Absent(msg) => {
             let Some(current) = read_field(doc, loc, field).and_then(util::render_item) else {
                 return;
             };
@@ -291,7 +395,7 @@ fn ensure_entry<'a>(doc: &'a mut DocumentMut, kind: &str, name: &str) -> &'a mut
         .expect("index points at an existing or just-pushed entry")
 }
 
-/// `ListContains`: insert the missing elements (order kept).
+/// `list contains`: insert the missing elements (order kept).
 #[expect(
     clippy::too_many_arguments,
     reason = "thin extraction from `apply_field`'s match arm; the parameters are that arm's locals"
@@ -328,7 +432,7 @@ fn apply_list_contains(
     util::write_string_array(ensure_loc(doc, loc), field, &merged);
 }
 
-/// `ListIsExactly`: the array equals exactly the asserted list.
+/// `list exact`: the array equals exactly the asserted list.
 #[expect(
     clippy::too_many_arguments,
     reason = "thin extraction from `apply_field`'s match arm; the parameters are that arm's locals"

@@ -1,20 +1,16 @@
 //! Reconcile `[package].<field>` (and `[workspace.package].<field>`).
 //!
 //! Lazy: a check-only assertion (`OneOf`, `Present`) and a vacuous removal
-//! (`Absent`/`ListExcludes` on an absent key) never create the table. The
+//! (`Absent` or a list exclusion on an absent key) never create the table. The
 //! table is fetched mutably only when a write is about to happen.
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)> and per-key maps of them; the shapes are declared openly at every signature instead of hidden behind wrapper types or aliases (taxonomy decision 2026-06-07)."
-)]
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};
 use toml_edit::{DocumentMut, Item, Table};
 
 use crate::reconcile::util;
-use crate::requirement::PackageFieldAssertion;
+use crate::requirement::{PackageFieldAssertion, ResolvedPackageFieldAssertion};
 
 /// Whether the fields target `[package]` or `[workspace.package]`. The latter
 /// is the inheritance source, so `InheritsWorkspace` there is a schema error.
@@ -41,18 +37,22 @@ impl PackageScope {
     }
 }
 
-/// Apply every `[package].<field>` contribution at the given scope.
+/// Apply every `[package].<field>` requirement at the given scope.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     scope: PackageScope,
-    merged_by_field: &BTreeMap<String, Vec<(Provenance, PackageFieldAssertion)>>,
+    merged_by_field: &BTreeMap<
+        String,
+        ResolvedRequirement<
+            ResolvedPackageFieldAssertion,
+            crate::requirement::PackageFieldAssertion,
+        >,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (field, merged) in merged_by_field {
-        let attribution = util::all_provenances(merged);
-        for (_, assertion) in merged {
-            apply_one(doc, scope, field, assertion, &attribution, findings);
-        }
+        let attribution = attribution_for(doc, scope, field, merged);
+        apply_one(doc, scope, field, &merged.merged, &attribution, findings);
     }
 }
 
@@ -76,46 +76,135 @@ fn target_ref(doc: &DocumentMut, scope: PackageScope) -> Option<&Table> {
     }
 }
 
+fn attribution_for(
+    doc: &DocumentMut,
+    scope: PackageScope,
+    field: &str,
+    resolved: &ResolvedRequirement<ResolvedPackageFieldAssertion, PackageFieldAssertion>,
+) -> Vec<Provenance> {
+    let current = current_item(doc, scope, field);
+    let filtered = resolved
+        .collected
+        .iter()
+        .filter(|(_, assertion)| assertion_fails(scope, current, assertion))
+        .map(|(prov, _)| prov.clone())
+        .collect::<Vec<_>>();
+    if filtered.is_empty() {
+        util::attribution(resolved)
+    } else {
+        filtered
+    }
+}
+
+fn assertion_fails(
+    scope: PackageScope,
+    current: Option<&Item>,
+    assertion: &PackageFieldAssertion,
+) -> bool {
+    match assertion {
+        PackageFieldAssertion::Equals(want, _) => {
+            !current.is_some_and(|item| util::scalar_matches(item, want))
+        }
+        PackageFieldAssertion::AtLeastVersion(min, _) => !current
+            .and_then(Item::as_str)
+            .is_some_and(|value| util::ge_version(value, min)),
+        PackageFieldAssertion::OneOf(allowed, _) => !current
+            .and_then(Item::as_str)
+            .is_some_and(|value| allowed.contains(value)),
+        PackageFieldAssertion::List(_) => false,
+        PackageFieldAssertion::InheritsWorkspace(_) => {
+            scope.is_workspace_source() || !current.is_some_and(util::is_workspace_inherit)
+        }
+        PackageFieldAssertion::Present(_) => current.is_none(),
+        PackageFieldAssertion::Absent(_) => current.is_some(),
+    }
+}
+
 /// Read the on-disk item for `field` at this scope, if present.
 fn current_item<'a>(doc: &'a DocumentMut, scope: PackageScope, field: &str) -> Option<&'a Item> {
     target_ref(doc, scope).and_then(|t| t.get(field))
 }
 
-/// Apply a single `PackageFieldAssertion`.
+/// Apply a single resolved package field assertion.
 fn apply_one(
     doc: &mut DocumentMut,
     scope: PackageScope,
     field: &str,
-    assertion: &PackageFieldAssertion,
+    assertion: &ResolvedPackageFieldAssertion,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        PackageFieldAssertion::Equals(want, msg) => {
+        ResolvedPackageFieldAssertion::Equals(want, msg) => {
             apply_equals(doc, scope, field, want, msg, attribution, findings);
         }
-        PackageFieldAssertion::AtLeastVersion(min, msg) => {
+        ResolvedPackageFieldAssertion::AtLeastVersion(min, msg) => {
             apply_at_least(doc, scope, field, min, msg, attribution, findings);
         }
-        PackageFieldAssertion::OneOf(allowed, msg) => {
+        ResolvedPackageFieldAssertion::OneOf(allowed, msg) => {
             apply_one_of(doc, scope, field, allowed, msg, attribution, findings);
         }
-        PackageFieldAssertion::ListContains(items, msg) => {
-            apply_list_contains(doc, scope, field, items, msg, attribution, findings);
+        ResolvedPackageFieldAssertion::List(list) => {
+            for (item, entry) in &list.contains {
+                let item_attribution = util::attribution(entry);
+                let msg = entry
+                    .collected
+                    .first()
+                    .map(|(_, msg)| msg.as_str())
+                    .unwrap_or_default();
+                apply_list_contains(
+                    doc,
+                    scope,
+                    field,
+                    core::slice::from_ref(item),
+                    msg,
+                    &item_attribution,
+                    findings,
+                );
+            }
+            for (item, entry) in &list.excludes {
+                let item_attribution = util::attribution(entry);
+                let msg = entry
+                    .collected
+                    .first()
+                    .map(|(_, msg)| msg.as_str())
+                    .unwrap_or_default();
+                let excluded = BTreeSet::from([item.clone()]);
+                apply_list_excludes(
+                    doc,
+                    scope,
+                    field,
+                    &excluded,
+                    msg,
+                    &item_attribution,
+                    findings,
+                );
+            }
+            if let Some(exact) = &list.exact {
+                let exact_attribution = util::attribution(exact);
+                let msg = exact
+                    .collected
+                    .first()
+                    .map(|(_, (_, msg))| msg.as_str())
+                    .unwrap_or_default();
+                apply_list_is_exactly(
+                    doc,
+                    scope,
+                    field,
+                    &exact.merged,
+                    msg,
+                    &exact_attribution,
+                    findings,
+                );
+            }
         }
-        PackageFieldAssertion::ListExcludes(items, msg) => {
-            apply_list_excludes(doc, scope, field, items, msg, attribution, findings);
-        }
-        PackageFieldAssertion::ListIsExactly(items, msg) => {
-            apply_list_is_exactly(doc, scope, field, items, msg, attribution, findings);
-        }
-        PackageFieldAssertion::InheritsWorkspace(msg) => {
+        ResolvedPackageFieldAssertion::InheritsWorkspace(msg) => {
             apply_inherits(doc, scope, field, msg, attribution, findings);
         }
-        PackageFieldAssertion::Present(msg) => {
+        ResolvedPackageFieldAssertion::Present(msg) => {
             apply_present(doc, scope, field, msg, attribution, findings);
         }
-        PackageFieldAssertion::Absent(msg) => {
+        ResolvedPackageFieldAssertion::Absent(msg) => {
             apply_absent(doc, scope, field, msg, attribution, findings);
         }
     }

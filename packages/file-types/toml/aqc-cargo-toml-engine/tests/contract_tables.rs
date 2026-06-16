@@ -1,388 +1,276 @@
-//! The from-empty contract catalogue, part 2: dependency-shaped targets,
-//! features, profiles, target tables, and patch. Split from `contract.rs` to
-//! keep file size in bounds; same `contract::` module path.
+use std::collections::{BTreeMap, BTreeSet};
 
-#![expect(
-    clippy::type_complexity,
-    reason = "Collected assertions are plainly Vec<(Provenance, A)>; declared openly (taxonomy decision 2026-06-07)."
-)]
+use aqc_cargo_toml_engine::{
+    CargoTomlEngine, CargoTomlRequirements, DependencyKind, DependencyRequirement, DependencyScope,
+    DependencySpec, FeatureMembers, ProfileFieldAssertion, ProfileRequirements,
+    TargetFieldAssertion, TargetRequirements, TargetTableAssertion,
+};
+use aqc_file_engine_core::{
+    ConfigScalar, Engine, EngineOutput, EngineRequirement, ItemRequirements, KeyedItem,
+    ListRequirements, Provenance,
+};
 use toml_edit as _;
 
-mod contract {
-    use std::collections::{BTreeMap, BTreeSet};
-
-    use aqc_cargo_toml_engine::{
-        CargoTomlEngine, CargoTomlRequirement, DependencyKind, DependencyScope,
-        DependencySetAssertion, DependencySpec, FeatureSetAssertion, ProfileAssertion,
-        ProfileFieldAssertion, TargetFieldAssertion, TargetTableAssertion,
-    };
-    use aqc_file_engine_core::{
-        ConfigScalar, FileEngine, OnEmpty, OnEmptyClass, Provenance, check_from_empty,
-    };
-
-    /// The engine's typed reconcile, as the harness expects it.
-    fn reconcile(
-        current: Option<&[u8]>,
-        req: &CargoTomlRequirement,
-    ) -> aqc_file_engine_core::EngineOutput {
-        <CargoTomlEngine as FileEngine<CargoTomlRequirement>>::reconcile(current, req)
+fn prov() -> Provenance {
+    Provenance {
+        policy: "contract".to_owned(),
     }
+}
 
-    /// Wrap one assertion as a single-policy collected list.
-    fn ma<A>(a: A) -> Vec<(Provenance, A)> {
-        vec![(
-            Provenance {
-                policy: "fixture".to_owned(),
-            },
-            a,
-        )]
+fn output(req: CargoTomlRequirements, current: Option<&[u8]>) -> EngineOutput {
+    let reqs = vec![(prov(), Box::new(req) as Box<dyn EngineRequirement>)];
+    CargoTomlEngine.reconcile(current, &reqs)
+}
+
+fn normal_scope() -> DependencyScope {
+    DependencyScope {
+        kind: DependencyKind::Normal,
+        target: None,
     }
+}
 
-    /// Run the harness with the assertion's own declared class.
-    fn law(req: &CargoTomlRequirement, class: OnEmpty, what: &str) {
-        let outcome = check_from_empty(reconcile, req, class);
-        assert!(outcome.is_ok(), "{what}: {outcome:?}");
+fn dep_items(
+    required: BTreeMap<String, (DependencySpec, String)>,
+    banned: BTreeMap<String, String>,
+    closed: Option<String>,
+) -> ItemRequirements<DependencyRequirement> {
+    ItemRequirements {
+        required: required
+            .into_iter()
+            .map(|(file_key, (value, msg))| {
+                (
+                    DependencyRequirement {
+                        file_key: Some(file_key),
+                        value,
+                    },
+                    msg,
+                )
+            })
+            .collect(),
+        banned: banned
+            .into_iter()
+            .map(|(file_key, msg)| {
+                (
+                    DependencyRequirement {
+                        file_key: Some(file_key),
+                        value: DependencySpec::default(),
+                    },
+                    msg,
+                )
+            })
+            .collect(),
+        closed,
     }
+}
 
-    /// Short helper for owned fixture messages.
-    fn msg() -> String {
-        "fixture message".to_owned()
+fn keyed_items<Entry: Default>(
+    required: BTreeMap<String, (Entry, String)>,
+    banned: BTreeMap<String, String>,
+    closed: Option<String>,
+) -> ItemRequirements<KeyedItem<Entry>> {
+    ItemRequirements {
+        required: required
+            .into_iter()
+            .map(|(file_key, (value, msg))| (KeyedItem { file_key, value }, msg))
+            .collect(),
+        banned: banned
+            .into_iter()
+            .map(|(file_key, msg)| {
+                (
+                    KeyedItem {
+                        file_key,
+                        value: Entry::default(),
+                    },
+                    msg,
+                )
+            })
+            .collect(),
+        closed,
     }
+}
 
-    /// A requirement with one `[lib].<field>` assertion; runs its law.
-    fn lib_field_law(field: &str, a: TargetFieldAssertion, what: &str) {
-        let class = a.on_empty();
-        let mut req = CargoTomlRequirement::default();
-        let _ = req.lib_fields.insert(field.to_owned(), ma(a));
-        law(&req, class, what);
-    }
-
-    // ---------------- Dependencies (source rule + variants + scopes) ----------------
-
-    /// One dependency entry map with the given spec.
-    fn dep_entries(spec: DependencySpec) -> aqc_cargo_toml_engine::requirement::DependencyEntries {
-        BTreeMap::from([("serde".to_owned(), (spec, msg()))])
-    }
-
-    /// A requirement with one dependency assertion in the given scope.
-    fn dep_req(scope: DependencyScope, a: DependencySetAssertion) -> CargoTomlRequirement {
-        let mut req = CargoTomlRequirement::default();
-        let _ = req.dependencies.insert(scope, ma(a));
-        req
-    }
-
-    /// The plain `[dependencies]` scope.
-    const fn normal_scope() -> DependencyScope {
-        DependencyScope {
-            kind: DependencyKind::Normal,
-            target: None,
-        }
-    }
-
-    #[test]
-    fn dependency_contains_with_source_writes() {
-        let spec = DependencySpec {
-            version: Some("1.0".to_owned()),
-            ..DependencySpec::default()
-        };
-        let a = DependencySetAssertion::Contains(dep_entries(spec));
-        assert_eq!(a.on_empty(), OnEmpty::Writes, "a sourced spec is writable");
-        let req = dep_req(normal_scope(), a.clone());
-        law(&req, a.on_empty(), "dependency Contains with source");
-        let out = reconcile(None, &req);
-        let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
-        assert!(
-            text.contains("serde = \"1.0\""),
-            "version-only specs write the string shorthand: {text}"
-        );
-    }
-
-    #[test]
-    fn dependency_contains_without_source_checks_only() {
-        let spec = DependencySpec {
-            features: vec!["derive".to_owned()],
-            ..DependencySpec::default()
-        };
-        let a = DependencySetAssertion::Contains(dep_entries(spec));
-        assert_eq!(
-            a.on_empty(),
-            OnEmpty::ChecksOnly,
-            "a spec with no source cannot create the entry"
-        );
-        let req = dep_req(normal_scope(), a.clone());
-        law(&req, a.on_empty(), "dependency Contains without source");
-    }
-
-    #[test]
-    fn dependency_workspace_inherit_writes_inline() {
-        let spec = DependencySpec {
-            workspace: Some(true),
-            ..DependencySpec::default()
-        };
-        let a = DependencySetAssertion::Contains(dep_entries(spec));
-        let req = dep_req(normal_scope(), a.clone());
-        law(&req, a.on_empty(), "dependency workspace inherit");
-        let out = reconcile(None, &req);
-        let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
-        assert!(
-            text.contains("serde = { workspace = true }"),
-            "the workspace inheritance form is written: {text}"
-        );
-    }
-
-    #[test]
-    fn dependency_excludes_and_is_exactly() {
-        let excl =
-            DependencySetAssertion::Excludes(BTreeMap::from([("openssl".to_owned(), msg())]));
-        law(
-            &dep_req(normal_scope(), excl.clone()),
-            excl.on_empty(),
-            "dependency Excludes",
-        );
-        let spec = DependencySpec {
-            version: Some("1.0".to_owned()),
-            ..DependencySpec::default()
-        };
-        let exact = DependencySetAssertion::IsExactly(dep_entries(spec));
-        law(
-            &dep_req(normal_scope(), exact.clone()),
-            exact.on_empty(),
-            "dependency IsExactly",
-        );
-    }
-
-    #[test]
-    fn dependency_target_cfg_scope_writes() {
-        let spec = DependencySpec {
-            version: Some("0.3".to_owned()),
-            ..DependencySpec::default()
-        };
-        let scope = DependencyScope {
-            kind: DependencyKind::Dev,
-            target: Some("cfg(windows)".to_owned()),
-        };
-        let a = DependencySetAssertion::Contains(BTreeMap::from([(
-            "winapi".to_owned(),
-            (spec, msg()),
-        )]));
-        let req = dep_req(scope, a.clone());
-        law(&req, a.on_empty(), "dependency in a cfg target scope");
-        let out = reconcile(None, &req);
-        let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
-        assert!(
-            text.contains("winapi"),
-            "the cfg-scoped table is written: {text}"
-        );
-    }
-
-    #[test]
-    fn workspace_dependencies_optional_is_schema_error() {
-        let spec = DependencySpec {
-            version: Some("1.0".to_owned()),
-            optional: Some(true),
-            ..DependencySpec::default()
-        };
-        let req = CargoTomlRequirement {
-            workspace_dependencies: Some(ma(DependencySetAssertion::Contains(dep_entries(spec)))),
-            ..CargoTomlRequirement::default()
-        };
-        let out = reconcile(None, &req);
-        assert!(
-            out.findings
-                .iter()
-                .any(|f| matches!(f, aqc_file_engine_core::Finding::InvalidRequirements { .. })),
-            "optional in [workspace.dependencies] is InvalidRequirements: {:?}",
-            out.findings
-        );
-    }
-
-    // ---------------- FeatureSetAssertion (3 variants) ----------------
-
-    #[test]
-    fn feature_variants() {
-        let contains = FeatureSetAssertion::Contains(BTreeMap::from([(
-            "full".to_owned(),
-            (BTreeSet::from(["std".to_owned()]), msg()),
-        )]));
-        let excludes =
-            FeatureSetAssertion::Excludes(BTreeMap::from([("nightly".to_owned(), msg())]));
-        let exact = FeatureSetAssertion::IsExactly(BTreeMap::from([(
-            "default".to_owned(),
-            (BTreeSet::new(), msg()),
-        )]));
-        for (what, a) in [
-            ("features Contains", contains),
-            ("features Excludes", excludes),
-            ("features IsExactly", exact),
-        ] {
-            let class = a.on_empty();
-            let req = CargoTomlRequirement {
-                features: Some(ma(a)),
-                ..CargoTomlRequirement::default()
-            };
-            law(&req, class, what);
-        }
-    }
-
-    // ---------------- Profiles (field variants + overrides) ----------------
-
-    #[test]
-    fn profile_field_variants() {
-        for (what, a) in [
+#[test]
+fn dependency_table_required_entry_writes_version() {
+    let table = dep_items(
+        BTreeMap::from([(
+            "serde".to_owned(),
             (
-                "profile Equals",
-                ProfileFieldAssertion::Equals(ConfigScalar::Str("thin".to_owned()), msg()),
+                DependencySpec {
+                    version: Some("1".to_owned()),
+                    ..DependencySpec::default()
+                },
+                "serde".to_owned(),
             ),
+        )]),
+        BTreeMap::new(),
+        None,
+    );
+    let mut req = CargoTomlRequirements::default();
+    let _ = req.dependencies.insert(normal_scope(), table);
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("[dependencies]"));
+    assert!(text.contains("serde = \"1\""));
+}
+
+#[test]
+fn dependency_table_banned_entry_removes_key() {
+    let table = dep_items(
+        BTreeMap::new(),
+        BTreeMap::from([("serde".to_owned(), "no serde".to_owned())]),
+        None,
+    );
+    let mut req = CargoTomlRequirements::default();
+    let _ = req.dependencies.insert(normal_scope(), table);
+    let out = output(
+        req,
+        Some(b"[dependencies]\nserde = \"1\"\ntoml = \"0.8\"\n"),
+    );
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(!text.contains("serde = "));
+    assert!(text.contains("toml = \"0.8\""));
+}
+
+#[test]
+fn workspace_dependencies_use_same_table_product() {
+    let table = dep_items(
+        BTreeMap::from([(
+            "serde".to_owned(),
             (
-                "profile OneOf",
-                ProfileFieldAssertion::OneOf(
-                    vec![
-                        ConfigScalar::Str("thin".to_owned()),
-                        ConfigScalar::Bool(true),
-                    ],
-                    msg(),
+                DependencySpec {
+                    version: Some("1".to_owned()),
+                    ..DependencySpec::default()
+                },
+                "serde".to_owned(),
+            ),
+        )]),
+        BTreeMap::new(),
+        None,
+    );
+    let mut req = CargoTomlRequirements::default();
+    req.workspace_dependencies = Some(table);
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("[workspace.dependencies]"));
+    assert!(text.contains("serde = \"1\""));
+}
+
+#[test]
+fn features_table_writes_required_feature_entry() {
+    let mut enabled = BTreeSet::new();
+    let _ = enabled.insert("dep:serde".to_owned());
+    let entry = FeatureMembers { members: enabled };
+    let mut req = CargoTomlRequirements::default();
+    req.features = Some(keyed_items(
+        BTreeMap::from([("default".to_owned(), (entry, "default".to_owned()))]),
+        BTreeMap::new(),
+        None,
+    ));
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("[features]"));
+    assert!(text.contains("default = [\"dep:serde\"]"));
+}
+
+#[test]
+fn required_empty_feature_writes_empty_array_when_absent() {
+    let req = CargoTomlRequirements {
+        features: Some(keyed_items(
+            BTreeMap::from([(
+                "empty".to_owned(),
+                (
+                    FeatureMembers {
+                        members: BTreeSet::new(),
+                    },
+                    "empty".to_owned(),
                 ),
-            ),
-            ("profile Present", ProfileFieldAssertion::Present(msg())),
-            ("profile Absent", ProfileFieldAssertion::Absent(msg())),
-        ] {
-            let assertion = ProfileAssertion {
-                fields: BTreeMap::from([("lto".to_owned(), a)]),
-                package_overrides: BTreeMap::new(),
-                build_override: BTreeMap::new(),
-            };
-            let class = assertion.on_empty();
-            let mut req = CargoTomlRequirement::default();
-            let _ = req.profiles.insert("release".to_owned(), ma(assertion));
-            law(&req, class, what);
-        }
-    }
-
-    #[test]
-    fn profile_overrides_write() {
-        let assertion = ProfileAssertion {
-            fields: BTreeMap::new(),
-            package_overrides: BTreeMap::from([(
-                "*".to_owned(),
-                BTreeMap::from([(
-                    "opt-level".to_owned(),
-                    ProfileFieldAssertion::Equals(ConfigScalar::Int(3), msg()),
-                )]),
             )]),
-            build_override: BTreeMap::from([(
-                "debug".to_owned(),
-                ProfileFieldAssertion::Equals(ConfigScalar::Bool(false), msg()),
+            BTreeMap::new(),
+            None,
+        )),
+        ..CargoTomlRequirements::default()
+    };
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("empty = []"));
+}
+
+#[test]
+fn required_empty_feature_overwrites_malformed_value() {
+    let req = CargoTomlRequirements {
+        features: Some(keyed_items(
+            BTreeMap::from([(
+                "empty".to_owned(),
+                (
+                    FeatureMembers {
+                        members: BTreeSet::new(),
+                    },
+                    "empty".to_owned(),
+                ),
             )]),
-        };
-        let class = assertion.on_empty();
-        let mut req = CargoTomlRequirement::default();
-        let _ = req.profiles.insert("dev".to_owned(), ma(assertion));
-        law(&req, class, "profile package_overrides + build_override");
-        let out = reconcile(None, &req);
-        let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
-        assert!(
-            text.contains("opt-level = 3") && text.contains("debug = false"),
-            "override tables are written: {text}"
-        );
-    }
+            BTreeMap::new(),
+            None,
+        )),
+        ..CargoTomlRequirements::default()
+    };
+    let out = output(req, Some(b"[features]\nempty = \"bad\"\n"));
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("empty = []"));
+    assert!(!out.findings.is_empty());
+}
 
-    // ---------------- Target tables ----------------
+#[test]
+fn profile_nested_fields_are_addressable() {
+    let mut profile = ProfileRequirements::default();
+    let _ = profile.fields.insert(
+        "opt-level".to_owned(),
+        ProfileFieldAssertion::Equals(ConfigScalar::Int(3), "opt".to_owned()),
+    );
+    let mut req = CargoTomlRequirements::default();
+    let _ = req.profiles.insert("release".to_owned(), profile);
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("[profile.release]"));
+    assert!(text.contains("opt-level = 3"));
+}
 
-    #[test]
-    fn lib_field_variants() {
-        lib_field_law(
-            "doctest",
-            TargetFieldAssertion::Equals(ConfigScalar::Bool(true), msg()),
-            "lib Equals",
-        );
-        lib_field_law(
-            "crate-type",
-            TargetFieldAssertion::OneOf(BTreeSet::from(["rlib".to_owned()]), msg()),
-            "lib OneOf",
-        );
-        lib_field_law(
-            "crate-type",
-            TargetFieldAssertion::ListContains(vec!["rlib".to_owned()], msg()),
-            "lib ListContains",
-        );
-        lib_field_law(
-            "crate-type",
-            TargetFieldAssertion::ListIsExactly(vec!["rlib".to_owned()], msg()),
-            "lib ListIsExactly",
-        );
-        lib_field_law("path", TargetFieldAssertion::Present(msg()), "lib Present");
-        lib_field_law("plugin", TargetFieldAssertion::Absent(msg()), "lib Absent");
-    }
-
-    #[test]
-    fn bin_target_created_by_name() {
-        let a = TargetTableAssertion::Present(msg());
-        let class = a.on_empty();
-        let mut req = CargoTomlRequirement::default();
-        let _ = req.bin_targets.insert("g3rs".to_owned(), ma(a));
-        law(&req, class, "bin Present");
-        let out = reconcile(None, &req);
-        let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
-        assert!(
-            text.contains("[[bin]]") && text.contains("name = \"g3rs\""),
-            "the entry is created with its name: {text}"
-        );
-    }
-
-    #[test]
-    fn bin_target_absent_and_fields() {
-        let absent = TargetTableAssertion::Absent(msg());
-        let mut req = CargoTomlRequirement::default();
-        let _ = req.bin_targets.insert("old".to_owned(), ma(absent.clone()));
-        law(&req, absent.on_empty(), "bin Absent");
-
-        let fields = TargetTableAssertion::Fields(BTreeMap::from([(
-            "test".to_owned(),
-            TargetFieldAssertion::Equals(ConfigScalar::Bool(false), msg()),
-        )]));
-        let class = fields.on_empty();
-        assert_eq!(class, OnEmpty::Writes, "all-writable Fields is writable");
-        let mut fields_req = CargoTomlRequirement::default();
-        let _ = fields_req.bin_targets.insert("g3rs".to_owned(), ma(fields));
-        law(&fields_req, class, "bin Fields (writable)");
-    }
-
-    #[test]
-    fn bin_target_fields_with_check_only_field_checks_only() {
-        let fields = TargetTableAssertion::Fields(BTreeMap::from([(
+#[test]
+fn named_target_fields_are_addressable() {
+    let mut targets = TargetRequirements::default();
+    let _ = targets.bin_targets.insert(
+        "cli".to_owned(),
+        TargetTableAssertion::Fields(BTreeMap::from([(
             "path".to_owned(),
-            TargetFieldAssertion::Present(msg()),
-        )]));
-        assert_eq!(
-            fields.on_empty(),
-            OnEmpty::ChecksOnly,
-            "a check-only field makes the entry check-only"
-        );
-        let mut req = CargoTomlRequirement::default();
-        let _ = req
-            .bin_targets
-            .insert("g3rs".to_owned(), ma(fields.clone()));
-        law(&req, fields.on_empty(), "bin Fields (check-only)");
-    }
+            TargetFieldAssertion::Equals(
+                ConfigScalar::Str("src/bin/cli.rs".to_owned()),
+                "path".to_owned(),
+            ),
+        )])),
+    );
+    let mut req = CargoTomlRequirements::default();
+    req.targets = targets;
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("[[bin]]"));
+    assert!(text.contains("name = \"cli\""));
+    assert!(text.contains("path = \"src/bin/cli.rs\""));
+}
 
-    // ---------------- Patch ----------------
-
-    #[test]
-    fn patch_registry_writes() {
-        let spec = DependencySpec {
-            git: Some("https://github.com/serde-rs/serde".to_owned()),
-            ..DependencySpec::default()
-        };
-        let a = DependencySetAssertion::Contains(dep_entries(spec));
-        let class = a.on_empty();
-        let mut req = CargoTomlRequirement::default();
-        let _ = req.patch.insert("crates-io".to_owned(), ma(a));
-        law(&req, class, "patch Contains");
-        let out = reconcile(None, &req);
-        let text = String::from_utf8(out.expected_bytes).expect("engine output is utf-8");
-        assert!(
-            text.contains("[patch.crates-io]") || text.contains("[patch.\"crates-io\"]"),
-            "the patch table is written: {text}"
-        );
-    }
+#[test]
+fn target_lib_list_field_uses_unified_list_requirements() {
+    let mut targets = TargetRequirements::default();
+    let _ = targets.lib_fields.insert(
+        "required-features".to_owned(),
+        TargetFieldAssertion::List(ListRequirements {
+            contains: BTreeMap::from([("feat-a".to_owned(), "feature".to_owned())]),
+            excludes: BTreeMap::new(),
+            exact: None,
+        }),
+    );
+    let mut req = CargoTomlRequirements::default();
+    req.targets = targets;
+    let out = output(req, None);
+    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    assert!(text.contains("[lib]"));
+    assert!(text.contains("required-features = [\"feat-a\"]"));
 }

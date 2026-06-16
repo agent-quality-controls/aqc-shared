@@ -20,7 +20,7 @@ reason = "Provenance is a transparent data container; named pub fields are the A
 rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/aqc-file-engine-core/src/types.rs"
 selector = "struct:MergedAssertion"
-reason = "MergedAssertion holds raw per-policy contributions; named pub fields are the API."
+reason = "ResolvedRequirement stores collected policy assertions; named pub fields are the API."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
@@ -37,13 +37,13 @@ reason = "Error type carrying structured data; named pub fields are the API."
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml.rs"
-selector = "struct:CargoTomlRequirement"
+selector = "struct:CargoTomlRequirements"
 reason = "Declarative requirement struct; bulk-form field-per-target is the API."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
-selector = "struct:ClippyTomlRequirement"
+selector = "struct:ClippyTomlRequirements"
 reason = "Declarative requirement struct; bulk-form field-per-target is the API."
 
 [[waivers]]

@@ -14,10 +14,7 @@
 //! code-location / AST payload to any variant unless the repo owner authorizes
 //! it in writing with reasoning. See guardrails-capability-boundary (R2).
 
-use crate::types::{PolicyId, Provenance, Severity};
-
-/// Each disagreeing policy id paired with its value, rendered for display.
-pub type ConflictContributors = Vec<(PolicyId, String)>;
+use crate::types::{Provenance, Severity};
 
 /// A structured finding emitted by a `FileEngine` or a linter adapter.
 #[derive(Debug, Clone)]
@@ -28,7 +25,7 @@ pub enum Finding {
         current: Option<String>,
         expected: String,
         /// Free-form policy-authored explanation of the mismatch: what is
-        /// wrong, why it's wrong, what should be done instead. Sourced from
+        /// wrong, why it's wrong, what should be done instead. Comes from
         /// the assertion entry that produced this finding.
         message: String,
         severity: Severity,
@@ -59,7 +56,7 @@ pub enum Finding {
         /// Which relational rule the set violates.
         message: String,
         /// Each policy whose requirement participates in the invalid set.
-        contributors: ConflictContributors,
+        contributors: Vec<(String, String)>,
     },
     /// The file isn't valid in its native grammar (e.g. malformed TOML).
     ParseError { message: String, severity: Severity },
@@ -74,7 +71,7 @@ pub enum Finding {
         /// The in-file key (e.g. `[workspace.lints.clippy].unwrap_used`).
         key: String,
         /// Each disagreeing policy id + its rendered value.
-        contributors: ConflictContributors,
+        contributors: Vec<(String, String)>,
         /// Which rule fired (scalar-disagree / set-key-disagree / exact-mismatch).
         reason: String,
     },
