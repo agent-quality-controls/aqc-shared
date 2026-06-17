@@ -22,6 +22,7 @@ name = "aqc-cargo-toml-engine"
 version = "0.1.0"
 dependencies = [
  "aqc-file-engine-core",
+ "globset",
  "toml_edit",
 ]
 

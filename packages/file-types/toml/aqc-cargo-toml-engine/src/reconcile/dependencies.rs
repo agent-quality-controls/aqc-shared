@@ -11,11 +11,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedItemRequirements, Severity};
+use aqc_file_engine_core::{
+    Finding, Provenance, ResolvedItemRequirements, ResolvedPatternBanRequirements, Severity,
+};
+use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, Value};
 
 use crate::reconcile::util::{ensure_table_at, table_at, table_at_mut};
-use crate::requirement::{DependencyRequirement, DependencyScope, DependencySpec};
+use crate::requirement::{
+    DependencyPackagePattern, DependencyPatternConflictBlocks, DependencyRequirement,
+    DependencyScope, DependencySpec,
+};
 
 /// Extra generability rule for a dependency-shaped table.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -32,16 +38,36 @@ pub(crate) enum SetRule {
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     merged_by_scope: &BTreeMap<DependencyScope, ResolvedItemRequirements<DependencyRequirement>>,
+    patterns_by_scope: &BTreeMap<
+        DependencyScope,
+        ResolvedPatternBanRequirements<DependencyPackagePattern>,
+    >,
+    pattern_conflicts_by_scope: &BTreeMap<DependencyScope, DependencyPatternConflictBlocks>,
     findings: &mut Vec<Finding>,
 ) {
-    for (scope, merged) in merged_by_scope {
+    let empty_items = ResolvedItemRequirements::default();
+    let empty_patterns = ResolvedPatternBanRequirements::default();
+    let empty_conflicts = DependencyPatternConflictBlocks::default();
+    let scopes = merged_by_scope
+        .keys()
+        .chain(patterns_by_scope.keys())
+        .chain(pattern_conflicts_by_scope.keys())
+        .collect::<BTreeSet<_>>();
+    for scope in scopes {
         let path = scope_path(scope);
+        let merged = merged_by_scope.get(scope).unwrap_or(&empty_items);
+        let patterns = patterns_by_scope.get(scope).unwrap_or(&empty_patterns);
+        let pattern_conflicts = pattern_conflicts_by_scope
+            .get(scope)
+            .unwrap_or(&empty_conflicts);
         apply_set(
             doc,
             &path,
             &scope.table_path(),
             SetRule::Standard,
             merged,
+            patterns,
+            pattern_conflicts,
             findings,
         );
     }
@@ -67,10 +93,15 @@ pub(crate) fn apply_set(
     display_path: &str,
     rule: SetRule,
     merged: &ResolvedItemRequirements<DependencyRequirement>,
+    patterns: &ResolvedPatternBanRequirements<DependencyPackagePattern>,
+    pattern_conflicts: &DependencyPatternConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
     let required_file_keys = required_file_keys(merged);
-    for entry in merged.required.values() {
+    for (identity, entry) in &merged.required {
+        if pattern_conflicts.required.contains(identity) {
+            continue;
+        }
         let attribution = entry
             .collected
             .iter()
@@ -93,6 +124,7 @@ pub(crate) fn apply_set(
             findings,
         );
     }
+    let mut removals = BTreeMap::new();
     for entry in merged.banned.values() {
         let attribution = entry
             .collected
@@ -104,16 +136,22 @@ pub(crate) fn apply_set(
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
-        apply_banned(
-            doc,
-            path,
-            display_path,
+        queue_banned_matches(
+            &mut removals,
+            table_at(doc, path),
             &entry.merged,
             &msg,
             &attribution,
-            findings,
         );
     }
+    apply_package_pattern_bans(
+        &mut removals,
+        table_at(doc, path),
+        display_path,
+        patterns,
+        pattern_conflicts,
+        findings,
+    );
     if !merged.closed_by.is_empty() {
         let allowed = merged
             .required
@@ -125,8 +163,9 @@ pub(crate) fn apply_set(
             .iter()
             .map(|(prov, _)| prov.clone())
             .collect::<Vec<_>>();
-        apply_exact_extras(doc, path, display_path, &allowed, &attribution, findings);
+        queue_exact_extras(&mut removals, table_at(doc, path), &allowed, &attribution);
     }
+    remove_dependency_entries_once(doc, path, display_path, removals, findings);
 }
 
 /// Each dependency requirement must be present and partial-match.
@@ -298,31 +337,50 @@ fn package_write_key_is_reserved(
         .is_some_and(|current| effective_package(write_key, &current) != package)
 }
 
+#[derive(Debug)]
+struct PlannedDependencyRemoval {
+    current: DependencySpec,
+    expected: BTreeSet<String>,
+    messages: BTreeSet<String>,
+    attribution: BTreeSet<Provenance>,
+}
+
+fn queue_removal(
+    removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
+    file_key: String,
+    current: DependencySpec,
+    expected: &str,
+    msg: &str,
+    attribution: &[Provenance],
+) {
+    let entry = removals
+        .entry(file_key)
+        .or_insert_with(|| PlannedDependencyRemoval {
+            current,
+            expected: BTreeSet::new(),
+            messages: BTreeSet::new(),
+            attribution: BTreeSet::new(),
+        });
+    let _ = entry.expected.insert(expected.to_owned());
+    if !msg.is_empty() {
+        let _ = entry.messages.insert(msg.to_owned());
+    }
+    entry.attribution.extend(attribution.iter().cloned());
+}
+
 /// Each named entry must be absent (vacuous when the table is missing).
-fn apply_banned(
-    doc: &mut DocumentMut,
-    path: &[String],
-    display_path: &str,
+fn queue_banned_matches(
+    removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
+    table: Option<&Table>,
     requirement: &DependencyRequirement,
     msg: &str,
     attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
 ) {
-    let matches = table_at(doc, path)
+    let matches = table
         .map(|table| read_banned_matches(table, requirement))
         .unwrap_or_default();
     for (name, current) in matches {
-        findings.push(Finding::Mismatch {
-            key: format!("{display_path}.{name}"),
-            current: Some(format!("{current:?}")),
-            expected: "absent".to_owned(),
-            message: msg.to_owned(),
-            severity: Severity::Error,
-            attribution: attribution.to_vec(),
-        });
-        if let Some(t) = table_at_mut(doc, path) {
-            let _ = t.remove(&name);
-        }
+        queue_removal(removals, name, current, "absent", msg, attribution);
     }
 }
 
@@ -341,16 +399,100 @@ fn read_banned_matches(
     find_all_by_package(table, package)
 }
 
-/// Drop on-disk entries not allowed by the closed collection.
-fn apply_exact_extras(
-    doc: &mut DocumentMut,
-    path: &[String],
+fn apply_package_pattern_bans(
+    removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
+    table: Option<&Table>,
     display_path: &str,
-    allowed: &[DependencyRequirement],
-    attribution: &[Provenance],
+    patterns: &ResolvedPatternBanRequirements<DependencyPackagePattern>,
+    pattern_conflicts: &DependencyPatternConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
-    let Some(table) = table_at(doc, path) else {
+    for (pattern_identity, entry) in &patterns.banned {
+        if pattern_conflicts
+            .package_patterns
+            .contains(pattern_identity)
+        {
+            continue;
+        }
+        let pattern = &entry.merged;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let msg = entry
+            .collected
+            .first()
+            .map(|(_, msg)| msg.clone())
+            .unwrap_or_default();
+        let matcher = match compile_package_pattern(pattern) {
+            Ok(matcher) => matcher,
+            Err(message) => {
+                findings.push(Finding::InvalidRequirements {
+                    key: format!("{display_path}.{}", pattern.pattern),
+                    message,
+                    contributors: entry
+                        .collected
+                        .iter()
+                        .map(|(prov, msg)| (prov.policy.clone(), msg.clone()))
+                        .collect(),
+                });
+                continue;
+            }
+        };
+        let matches = table
+            .map(|table| read_package_pattern_matches(table, &matcher))
+            .unwrap_or_default();
+        for (file_key, current) in matches {
+            queue_removal(
+                removals,
+                file_key,
+                current,
+                "absent (package pattern)",
+                &msg,
+                &attribution,
+            );
+        }
+    }
+}
+
+fn compile_package_pattern(pattern: &DependencyPackagePattern) -> Result<GlobMatcher, String> {
+    GlobBuilder::new(&pattern.pattern)
+        .literal_separator(true)
+        .build()
+        .map(|glob| glob.compile_matcher())
+        .map_err(|err| {
+            format!(
+                "invalid dependency package pattern {}: {err}",
+                pattern.pattern
+            )
+        })
+}
+
+fn read_package_pattern_matches(
+    table: &Table,
+    matcher: &GlobMatcher,
+) -> Vec<(String, DependencySpec)> {
+    table
+        .iter()
+        .filter_map(|(file_key, _)| {
+            let spec = read_spec(table, file_key)?;
+            let package = effective_package(file_key, &spec);
+            matcher
+                .is_match(package)
+                .then(|| (file_key.to_owned(), spec))
+        })
+        .collect()
+}
+
+/// Drop on-disk entries not allowed by the closed collection.
+fn queue_exact_extras(
+    removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
+    table: Option<&Table>,
+    allowed: &[DependencyRequirement],
+    attribution: &[Provenance],
+) {
+    let Some(table) = table else {
         return;
     };
     let extras = table
@@ -365,16 +507,35 @@ fn apply_exact_extras(
         })
         .collect::<Vec<_>>();
     for (extra, current) in &extras {
+        queue_removal(
+            removals,
+            extra.clone(),
+            current.clone(),
+            "absent (closed collection)",
+            "",
+            attribution,
+        );
+    }
+}
+
+fn remove_dependency_entries_once(
+    doc: &mut DocumentMut,
+    path: &[String],
+    display_path: &str,
+    removals: BTreeMap<String, PlannedDependencyRemoval>,
+    findings: &mut Vec<Finding>,
+) {
+    for (file_key, removal) in removals {
         findings.push(Finding::Mismatch {
-            key: format!("{display_path}.{extra}"),
-            current: Some(format!("{current:?}")),
-            expected: "absent (closed collection)".to_owned(),
-            message: String::new(),
+            key: format!("{display_path}.{file_key}"),
+            current: Some(format!("{:?}", removal.current)),
+            expected: removal.expected.into_iter().collect::<Vec<_>>().join("; "),
+            message: removal.messages.into_iter().collect::<Vec<_>>().join("; "),
             severity: Severity::Error,
-            attribution: attribution.to_vec(),
+            attribution: removal.attribution.into_iter().collect(),
         });
         if let Some(t) = table_at_mut(doc, path) {
-            let _ = t.remove(extra.as_str());
+            let _ = t.remove(file_key.as_str());
         }
     }
 }
@@ -460,7 +621,7 @@ fn spec_matches(spec: &DependencySpec, current: &DependencySpec) -> bool {
 }
 
 /// Read an existing dependency entry into a `DependencySpec`. Handles the
-/// bare-string form (`serde = "1"`) and the inline-table form.
+/// bare-string form (`serde = "1"`), inline-table form, and subtable form.
 fn read_spec(table: &Table, name: &str) -> Option<DependencySpec> {
     let item = table.get(name)?;
     if let Some(s) = item.as_str() {
@@ -469,9 +630,15 @@ fn read_spec(table: &Table, name: &str) -> Option<DependencySpec> {
             ..DependencySpec::default()
         });
     }
-    let inline = item.as_inline_table()?;
+    if let Some(inline) = item.as_inline_table() {
+        return Some(spec_from_inline(inline));
+    }
+    item.as_table().map(spec_from_table)
+}
+
+fn spec_from_inline(inline: &InlineTable) -> DependencySpec {
     let str_field = |k: &str| inline.get(k).and_then(Value::as_str).map(ToOwned::to_owned);
-    Some(DependencySpec {
+    DependencySpec {
         version: str_field("version"),
         features: inline
             .get("features")
@@ -492,7 +659,33 @@ fn read_spec(table: &Table, name: &str) -> Option<DependencySpec> {
         rev: str_field("rev"),
         registry: str_field("registry"),
         package: str_field("package"),
-    })
+    }
+}
+
+fn spec_from_table(table: &Table) -> DependencySpec {
+    let str_field = |k: &str| table.get(k).and_then(Item::as_str).map(ToOwned::to_owned);
+    DependencySpec {
+        version: str_field("version"),
+        features: table
+            .get("features")
+            .and_then(Item::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(ToOwned::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        default_features: table.get("default-features").and_then(Item::as_bool),
+        optional: table.get("optional").and_then(Item::as_bool),
+        workspace: table.get("workspace").and_then(Item::as_bool),
+        path: str_field("path"),
+        git: str_field("git"),
+        branch: str_field("branch"),
+        tag: str_field("tag"),
+        rev: str_field("rev"),
+        registry: str_field("registry"),
+        package: str_field("package"),
+    }
 }
 
 /// Render a `DependencySpec` to write: bare string when only `version` is set,

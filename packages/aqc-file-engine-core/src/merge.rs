@@ -82,6 +82,47 @@ pub trait FileItemRequirement: Sized + Clone {
     ) -> Option<ResolvedRequirement<Self, (Self, String)>>;
 }
 
+/// Ban-only requirement for collections where policy names a pattern.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatternBanRequirements<Pattern> {
+    pub banned: Vec<(Pattern, String)>,
+}
+
+impl<Pattern> Default for PatternBanRequirements<Pattern> {
+    fn default() -> Self {
+        Self { banned: Vec::new() }
+    }
+}
+
+/// Resolved pattern bans with attribution on each pattern.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedPatternBanRequirements<Pattern>
+where
+    Pattern: PatternBanRequirement,
+{
+    pub banned: BTreeMap<Pattern::Identity, ResolvedRequirement<Pattern, String>>,
+}
+
+impl<Pattern> Default for ResolvedPatternBanRequirements<Pattern>
+where
+    Pattern: PatternBanRequirement,
+{
+    fn default() -> Self {
+        Self {
+            banned: BTreeMap::new(),
+        }
+    }
+}
+
+/// A ban pattern that can be deduped across policy input.
+pub trait PatternBanRequirement: Sized + Clone {
+    type Identity: Ord + Clone;
+
+    fn merge_identity(&self) -> Self::Identity;
+
+    fn render(&self) -> String;
+}
+
 /// Requirement for collections where the file key is the item identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyedItem<Value> {
@@ -274,6 +315,52 @@ where
         required: resolved_required,
         banned: resolved_banned,
         closed_by,
+    }
+}
+
+/// Compose ban-only pattern requirements.
+pub fn resolve_pattern_bans<Pattern>(
+    key: &str,
+    input: Vec<(Provenance, PatternBanRequirements<Pattern>)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> ResolvedPatternBanRequirements<Pattern>
+where
+    Pattern: PatternBanRequirement,
+    Pattern::Identity: ToString,
+{
+    let _ = conflicts;
+    let mut banned: BTreeMap<Pattern::Identity, Vec<(Provenance, (Pattern, String))>> =
+        BTreeMap::new();
+
+    for (prov, patterns) in input {
+        for (pattern, msg) in patterns.banned {
+            banned
+                .entry(pattern.merge_identity())
+                .or_default()
+                .push((prov.clone(), (pattern, msg)));
+        }
+    }
+
+    let mut resolved_banned = BTreeMap::new();
+    for (identity, items) in banned {
+        let Some((_, (first, _))) = items.first() else {
+            continue;
+        };
+        let _path = format!("{}.{}", key, identity.to_string());
+        let _ = resolved_banned.insert(
+            identity,
+            ResolvedRequirement {
+                merged: first.clone(),
+                collected: items
+                    .into_iter()
+                    .map(|(prov, (_, msg))| (prov, msg))
+                    .collect(),
+            },
+        );
+    }
+
+    ResolvedPatternBanRequirements {
+        banned: resolved_banned,
     }
 }
 

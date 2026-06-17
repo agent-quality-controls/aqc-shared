@@ -28,11 +28,12 @@ pub use engine::{Engine, FileEngine, merged_reconcile};
 pub use finding::Finding;
 #[cfg(feature = "api")]
 pub use merge::{
-    ConflictEntry, FileItemRequirement, ItemRequirements, KeyedItem, ListRequirements, Resolve,
-    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, compose_item_by,
+    ConflictEntry, FileItemRequirement, ItemRequirements, KeyedItem, ListRequirements,
+    PatternBanRequirement, PatternBanRequirements, Resolve, ResolvedItemRequirements,
+    ResolvedListRequirements, ResolvedPatternBanRequirements, ResolvedRequirement, compose_item_by,
     compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,
-    resolve_all_equal, resolve_items, resolve_list, resolve_map, resolve_maybe, resolve_scalar,
-    strongest_version_floor,
+    resolve_all_equal, resolve_items, resolve_list, resolve_map, resolve_maybe,
+    resolve_pattern_bans, resolve_scalar, strongest_version_floor,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;

@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use aqc_file_engine_core::{
-    ConflictEntry, FileItemRequirement, Provenance, ResolvedRequirement, compose_optional_field,
-    compose_string_set,
+    ConflictEntry, FileItemRequirement, PatternBanRequirement, Provenance, ResolvedRequirement,
+    compose_optional_field, compose_string_set,
 };
 
 /// Which dependency table kind.
@@ -62,6 +62,12 @@ pub struct DependencyRequirement {
     pub value: DependencySpec,
 }
 
+/// Package-name glob used only for forbidden dependency package families.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DependencyPackagePattern {
+    pub pattern: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DependencyIdentity {
     Package(String),
@@ -76,6 +82,18 @@ impl fmt::Display for DependencyIdentity {
             Self::LocalKey(file_key) => write!(f, "{file_key}"),
             Self::Invalid => write!(f, "<invalid>"),
         }
+    }
+}
+
+impl PatternBanRequirement for DependencyPackagePattern {
+    type Identity = String;
+
+    fn merge_identity(&self) -> Self::Identity {
+        self.pattern.clone()
+    }
+
+    fn render(&self) -> String {
+        self.pattern.clone()
     }
 }
 

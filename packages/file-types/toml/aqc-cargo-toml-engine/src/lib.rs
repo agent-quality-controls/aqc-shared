@@ -14,8 +14,8 @@ pub mod requirement;
 pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    CargoTomlRequirements, DependencyIdentity, DependencyKind, DependencyRequirement,
-    DependencyScope, DependencySpec,
+    CargoTomlRequirements, DependencyIdentity, DependencyKind, DependencyPackagePattern,
+    DependencyRequirement, DependencyScope, DependencySpec,
 };
 #[cfg(feature = "api")]
 pub use requirement::{FeatureMembers, LintSetting, PackageLintsAssertion};

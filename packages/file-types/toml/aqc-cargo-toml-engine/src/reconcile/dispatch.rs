@@ -28,11 +28,17 @@ pub(crate) fn apply(
         workspace_fields,
         section_presence,
         dependencies,
+        banned_dependency_package_patterns,
+        dependency_pattern_conflicts,
         workspace_dependencies,
+        banned_workspace_dependency_package_patterns,
+        workspace_dependency_pattern_conflicts,
         features,
         profiles,
         targets,
         patch,
+        banned_patch_dependency_package_patterns,
+        patch_dependency_pattern_conflicts,
     } = requirement;
 
     package_lints::apply(doc, package_lints.as_ref(), findings);
@@ -51,8 +57,20 @@ pub(crate) fn apply(
     );
     workspace_fields::apply(doc, workspace_fields, findings);
     section_presence::apply(doc, section_presence, findings);
-    dependencies::apply(doc, dependencies, findings);
-    patch::apply_workspace_dependencies(doc, workspace_dependencies.as_ref(), findings);
+    dependencies::apply(
+        doc,
+        dependencies,
+        banned_dependency_package_patterns,
+        dependency_pattern_conflicts,
+        findings,
+    );
+    patch::apply_workspace_dependencies(
+        doc,
+        workspace_dependencies.as_ref(),
+        banned_workspace_dependency_package_patterns.as_ref(),
+        workspace_dependency_pattern_conflicts,
+        findings,
+    );
     features::apply(doc, features.as_ref(), findings);
     profiles::apply(doc, profiles, findings);
     target_tables::apply_lib(doc, &targets.lib_fields, findings);
@@ -60,5 +78,11 @@ pub(crate) fn apply(
     target_tables::apply_named(doc, "example", &targets.example_targets, findings);
     target_tables::apply_named(doc, "test", &targets.test_targets, findings);
     target_tables::apply_named(doc, "bench", &targets.bench_targets, findings);
-    patch::apply(doc, patch, findings);
+    patch::apply(
+        doc,
+        patch,
+        banned_patch_dependency_package_patterns,
+        patch_dependency_pattern_conflicts,
+        findings,
+    );
 }

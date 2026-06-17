@@ -9,6 +9,7 @@ use aqc_file_engine_core::{
     ConfigScalar, Engine, EngineOutput, EngineRequirement, ItemRequirements, KeyedItem,
     ListRequirements, Provenance,
 };
+use globset as _;
 use toml_edit as _;
 
 fn prov() -> Provenance {
