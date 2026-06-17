@@ -7,6 +7,13 @@ rust-version.workspace = true
 repository.workspace = true
 description = "Walk one directory root into a FileTree: gitignore-aware phase 1 plus rule-driven recovery phase 2."
 publish = true
+readme = "README.md"
+keywords = ["aqc", "filetree", "guardrails", "filesystem"]
+categories = ["development-tools", "filesystem"]
+include = ["src/**", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [package.metadata.guardrail3]
 shared = true

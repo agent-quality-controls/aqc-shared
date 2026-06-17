@@ -4,6 +4,7 @@ allowed_deps = [
   "aqc-file-engine-core",
   "globset",
   "ignore",
+  "tempfile",
   "toml_edit",
 ]
 

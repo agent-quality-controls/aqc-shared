@@ -6,7 +6,14 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 description = "Shared framework types and FileEngine trait for aqc-{domain}-engine crates."
-publish = false
+publish = true
+readme = "README.md"
+keywords = ["aqc", "file-engine", "guardrails", "config"]
+categories = ["development-tools", "config"]
+include = ["src/**", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [package.metadata.guardrail3]
 shared = true

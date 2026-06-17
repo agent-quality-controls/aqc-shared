@@ -6,7 +6,14 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 description = "FileEngine for Cargo.toml. Writes [lints.<tool>] tables via toml_edit."
-publish = false
+publish = true
+readme = "README.md"
+keywords = ["aqc", "cargo", "toml", "guardrails"]
+categories = ["development-tools", "config", "parser-implementations"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [lints]
 workspace = true
@@ -17,6 +24,6 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = { path = "../../../aqc-file-engine-core" }
+aqc-file-engine-core = { version = "0.1.0", path = "../../../aqc-file-engine-core" }
 globset = "0.4"
 toml_edit = "0.25"

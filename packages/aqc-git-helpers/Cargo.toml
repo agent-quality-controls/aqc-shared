@@ -7,6 +7,13 @@ rust-version.workspace = true
 repository.workspace = true
 description = "Read-only git worktree state (porcelain v1) for lock/verify flows."
 publish = true
+readme = "README.md"
+keywords = ["aqc", "git", "guardrails", "worktree"]
+categories = ["development-tools"]
+include = ["src/**", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [package.metadata.guardrail3]
 shared = true
