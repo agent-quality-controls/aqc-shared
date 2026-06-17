@@ -9,18 +9,24 @@ use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    ConflictEntry, EngineRequirement, FileItemRequirement, ItemRequirements, Provenance, Resolve,
-    ResolvedItemRequirements, ResolvedRequirement, compose_item_by, parse_version_tuple,
-    resolve_items, resolve_map, resolve_maybe, strongest_version_floor,
+    ConflictEntry, EngineRequirement, FileItemRequirement, ForbiddenGlobRequirement,
+    ForbiddenGlobRequirements, ItemRequirements, Provenance, Resolve,
+    ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedRequirement,
+    compose_item_by, parse_version_tuple, resolve_forbidden_globs, resolve_items, resolve_map,
+    resolve_maybe, strongest_version_floor,
 };
+use globset::GlobBuilder;
 
 #[derive(Debug, Clone, Default)]
 pub struct ClippyTomlRequirements {
     pub msrv: Option<MsrvAssertion>,
     pub thresholds: BTreeMap<String, NumericAssertion>,
     pub disallowed_methods: ItemRequirements<BanEntry>,
+    pub forbidden_disallowed_method_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_types: ItemRequirements<BanEntry>,
+    pub forbidden_disallowed_type_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_macros: ItemRequirements<BanEntry>,
+    pub forbidden_disallowed_macro_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
     pub bools: BTreeMap<String, BoolAssertion>,
     pub enums: BTreeMap<String, StringAssertion>,
 }
@@ -30,8 +36,14 @@ pub struct ResolvedClippyTomlRequirements {
     pub msrv: Option<ResolvedRequirement<MsrvAssertion, MsrvAssertion>>,
     pub thresholds: BTreeMap<String, ResolvedRequirement<NumericAssertion, NumericAssertion>>,
     pub disallowed_methods: ResolvedItemRequirements<BanEntry>,
+    pub forbidden_disallowed_method_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
+    pub disallowed_method_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
     pub disallowed_types: ResolvedItemRequirements<BanEntry>,
+    pub forbidden_disallowed_type_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
+    pub disallowed_type_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
     pub disallowed_macros: ResolvedItemRequirements<BanEntry>,
+    pub forbidden_disallowed_macro_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
+    pub disallowed_macro_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
     pub bools: BTreeMap<String, ResolvedRequirement<BoolAssertion, BoolAssertion>>,
     pub enums: BTreeMap<String, ResolvedRequirement<StringAssertion, StringAssertion>>,
 }
@@ -42,6 +54,87 @@ impl ClippyTomlRequirements {
         reqs: Vec<(Provenance, ClippyTomlRequirements)>,
     ) -> (ResolvedClippyTomlRequirements, Vec<ConflictEntry>) {
         let mut conflicts = Vec::new();
+        let disallowed_methods = resolve_items(
+            "disallowed-methods",
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.disallowed_methods.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+        let forbidden_disallowed_method_path_globs = resolve_forbidden_globs(
+            "disallowed-methods",
+            reqs.iter()
+                .map(|(prov, req)| {
+                    (
+                        prov.clone(),
+                        req.forbidden_disallowed_method_path_globs.clone(),
+                    )
+                })
+                .collect(),
+            &mut conflicts,
+        );
+        let disallowed_method_glob_conflicts = push_clippy_path_glob_conflicts(
+            "disallowed-methods",
+            "disallowed-method-path-glob-forbids-required-path",
+            &disallowed_methods,
+            &forbidden_disallowed_method_path_globs,
+            &mut conflicts,
+        );
+
+        let disallowed_types = resolve_items(
+            "disallowed-types",
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.disallowed_types.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+        let forbidden_disallowed_type_path_globs = resolve_forbidden_globs(
+            "disallowed-types",
+            reqs.iter()
+                .map(|(prov, req)| {
+                    (
+                        prov.clone(),
+                        req.forbidden_disallowed_type_path_globs.clone(),
+                    )
+                })
+                .collect(),
+            &mut conflicts,
+        );
+        let disallowed_type_glob_conflicts = push_clippy_path_glob_conflicts(
+            "disallowed-types",
+            "disallowed-type-path-glob-forbids-required-path",
+            &disallowed_types,
+            &forbidden_disallowed_type_path_globs,
+            &mut conflicts,
+        );
+
+        let disallowed_macros = resolve_items(
+            "disallowed-macros",
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.disallowed_macros.clone()))
+                .collect(),
+            &mut conflicts,
+        );
+        let forbidden_disallowed_macro_path_globs = resolve_forbidden_globs(
+            "disallowed-macros",
+            reqs.iter()
+                .map(|(prov, req)| {
+                    (
+                        prov.clone(),
+                        req.forbidden_disallowed_macro_path_globs.clone(),
+                    )
+                })
+                .collect(),
+            &mut conflicts,
+        );
+        let disallowed_macro_glob_conflicts = push_clippy_path_glob_conflicts(
+            "disallowed-macros",
+            "disallowed-macro-path-glob-forbids-required-path",
+            &disallowed_macros,
+            &forbidden_disallowed_macro_path_globs,
+            &mut conflicts,
+        );
+
         let out = ResolvedClippyTomlRequirements {
             msrv: resolve_maybe(
                 "msrv",
@@ -57,27 +150,15 @@ impl ClippyTomlRequirements {
                 Clone::clone,
                 &mut conflicts,
             ),
-            disallowed_methods: resolve_items(
-                "disallowed-methods",
-                reqs.iter()
-                    .map(|(prov, req)| (prov.clone(), req.disallowed_methods.clone()))
-                    .collect(),
-                &mut conflicts,
-            ),
-            disallowed_types: resolve_items(
-                "disallowed-types",
-                reqs.iter()
-                    .map(|(prov, req)| (prov.clone(), req.disallowed_types.clone()))
-                    .collect(),
-                &mut conflicts,
-            ),
-            disallowed_macros: resolve_items(
-                "disallowed-macros",
-                reqs.iter()
-                    .map(|(prov, req)| (prov.clone(), req.disallowed_macros.clone()))
-                    .collect(),
-                &mut conflicts,
-            ),
+            disallowed_methods,
+            forbidden_disallowed_method_path_globs,
+            disallowed_method_glob_conflicts,
+            disallowed_types,
+            forbidden_disallowed_type_path_globs,
+            disallowed_type_glob_conflicts,
+            disallowed_macros,
+            forbidden_disallowed_macro_path_globs,
+            disallowed_macro_glob_conflicts,
             bools: resolve_map(
                 reqs.iter()
                     .map(|(prov, req)| (prov.clone(), req.bools.clone()))
@@ -321,6 +402,29 @@ pub struct BanEntry {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClippyPathGlob {
+    pub glob: String,
+}
+
+impl ForbiddenGlobRequirement for ClippyPathGlob {
+    type Identity = String;
+
+    fn merge_identity(&self) -> Self::Identity {
+        self.glob.clone()
+    }
+
+    fn render(&self) -> String {
+        self.glob.clone()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ClippyForbiddenGlobConflictBlocks {
+    pub required: BTreeSet<String>,
+    pub path_globs: BTreeSet<String>,
+}
+
 impl FileItemRequirement for BanEntry {
     type Identity = String;
 
@@ -335,6 +439,45 @@ impl FileItemRequirement for BanEntry {
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
         compose_item_by(key, items, |entry| entry.path.clone(), conflicts)
     }
+}
+
+fn push_clippy_path_glob_conflicts(
+    key: &str,
+    reason: &str,
+    merged: &ResolvedItemRequirements<BanEntry>,
+    globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> ClippyForbiddenGlobConflictBlocks {
+    let mut blocks = ClippyForbiddenGlobConflictBlocks::default();
+    for (glob_identity, glob) in &globs.globs {
+        let Ok(globset) = GlobBuilder::new(&glob.merged.glob).build() else {
+            continue;
+        };
+        let matcher = globset.compile_matcher();
+        for (required_path, requirement) in &merged.required {
+            if !matcher.is_match(required_path) {
+                continue;
+            }
+            let mut contributors = requirement
+                .collected
+                .iter()
+                .map(|(prov, _)| (prov.clone(), "required".to_owned()))
+                .collect::<Vec<_>>();
+            contributors.extend(
+                glob.collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "forbidden".to_owned())),
+            );
+            conflicts.push(ConflictEntry {
+                key: format!("{key}.{}", required_path),
+                reason: reason.to_owned(),
+                contributors,
+            });
+            let _ = blocks.required.insert(required_path.clone());
+            let _ = blocks.path_globs.insert(glob_identity.clone());
+        }
+    }
+    blocks
 }
 
 #[derive(Debug, Clone)]

@@ -1,14 +1,14 @@
 Summary
-- Added generic pattern-ban requirements to file engine core.
-- Added Cargo dependency package-pattern bans for dependency tables, workspace dependencies, target dependency scopes, and patch tables.
+- Added generic forbidden-glob requirements to file engine core.
+- Added Cargo forbidden package globs for dependency tables, workspace dependencies, target dependency scopes, and patch tables.
 - Cargo reconcile now removes matching packages by effective package identity while preserving conflicted required dependencies.
 
 Decisions made
-- Put the generic pattern-ban container and resolver in `aqc-file-engine-core`.
-- Keep Cargo package-pattern semantics in `aqc-cargo-toml-engine`.
+- Put the generic forbidden-glob container and resolver in `aqc-file-engine-core`.
+- Keep Cargo package-glob semantics in `aqc-cargo-toml-engine`.
 - Use `globset` instead of custom glob matching.
-- Store required-vs-pattern conflicts as conflict blocks instead of deleting either side from the resolved requirement set.
-- Skip a conflicted pattern as a whole during reconcile so a contradictory policy cannot remove a required package.
+- Store required-vs-glob conflicts as conflict blocks instead of deleting either side from the resolved requirement set.
+- Skip a conflicted glob as a whole during reconcile so a contradictory policy cannot remove a required package.
 
 Key files for context
 - `packages/aqc-file-engine-core/src/merge.rs`

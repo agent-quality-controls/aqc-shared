@@ -21,18 +21,24 @@ pub(crate) fn apply(
         doc,
         "disallowed-methods",
         &requirement.disallowed_methods,
+        &requirement.forbidden_disallowed_method_path_globs,
+        &requirement.disallowed_method_glob_conflicts,
         findings,
     );
     bans::apply(
         doc,
         "disallowed-types",
         &requirement.disallowed_types,
+        &requirement.forbidden_disallowed_type_path_globs,
+        &requirement.disallowed_type_glob_conflicts,
         findings,
     );
     bans::apply(
         doc,
         "disallowed-macros",
         &requirement.disallowed_macros,
+        &requirement.forbidden_disallowed_macro_path_globs,
+        &requirement.disallowed_macro_glob_conflicts,
         findings,
     );
     bools::apply(doc, &requirement.bools, findings);

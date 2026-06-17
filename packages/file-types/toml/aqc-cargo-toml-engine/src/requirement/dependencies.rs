@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use aqc_file_engine_core::{
-    ConflictEntry, FileItemRequirement, PatternBanRequirement, Provenance, ResolvedRequirement,
+    ConflictEntry, FileItemRequirement, ForbiddenGlobRequirement, Provenance, ResolvedRequirement,
     compose_optional_field, compose_string_set,
 };
 
@@ -64,8 +64,8 @@ pub struct DependencyRequirement {
 
 /// Package-name glob used only for forbidden dependency package families.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct DependencyPackagePattern {
-    pub pattern: String,
+pub struct DependencyPackageGlob {
+    pub glob: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -85,15 +85,15 @@ impl fmt::Display for DependencyIdentity {
     }
 }
 
-impl PatternBanRequirement for DependencyPackagePattern {
+impl ForbiddenGlobRequirement for DependencyPackageGlob {
     type Identity = String;
 
     fn merge_identity(&self) -> Self::Identity {
-        self.pattern.clone()
+        self.glob.clone()
     }
 
     fn render(&self) -> String {
-        self.pattern.clone()
+        self.glob.clone()
     }
 }
 

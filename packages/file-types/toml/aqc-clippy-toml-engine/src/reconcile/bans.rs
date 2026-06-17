@@ -2,18 +2,27 @@
 
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedItemRequirements, Severity};
+use aqc_file_engine_core::{
+    Finding, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, Severity,
+};
+use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
 
-use crate::requirement::BanEntry;
+use crate::requirement::{BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob};
 
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     table_key: &str,
     merged: &ResolvedItemRequirements<BanEntry>,
+    globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
+    glob_conflicts: &ClippyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
-    if merged.required.is_empty() && merged.banned.is_empty() && merged.closed_by.is_empty() {
+    if merged.required.is_empty()
+        && merged.banned.is_empty()
+        && merged.closed_by.is_empty()
+        && globs.globs.is_empty()
+    {
         return;
     }
 
@@ -44,7 +53,10 @@ pub(crate) fn apply(
     };
     let mut current_paths = collect_current_paths(array);
 
-    for entry in merged.required.values() {
+    for (path, entry) in &merged.required {
+        if glob_conflicts.required.contains(path) {
+            continue;
+        }
         let attribution = entry
             .collected
             .iter()
@@ -75,6 +87,8 @@ pub(crate) fn apply(
         apply_banned(table_key, array, path, &message, &attribution, findings);
     }
 
+    apply_forbidden_path_globs(table_key, array, globs, glob_conflicts, findings);
+
     if !merged.closed_by.is_empty() {
         let allowed = merged.required.keys().cloned().collect();
         let attribution = merged
@@ -83,6 +97,65 @@ pub(crate) fn apply(
             .map(|(prov, _)| prov.clone())
             .collect::<Vec<_>>();
         prune_extras(table_key, array, &allowed, &attribution, findings);
+    }
+}
+
+fn apply_forbidden_path_globs(
+    table_key: &str,
+    array: &mut Array,
+    globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
+    glob_conflicts: &ClippyForbiddenGlobConflictBlocks,
+    findings: &mut Vec<Finding>,
+) {
+    for (glob_identity, entry) in &globs.globs {
+        if glob_conflicts.path_globs.contains(glob_identity) {
+            continue;
+        }
+        let glob = &entry.merged;
+        let attribution = entry
+            .collected
+            .iter()
+            .map(|(prov, _)| prov.clone())
+            .collect::<Vec<_>>();
+        let message = entry
+            .collected
+            .first()
+            .map(|(_, msg)| msg.clone())
+            .unwrap_or_default();
+        let matcher = match compile_path_glob(glob) {
+            Ok(matcher) => matcher,
+            Err(message) => {
+                findings.push(Finding::InvalidRequirements {
+                    key: format!("{table_key}.{}", glob.glob),
+                    message,
+                    contributors: entry
+                        .collected
+                        .iter()
+                        .map(|(prov, msg)| (prov.policy.clone(), msg.clone()))
+                        .collect(),
+                });
+                continue;
+            }
+        };
+        let mut removals = Vec::new();
+        for (i, value) in array.iter().enumerate() {
+            if let Some(path) = read_entry_path(value) {
+                if matcher.is_match(&path) {
+                    removals.push((i, path));
+                }
+            }
+        }
+        for (i, path) in removals.into_iter().rev() {
+            let _ = array.remove(i);
+            findings.push(Finding::Mismatch {
+                key: format!("{table_key}[?path == \"{path}\"]"),
+                current: Some(path),
+                expected: "absent (path glob)".into(),
+                message: message.clone(),
+                severity: Severity::Error,
+                attribution: attribution.clone(),
+            });
+        }
     }
 }
 
@@ -273,4 +346,11 @@ fn format_entry(entry: &BanEntry) -> String {
     } else {
         format!("path={} reason={}", entry.path, entry.message)
     }
+}
+
+fn compile_path_glob(glob: &ClippyPathGlob) -> Result<GlobMatcher, String> {
+    GlobBuilder::new(&glob.glob)
+        .build()
+        .map(|glob| glob.compile_matcher())
+        .map_err(|err| format!("invalid path glob `{}`: {err}", glob.glob))
 }

@@ -12,14 +12,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    Finding, Provenance, ResolvedItemRequirements, ResolvedPatternBanRequirements, Severity,
+    Finding, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, Severity,
 };
 use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, Value};
 
 use crate::reconcile::util::{ensure_table_at, table_at, table_at_mut};
 use crate::requirement::{
-    DependencyPackagePattern, DependencyPatternConflictBlocks, DependencyRequirement,
+    DependencyForbiddenGlobConflictBlocks, DependencyPackageGlob, DependencyRequirement,
     DependencyScope, DependencySpec,
 };
 
@@ -38,26 +38,26 @@ pub(crate) enum SetRule {
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     merged_by_scope: &BTreeMap<DependencyScope, ResolvedItemRequirements<DependencyRequirement>>,
-    patterns_by_scope: &BTreeMap<
+    globs_by_scope: &BTreeMap<
         DependencyScope,
-        ResolvedPatternBanRequirements<DependencyPackagePattern>,
+        ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    pattern_conflicts_by_scope: &BTreeMap<DependencyScope, DependencyPatternConflictBlocks>,
+    glob_conflicts_by_scope: &BTreeMap<DependencyScope, DependencyForbiddenGlobConflictBlocks>,
     findings: &mut Vec<Finding>,
 ) {
     let empty_items = ResolvedItemRequirements::default();
-    let empty_patterns = ResolvedPatternBanRequirements::default();
-    let empty_conflicts = DependencyPatternConflictBlocks::default();
+    let empty_globs = ResolvedForbiddenGlobRequirements::default();
+    let empty_conflicts = DependencyForbiddenGlobConflictBlocks::default();
     let scopes = merged_by_scope
         .keys()
-        .chain(patterns_by_scope.keys())
-        .chain(pattern_conflicts_by_scope.keys())
+        .chain(globs_by_scope.keys())
+        .chain(glob_conflicts_by_scope.keys())
         .collect::<BTreeSet<_>>();
     for scope in scopes {
         let path = scope_path(scope);
         let merged = merged_by_scope.get(scope).unwrap_or(&empty_items);
-        let patterns = patterns_by_scope.get(scope).unwrap_or(&empty_patterns);
-        let pattern_conflicts = pattern_conflicts_by_scope
+        let globs = globs_by_scope.get(scope).unwrap_or(&empty_globs);
+        let glob_conflicts = glob_conflicts_by_scope
             .get(scope)
             .unwrap_or(&empty_conflicts);
         apply_set(
@@ -66,8 +66,8 @@ pub(crate) fn apply(
             &scope.table_path(),
             SetRule::Standard,
             merged,
-            patterns,
-            pattern_conflicts,
+            globs,
+            glob_conflicts,
             findings,
         );
     }
@@ -93,13 +93,13 @@ pub(crate) fn apply_set(
     display_path: &str,
     rule: SetRule,
     merged: &ResolvedItemRequirements<DependencyRequirement>,
-    patterns: &ResolvedPatternBanRequirements<DependencyPackagePattern>,
-    pattern_conflicts: &DependencyPatternConflictBlocks,
+    globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
+    glob_conflicts: &DependencyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
     let required_file_keys = required_file_keys(merged);
     for (identity, entry) in &merged.required {
-        if pattern_conflicts.required.contains(identity) {
+        if glob_conflicts.required.contains(identity) {
             continue;
         }
         let attribution = entry
@@ -144,12 +144,12 @@ pub(crate) fn apply_set(
             &attribution,
         );
     }
-    apply_package_pattern_bans(
+    apply_package_glob_forbids(
         &mut removals,
         table_at(doc, path),
         display_path,
-        patterns,
-        pattern_conflicts,
+        globs,
+        glob_conflicts,
         findings,
     );
     if !merged.closed_by.is_empty() {
@@ -399,22 +399,19 @@ fn read_banned_matches(
     find_all_by_package(table, package)
 }
 
-fn apply_package_pattern_bans(
+fn apply_package_glob_forbids(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
     table: Option<&Table>,
     display_path: &str,
-    patterns: &ResolvedPatternBanRequirements<DependencyPackagePattern>,
-    pattern_conflicts: &DependencyPatternConflictBlocks,
+    globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
+    glob_conflicts: &DependencyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
-    for (pattern_identity, entry) in &patterns.banned {
-        if pattern_conflicts
-            .package_patterns
-            .contains(pattern_identity)
-        {
+    for (glob_identity, entry) in &globs.globs {
+        if glob_conflicts.package_globs.contains(glob_identity) {
             continue;
         }
-        let pattern = &entry.merged;
+        let glob = &entry.merged;
         let attribution = entry
             .collected
             .iter()
@@ -425,11 +422,11 @@ fn apply_package_pattern_bans(
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
-        let matcher = match compile_package_pattern(pattern) {
+        let matcher = match compile_package_glob(glob) {
             Ok(matcher) => matcher,
             Err(message) => {
                 findings.push(Finding::InvalidRequirements {
-                    key: format!("{display_path}.{}", pattern.pattern),
+                    key: format!("{display_path}.{}", glob.glob),
                     message,
                     contributors: entry
                         .collected
@@ -441,14 +438,14 @@ fn apply_package_pattern_bans(
             }
         };
         let matches = table
-            .map(|table| read_package_pattern_matches(table, &matcher))
+            .map(|table| read_package_glob_matches(table, &matcher))
             .unwrap_or_default();
         for (file_key, current) in matches {
             queue_removal(
                 removals,
                 file_key,
                 current,
-                "absent (package pattern)",
+                "absent (package glob)",
                 &msg,
                 &attribution,
             );
@@ -456,20 +453,15 @@ fn apply_package_pattern_bans(
     }
 }
 
-fn compile_package_pattern(pattern: &DependencyPackagePattern) -> Result<GlobMatcher, String> {
-    GlobBuilder::new(&pattern.pattern)
+fn compile_package_glob(glob: &DependencyPackageGlob) -> Result<GlobMatcher, String> {
+    GlobBuilder::new(&glob.glob)
         .literal_separator(true)
         .build()
         .map(|glob| glob.compile_matcher())
-        .map_err(|err| {
-            format!(
-                "invalid dependency package pattern {}: {err}",
-                pattern.pattern
-            )
-        })
+        .map_err(|err| format!("invalid dependency package glob {}: {err}", glob.glob))
 }
 
-fn read_package_pattern_matches(
+fn read_package_glob_matches(
     table: &Table,
     matcher: &GlobMatcher,
 ) -> Vec<(String, DependencySpec)> {

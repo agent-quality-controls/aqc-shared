@@ -14,7 +14,7 @@ pub mod requirement;
 pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    CargoTomlRequirements, DependencyIdentity, DependencyKind, DependencyPackagePattern,
+    CargoTomlRequirements, DependencyIdentity, DependencyKind, DependencyPackageGlob,
     DependencyRequirement, DependencyScope, DependencySpec,
 };
 #[cfg(feature = "api")]

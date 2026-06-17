@@ -3,41 +3,41 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, ResolvedItemRequirements, ResolvedPatternBanRequirements};
+use aqc_file_engine_core::{Finding, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements};
 use toml_edit::DocumentMut;
 
 use crate::reconcile::dependencies::{SetRule, apply_set};
 use crate::requirement::{
-    DependencyPackagePattern, DependencyPatternConflictBlocks, DependencyRequirement,
+    DependencyForbiddenGlobConflictBlocks, DependencyPackageGlob, DependencyRequirement,
 };
 
 /// Apply every `[patch.<registry>]` requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     merged_by_registry: &BTreeMap<String, ResolvedItemRequirements<DependencyRequirement>>,
-    banned_patch_dependency_package_patterns: &BTreeMap<
+    forbidden_patch_dependency_package_globs: &BTreeMap<
         String,
-        ResolvedPatternBanRequirements<DependencyPackagePattern>,
+        ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    patch_dependency_pattern_conflicts: &BTreeMap<String, DependencyPatternConflictBlocks>,
+    patch_dependency_glob_conflicts: &BTreeMap<String, DependencyForbiddenGlobConflictBlocks>,
     findings: &mut Vec<Finding>,
 ) {
     let empty_items = ResolvedItemRequirements::default();
-    let empty_patterns = ResolvedPatternBanRequirements::default();
-    let empty_conflicts = DependencyPatternConflictBlocks::default();
+    let empty_globs = ResolvedForbiddenGlobRequirements::default();
+    let empty_conflicts = DependencyForbiddenGlobConflictBlocks::default();
     let registries = merged_by_registry
         .keys()
-        .chain(banned_patch_dependency_package_patterns.keys())
-        .chain(patch_dependency_pattern_conflicts.keys())
+        .chain(forbidden_patch_dependency_package_globs.keys())
+        .chain(patch_dependency_glob_conflicts.keys())
         .collect::<std::collections::BTreeSet<_>>();
     for registry in registries {
         let path = vec!["patch".to_owned(), registry.clone()];
         let display = format!("[patch.{registry}]");
         let merged = merged_by_registry.get(registry).unwrap_or(&empty_items);
-        let patterns = banned_patch_dependency_package_patterns
+        let globs = forbidden_patch_dependency_package_globs
             .get(registry)
-            .unwrap_or(&empty_patterns);
-        let pattern_conflicts = patch_dependency_pattern_conflicts
+            .unwrap_or(&empty_globs);
+        let glob_conflicts = patch_dependency_glob_conflicts
             .get(registry)
             .unwrap_or(&empty_conflicts);
         // Package-only patch entries are not writable; the shared helper emits
@@ -48,8 +48,8 @@ pub(crate) fn apply(
             &display,
             SetRule::Patch,
             merged,
-            patterns,
-            pattern_conflicts,
+            globs,
+            glob_conflicts,
             findings,
         );
     }
@@ -59,23 +59,21 @@ pub(crate) fn apply(
 pub(crate) fn apply_workspace_dependencies(
     doc: &mut DocumentMut,
     merged: Option<&ResolvedItemRequirements<DependencyRequirement>>,
-    banned_workspace_dependency_package_patterns: Option<
-        &ResolvedPatternBanRequirements<DependencyPackagePattern>,
+    forbidden_workspace_dependency_package_globs: Option<
+        &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    workspace_dependency_pattern_conflicts: &DependencyPatternConflictBlocks,
+    workspace_dependency_glob_conflicts: &DependencyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
     if merged.is_none()
-        && banned_workspace_dependency_package_patterns.is_none()
-        && workspace_dependency_pattern_conflicts.required.is_empty()
-        && workspace_dependency_pattern_conflicts
-            .package_patterns
-            .is_empty()
+        && forbidden_workspace_dependency_package_globs.is_none()
+        && workspace_dependency_glob_conflicts.required.is_empty()
+        && workspace_dependency_glob_conflicts.package_globs.is_empty()
     {
         return;
     }
     let empty_items = ResolvedItemRequirements::default();
-    let empty_patterns = ResolvedPatternBanRequirements::default();
+    let empty_globs = ResolvedForbiddenGlobRequirements::default();
     let path = vec!["workspace".to_owned(), "dependencies".to_owned()];
     apply_set(
         doc,
@@ -83,8 +81,8 @@ pub(crate) fn apply_workspace_dependencies(
         "[workspace.dependencies]",
         SetRule::WorkspaceDeps,
         merged.unwrap_or(&empty_items),
-        banned_workspace_dependency_package_patterns.unwrap_or(&empty_patterns),
-        workspace_dependency_pattern_conflicts,
+        forbidden_workspace_dependency_package_globs.unwrap_or(&empty_globs),
+        workspace_dependency_glob_conflicts,
         findings,
     );
 }

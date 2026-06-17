@@ -28,17 +28,17 @@ pub(crate) fn apply(
         workspace_fields,
         section_presence,
         dependencies,
-        banned_dependency_package_patterns,
-        dependency_pattern_conflicts,
+        forbidden_dependency_package_globs,
+        dependency_glob_conflicts,
         workspace_dependencies,
-        banned_workspace_dependency_package_patterns,
-        workspace_dependency_pattern_conflicts,
+        forbidden_workspace_dependency_package_globs,
+        workspace_dependency_glob_conflicts,
         features,
         profiles,
         targets,
         patch,
-        banned_patch_dependency_package_patterns,
-        patch_dependency_pattern_conflicts,
+        forbidden_patch_dependency_package_globs,
+        patch_dependency_glob_conflicts,
     } = requirement;
 
     package_lints::apply(doc, package_lints.as_ref(), findings);
@@ -60,15 +60,15 @@ pub(crate) fn apply(
     dependencies::apply(
         doc,
         dependencies,
-        banned_dependency_package_patterns,
-        dependency_pattern_conflicts,
+        forbidden_dependency_package_globs,
+        dependency_glob_conflicts,
         findings,
     );
     patch::apply_workspace_dependencies(
         doc,
         workspace_dependencies.as_ref(),
-        banned_workspace_dependency_package_patterns.as_ref(),
-        workspace_dependency_pattern_conflicts,
+        forbidden_workspace_dependency_package_globs.as_ref(),
+        workspace_dependency_glob_conflicts,
         findings,
     );
     features::apply(doc, features.as_ref(), findings);
@@ -81,8 +81,8 @@ pub(crate) fn apply(
     patch::apply(
         doc,
         patch,
-        banned_patch_dependency_package_patterns,
-        patch_dependency_pattern_conflicts,
+        forbidden_patch_dependency_package_globs,
+        patch_dependency_glob_conflicts,
         findings,
     );
 }

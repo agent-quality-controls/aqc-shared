@@ -82,40 +82,40 @@ pub trait FileItemRequirement: Sized + Clone {
     ) -> Option<ResolvedRequirement<Self, (Self, String)>>;
 }
 
-/// Ban-only requirement for collections where policy names a pattern.
+/// Forbidden-glob requirement for collections where policy names a glob.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PatternBanRequirements<Pattern> {
-    pub banned: Vec<(Pattern, String)>,
+pub struct ForbiddenGlobRequirements<Glob> {
+    pub globs: Vec<(Glob, String)>,
 }
 
-impl<Pattern> Default for PatternBanRequirements<Pattern> {
+impl<Glob> Default for ForbiddenGlobRequirements<Glob> {
     fn default() -> Self {
-        Self { banned: Vec::new() }
+        Self { globs: Vec::new() }
     }
 }
 
-/// Resolved pattern bans with attribution on each pattern.
+/// Resolved glob forbids with attribution on each glob.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedPatternBanRequirements<Pattern>
+pub struct ResolvedForbiddenGlobRequirements<Glob>
 where
-    Pattern: PatternBanRequirement,
+    Glob: ForbiddenGlobRequirement,
 {
-    pub banned: BTreeMap<Pattern::Identity, ResolvedRequirement<Pattern, String>>,
+    pub globs: BTreeMap<Glob::Identity, ResolvedRequirement<Glob, String>>,
 }
 
-impl<Pattern> Default for ResolvedPatternBanRequirements<Pattern>
+impl<Glob> Default for ResolvedForbiddenGlobRequirements<Glob>
 where
-    Pattern: PatternBanRequirement,
+    Glob: ForbiddenGlobRequirement,
 {
     fn default() -> Self {
         Self {
-            banned: BTreeMap::new(),
+            globs: BTreeMap::new(),
         }
     }
 }
 
-/// A ban pattern that can be deduped across policy input.
-pub trait PatternBanRequirement: Sized + Clone {
+/// A forbidden glob that can be deduped across policy input.
+pub trait ForbiddenGlobRequirement: Sized + Clone {
     type Identity: Ord + Clone;
 
     fn merge_identity(&self) -> Self::Identity;
@@ -318,36 +318,35 @@ where
     }
 }
 
-/// Compose ban-only pattern requirements.
-pub fn resolve_pattern_bans<Pattern>(
+/// Compose ban-only glob requirements.
+pub fn resolve_forbidden_globs<Glob>(
     key: &str,
-    input: Vec<(Provenance, PatternBanRequirements<Pattern>)>,
+    input: Vec<(Provenance, ForbiddenGlobRequirements<Glob>)>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> ResolvedPatternBanRequirements<Pattern>
+) -> ResolvedForbiddenGlobRequirements<Glob>
 where
-    Pattern: PatternBanRequirement,
-    Pattern::Identity: ToString,
+    Glob: ForbiddenGlobRequirement,
+    Glob::Identity: ToString,
 {
     let _ = conflicts;
-    let mut banned: BTreeMap<Pattern::Identity, Vec<(Provenance, (Pattern, String))>> =
-        BTreeMap::new();
+    let mut by_glob: BTreeMap<Glob::Identity, Vec<(Provenance, (Glob, String))>> = BTreeMap::new();
 
-    for (prov, patterns) in input {
-        for (pattern, msg) in patterns.banned {
-            banned
-                .entry(pattern.merge_identity())
+    for (prov, globs) in input {
+        for (glob, msg) in globs.globs {
+            by_glob
+                .entry(glob.merge_identity())
                 .or_default()
-                .push((prov.clone(), (pattern, msg)));
+                .push((prov.clone(), (glob, msg)));
         }
     }
 
-    let mut resolved_banned = BTreeMap::new();
-    for (identity, items) in banned {
+    let mut resolved_globs = BTreeMap::new();
+    for (identity, items) in by_glob {
         let Some((_, (first, _))) = items.first() else {
             continue;
         };
         let _path = format!("{}.{}", key, identity.to_string());
-        let _ = resolved_banned.insert(
+        let _ = resolved_globs.insert(
             identity,
             ResolvedRequirement {
                 merged: first.clone(),
@@ -359,8 +358,8 @@ where
         );
     }
 
-    ResolvedPatternBanRequirements {
-        banned: resolved_banned,
+    ResolvedForbiddenGlobRequirements {
+        globs: resolved_globs,
     }
 }
 

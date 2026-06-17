@@ -5,14 +5,14 @@ use toml_edit as _;
 
 use aqc_cargo_toml_engine::{
     CargoTomlEngine, CargoTomlRequirements, DependencyIdentity, DependencyKind,
-    DependencyPackagePattern, DependencyRequirement, DependencyScope, DependencySpec,
-    FeatureMembers, LintSetting, PackageFieldAssertion, PackageLintsAssertion,
-    ProfileFieldAssertion, ProfileRequirements, ResolvedPackageFieldAssertion,
-    TargetFieldAssertion, TargetRequirements, TargetTableAssertion,
+    DependencyPackageGlob, DependencyRequirement, DependencyScope, DependencySpec, FeatureMembers,
+    LintSetting, PackageFieldAssertion, PackageLintsAssertion, ProfileFieldAssertion,
+    ProfileRequirements, ResolvedPackageFieldAssertion, TargetFieldAssertion, TargetRequirements,
+    TargetTableAssertion,
 };
 use aqc_file_engine_core::{
-    ConfigScalar, Engine, EngineRequirement, Finding, ItemRequirements, KeyedItem,
-    ListRequirements, PatternBanRequirements, Provenance,
+    ConfigScalar, Engine, EngineRequirement, Finding, ForbiddenGlobRequirements, ItemRequirements,
+    KeyedItem, ListRequirements, Provenance,
 };
 
 #[derive(Debug, Clone)]
@@ -61,28 +61,28 @@ fn dep_item_req(items: ItemRequirements<DependencyRequirement>) -> CargoTomlRequ
     req
 }
 
-fn dependency_package_pattern(pattern: &str) -> DependencyPackagePattern {
-    DependencyPackagePattern {
-        pattern: pattern.to_owned(),
+fn dependency_package_glob(glob: &str) -> DependencyPackageGlob {
+    DependencyPackageGlob {
+        glob: glob.to_owned(),
     }
 }
 
-fn dependency_package_patterns(
-    patterns: Vec<(&str, &str)>,
-) -> PatternBanRequirements<DependencyPackagePattern> {
-    PatternBanRequirements {
-        banned: patterns
+fn dependency_package_globs(
+    globs: Vec<(&str, &str)>,
+) -> ForbiddenGlobRequirements<DependencyPackageGlob> {
+    ForbiddenGlobRequirements {
+        globs: globs
             .into_iter()
-            .map(|(pattern, msg)| (dependency_package_pattern(pattern), msg.to_owned()))
+            .map(|(glob, msg)| (dependency_package_glob(glob), msg.to_owned()))
             .collect(),
     }
 }
 
-fn dep_pattern_req(patterns: Vec<(&str, &str)>) -> CargoTomlRequirements {
+fn dep_glob_req(globs: Vec<(&str, &str)>) -> CargoTomlRequirements {
     let mut req = CargoTomlRequirements::default();
     let _ = req
-        .banned_dependency_package_patterns
-        .insert(normal_scope(), dependency_package_patterns(patterns));
+        .forbidden_dependency_package_globs
+        .insert(normal_scope(), dependency_package_globs(globs));
     req
 }
 
@@ -631,13 +631,10 @@ fn renamed_banned_package_reports_one_finding() {
 }
 
 #[test]
-fn package_pattern_ban_catches_plain_dependency_key() {
+fn package_glob_forbid_catches_plain_dependency_key() {
     let out = cargo_output(
         Some(b"[dependencies]\nopenssl-sys = \"0.9\"\nserde = \"1\"\n"),
-        vec![(
-            prov("p1"),
-            dep_pattern_req(vec![("openssl-*", "no openssl")]),
-        )],
+        vec![(prov("p1"), dep_glob_req(vec![("openssl-*", "no openssl")]))],
     );
     let text = String::from_utf8(out.expected_bytes).expect("utf8");
     assert_eq!(
@@ -649,10 +646,10 @@ fn package_pattern_ban_catches_plain_dependency_key() {
 }
 
 #[test]
-fn package_pattern_ban_catches_renamed_dependency_package() {
+fn package_glob_forbid_catches_renamed_dependency_package() {
     let out = cargo_output(
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\nserde = \"1\"\n"),
-        vec![(prov("p1"), dep_pattern_req(vec![("openssl-*", "no openssl")]))],
+        vec![(prov("p1"), dep_glob_req(vec![("openssl-*", "no openssl")]))],
     );
     let text = String::from_utf8(out.expected_bytes).expect("utf8");
     assert_eq!(
@@ -664,12 +661,10 @@ fn package_pattern_ban_catches_renamed_dependency_package() {
 }
 
 #[test]
-fn package_pattern_ban_applies_to_workspace_dependencies() {
+fn package_glob_forbid_applies_to_workspace_dependencies() {
     let mut req = CargoTomlRequirements::default();
-    req.banned_workspace_dependency_package_patterns = Some(dependency_package_patterns(vec![(
-        "openssl-*",
-        "no openssl",
-    )]));
+    req.forbidden_workspace_dependency_package_globs =
+        Some(dependency_package_globs(vec![("openssl-*", "no openssl")]));
     let out = cargo_output(
         Some(b"[workspace.dependencies]\nopenssl-sys = \"0.9\"\nserde = \"1\"\n"),
         vec![(prov("p1"), req)],
@@ -684,11 +679,11 @@ fn package_pattern_ban_applies_to_workspace_dependencies() {
 }
 
 #[test]
-fn package_pattern_ban_applies_to_patch_tables() {
+fn package_glob_forbid_applies_to_patch_tables() {
     let mut req = CargoTomlRequirements::default();
-    let _ = req.banned_patch_dependency_package_patterns.insert(
+    let _ = req.forbidden_patch_dependency_package_globs.insert(
         "crates-io".to_owned(),
-        dependency_package_patterns(vec![("openssl-*", "no openssl")]),
+        dependency_package_globs(vec![("openssl-*", "no openssl")]),
     );
     let out = cargo_output(
         Some(
@@ -706,11 +701,11 @@ fn package_pattern_ban_applies_to_patch_tables() {
 }
 
 #[test]
-fn package_pattern_ban_applies_to_target_dependency_scope() {
+fn package_glob_forbid_applies_to_target_dependency_scope() {
     let mut req = CargoTomlRequirements::default();
-    let _ = req.banned_dependency_package_patterns.insert(
+    let _ = req.forbidden_dependency_package_globs.insert(
         unix_scope(),
-        dependency_package_patterns(vec![("openssl-*", "no openssl")]),
+        dependency_package_globs(vec![("openssl-*", "no openssl")]),
     );
     let out = cargo_output(
         Some(b"[target.'cfg(unix)'.dependencies]\nopenssl-sys = \"0.9\"\nserde = \"1\"\n"),
@@ -729,13 +724,10 @@ fn package_pattern_ban_applies_to_target_dependency_scope() {
 }
 
 #[test]
-fn package_pattern_ban_catches_dependency_subtable() {
+fn package_glob_forbid_catches_dependency_subtable() {
     let out = cargo_output(
         Some(b"[dependencies.openssl]\npackage = \"openssl-sys\"\nversion = \"0.9\"\n"),
-        vec![(
-            prov("p1"),
-            dep_pattern_req(vec![("openssl-*", "no openssl")]),
-        )],
+        vec![(prov("p1"), dep_glob_req(vec![("openssl-*", "no openssl")]))],
     );
     let text = String::from_utf8(out.expected_bytes).expect("utf8");
     assert_eq!(
@@ -768,7 +760,7 @@ fn dependency_package_identity_ban_catches_subtable() {
 }
 
 #[test]
-fn required_package_matching_pattern_ban_conflicts() {
+fn required_package_matching_glob_forbid_conflicts() {
     let exact = dep_item_req(ItemRequirements {
         required: vec![(
             package_requirement("openssl-sys", Some("0.9")),
@@ -777,18 +769,18 @@ fn required_package_matching_pattern_ban_conflicts() {
         banned: Vec::new(),
         closed: None,
     });
-    let pattern = dep_pattern_req(vec![("openssl-*", "no openssl")]);
+    let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let (_, conflicts) =
-        CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), pattern)]);
+        CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), glob)]);
     assert!(
         conflicts.iter().any(|conflict| {
-            conflict.reason == "dependency-package-pattern-bans-required-package"
+            conflict.reason == "dependency-package-glob-forbids-required-package"
         })
     );
 }
 
 #[test]
-fn required_package_matching_pattern_ban_does_not_write_dependency() {
+fn required_package_matching_glob_forbid_does_not_write_dependency() {
     let exact = dep_item_req(ItemRequirements {
         required: vec![(
             package_requirement("openssl-sys", Some("0.9")),
@@ -797,15 +789,15 @@ fn required_package_matching_pattern_ban_does_not_write_dependency() {
         banned: Vec::new(),
         closed: None,
     });
-    let pattern = dep_pattern_req(vec![("openssl-*", "no openssl")]);
-    let out = cargo_output(None, vec![(prov("p1"), exact), (prov("p2"), pattern)]);
+    let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
+    let out = cargo_output(None, vec![(prov("p1"), exact), (prov("p2"), glob)]);
     let text = String::from_utf8(out.expected_bytes).expect("utf8");
     assert!(has_conflict(&out.findings));
     assert!(!text.contains("openssl-sys"));
 }
 
 #[test]
-fn required_local_key_matching_pattern_ban_does_not_remove_dependency() {
+fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
     let exact = dep_item_req(ItemRequirements {
         required: vec![(
             local_dependency_requirement("ssl", Some("openssl-sys"), Some("0.9")),
@@ -814,10 +806,10 @@ fn required_local_key_matching_pattern_ban_does_not_remove_dependency() {
         banned: Vec::new(),
         closed: None,
     });
-    let pattern = dep_pattern_req(vec![("openssl-*", "no openssl")]);
+    let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let out = cargo_output(
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\n"),
-        vec![(prov("p1"), exact), (prov("p2"), pattern)],
+        vec![(prov("p1"), exact), (prov("p2"), glob)],
     );
     let text = String::from_utf8(out.expected_bytes).expect("utf8");
     assert!(has_conflict(&out.findings));
@@ -829,7 +821,7 @@ fn required_local_key_matching_pattern_ban_does_not_remove_dependency() {
 }
 
 #[test]
-fn required_closed_dependency_matching_pattern_ban_does_not_remove_dependency() {
+fn required_closed_dependency_matching_glob_forbid_does_not_remove_dependency() {
     let exact = dep_item_req(ItemRequirements {
         required: vec![(
             local_dependency_requirement("ssl", Some("openssl-sys"), Some("0.9")),
@@ -838,10 +830,10 @@ fn required_closed_dependency_matching_pattern_ban_does_not_remove_dependency() 
         banned: Vec::new(),
         closed: Some("only declared deps".to_owned()),
     });
-    let pattern = dep_pattern_req(vec![("openssl-*", "no openssl")]);
+    let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let out = cargo_output(
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\n"),
-        vec![(prov("p1"), exact), (prov("p2"), pattern)],
+        vec![(prov("p1"), exact), (prov("p2"), glob)],
     );
     let text = String::from_utf8(out.expected_bytes).expect("utf8");
     assert!(has_conflict(&out.findings));
@@ -853,18 +845,18 @@ fn required_closed_dependency_matching_pattern_ban_does_not_remove_dependency() 
 }
 
 #[test]
-fn same_package_pattern_ban_dedupes_attribution() {
-    let left = dep_pattern_req(vec![("openssl-*", "left")]);
-    let right = dep_pattern_req(vec![("openssl-*", "right")]);
+fn same_forbidden_package_glob_dedupes_attribution() {
+    let left = dep_glob_req(vec![("openssl-*", "left")]);
+    let right = dep_glob_req(vec![("openssl-*", "right")]);
     let (merged, conflicts) =
         CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
     assert!(conflicts.is_empty());
-    let pattern = &merged.banned_dependency_package_patterns[&normal_scope()].banned["openssl-*"];
-    assert_eq!(pattern.collected.len(), 2);
+    let glob = &merged.forbidden_dependency_package_globs[&normal_scope()].globs["openssl-*"];
+    assert_eq!(glob.collected.len(), 2);
 }
 
 #[test]
-fn exact_ban_and_pattern_ban_remove_dependency_once() {
+fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
     let mut req = dep_item_req(ItemRequirements {
         required: Vec::new(),
         banned: vec![(
@@ -873,9 +865,9 @@ fn exact_ban_and_pattern_ban_remove_dependency_once() {
         )],
         closed: None,
     });
-    let _ = req.banned_dependency_package_patterns.insert(
+    let _ = req.forbidden_dependency_package_globs.insert(
         normal_scope(),
-        dependency_package_patterns(vec![("openssl-*", "pattern no openssl")]),
+        dependency_package_globs(vec![("openssl-*", "glob no openssl")]),
     );
     let out = cargo_output(
         Some(b"[dependencies]\nopenssl-sys = \"0.9\"\n"),
@@ -896,15 +888,15 @@ fn exact_ban_and_pattern_ban_remove_dependency_once() {
 }
 
 #[test]
-fn closed_collection_and_pattern_ban_remove_dependency_once() {
+fn closed_collection_and_forbidden_glob_remove_dependency_once() {
     let mut req = dep_item_req(ItemRequirements {
         required: Vec::new(),
         banned: Vec::new(),
         closed: Some("closed".to_owned()),
     });
-    let _ = req.banned_dependency_package_patterns.insert(
+    let _ = req.forbidden_dependency_package_globs.insert(
         normal_scope(),
-        dependency_package_patterns(vec![("openssl-*", "pattern no openssl")]),
+        dependency_package_globs(vec![("openssl-*", "glob no openssl")]),
     );
     let out = cargo_output(
         Some(b"[dependencies]\nopenssl-sys = \"0.9\"\n"),
@@ -919,10 +911,10 @@ fn closed_collection_and_pattern_ban_remove_dependency_once() {
 }
 
 #[test]
-fn invalid_package_pattern_reports_invalid_requirements() {
+fn invalid_forbidden_package_glob_reports_invalid_requirements() {
     let findings = cargo_findings_with(
         Some(b"[dependencies]\nserde = \"1\"\n"),
-        vec![(prov("p1"), dep_pattern_req(vec![("[", "bad pattern")]))],
+        vec![(prov("p1"), dep_glob_req(vec![("[", "bad glob")]))],
     );
     assert!(findings.iter().any(|finding| {
         matches!(

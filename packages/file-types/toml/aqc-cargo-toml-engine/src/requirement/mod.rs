@@ -11,11 +11,11 @@ mod targets;
 mod workspace;
 
 pub use cargo_toml::{
-    CargoTomlRequirements, DependencyPatternConflictBlocks, ResolvedCargoTomlRequirements,
+    CargoTomlRequirements, DependencyForbiddenGlobConflictBlocks, ResolvedCargoTomlRequirements,
 };
 pub use dependencies::DependencyIdentity;
 pub use dependencies::DependencyKind;
-pub use dependencies::DependencyPackagePattern;
+pub use dependencies::DependencyPackageGlob;
 pub use dependencies::DependencyRequirement;
 pub use dependencies::DependencyScope;
 pub use dependencies::DependencySpec;

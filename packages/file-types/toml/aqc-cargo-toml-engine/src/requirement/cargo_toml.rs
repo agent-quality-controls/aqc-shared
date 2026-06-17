@@ -9,15 +9,15 @@ use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    ConflictEntry, EngineRequirement, FileItemRequirement, ItemRequirements, KeyedItem,
-    PatternBanRequirement, PatternBanRequirements, Provenance, ResolvedItemRequirements,
-    ResolvedPatternBanRequirements, ResolvedRequirement, resolve_items, resolve_map,
-    resolve_pattern_bans,
+    ConflictEntry, EngineRequirement, FileItemRequirement, ForbiddenGlobRequirement,
+    ForbiddenGlobRequirements, ItemRequirements, KeyedItem, Provenance,
+    ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedRequirement,
+    resolve_forbidden_globs, resolve_items, resolve_map,
 };
 use globset::GlobBuilder;
 
 use super::dependencies::{
-    DependencyIdentity, DependencyPackagePattern, DependencyRequirement, DependencyScope,
+    DependencyIdentity, DependencyPackageGlob, DependencyRequirement, DependencyScope,
 };
 use super::features::FeatureMembers;
 use super::lints::{LintSetting, PackageLintsAssertion, ResolvedPackageLintsAssertion};
@@ -37,17 +37,17 @@ pub struct CargoTomlRequirements {
     pub workspace_fields: BTreeMap<String, WorkspaceFieldAssertion>,
     pub section_presence: BTreeMap<ManifestSection, SectionPresenceAssertion>,
     pub dependencies: BTreeMap<DependencyScope, ItemRequirements<DependencyRequirement>>,
-    pub banned_dependency_package_patterns:
-        BTreeMap<DependencyScope, PatternBanRequirements<DependencyPackagePattern>>,
+    pub forbidden_dependency_package_globs:
+        BTreeMap<DependencyScope, ForbiddenGlobRequirements<DependencyPackageGlob>>,
     pub workspace_dependencies: Option<ItemRequirements<DependencyRequirement>>,
-    pub banned_workspace_dependency_package_patterns:
-        Option<PatternBanRequirements<DependencyPackagePattern>>,
+    pub forbidden_workspace_dependency_package_globs:
+        Option<ForbiddenGlobRequirements<DependencyPackageGlob>>,
     pub features: Option<ItemRequirements<KeyedItem<FeatureMembers>>>,
     pub profiles: BTreeMap<String, ProfileRequirements>,
     pub targets: TargetRequirements,
     pub patch: BTreeMap<String, ItemRequirements<DependencyRequirement>>,
-    pub banned_patch_dependency_package_patterns:
-        BTreeMap<String, PatternBanRequirements<DependencyPackagePattern>>,
+    pub forbidden_patch_dependency_package_globs:
+        BTreeMap<String, ForbiddenGlobRequirements<DependencyPackageGlob>>,
 }
 
 #[rustfmt::skip]
@@ -63,33 +63,33 @@ pub struct ResolvedCargoTomlRequirements {
         BTreeMap<String, ResolvedRequirement<ResolvedWorkspaceFieldAssertion, WorkspaceFieldAssertion>>,
     pub section_presence: BTreeMap<ManifestSection, ResolvedRequirement<SectionPresenceAssertion, SectionPresenceAssertion>>,
     pub dependencies: BTreeMap<DependencyScope, ResolvedItemRequirements<DependencyRequirement>>,
-    pub banned_dependency_package_patterns:
-        BTreeMap<DependencyScope, ResolvedPatternBanRequirements<DependencyPackagePattern>>,
-    pub dependency_pattern_conflicts:
-        BTreeMap<DependencyScope, DependencyPatternConflictBlocks>,
+    pub forbidden_dependency_package_globs:
+        BTreeMap<DependencyScope, ResolvedForbiddenGlobRequirements<DependencyPackageGlob>>,
+    pub dependency_glob_conflicts:
+        BTreeMap<DependencyScope, DependencyForbiddenGlobConflictBlocks>,
     pub workspace_dependencies: Option<ResolvedItemRequirements<DependencyRequirement>>,
-    pub banned_workspace_dependency_package_patterns:
-        Option<ResolvedPatternBanRequirements<DependencyPackagePattern>>,
-    pub workspace_dependency_pattern_conflicts: DependencyPatternConflictBlocks,
+    pub forbidden_workspace_dependency_package_globs:
+        Option<ResolvedForbiddenGlobRequirements<DependencyPackageGlob>>,
+    pub workspace_dependency_glob_conflicts: DependencyForbiddenGlobConflictBlocks,
     pub features: Option<ResolvedItemRequirements<KeyedItem<FeatureMembers>>>,
     pub profiles: BTreeMap<String, ResolvedProfileRequirements>,
     pub targets: ResolvedTargetRequirements,
     pub patch: BTreeMap<String, ResolvedItemRequirements<DependencyRequirement>>,
-    pub banned_patch_dependency_package_patterns:
-        BTreeMap<String, ResolvedPatternBanRequirements<DependencyPackagePattern>>,
-    pub patch_dependency_pattern_conflicts:
-        BTreeMap<String, DependencyPatternConflictBlocks>,
+    pub forbidden_patch_dependency_package_globs:
+        BTreeMap<String, ResolvedForbiddenGlobRequirements<DependencyPackageGlob>>,
+    pub patch_dependency_glob_conflicts:
+        BTreeMap<String, DependencyForbiddenGlobConflictBlocks>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct DependencyPatternConflictBlocks {
+pub struct DependencyForbiddenGlobConflictBlocks {
     pub required: BTreeSet<DependencyIdentity>,
-    pub package_patterns: BTreeSet<String>,
+    pub package_globs: BTreeSet<String>,
 }
 
-impl DependencyPatternConflictBlocks {
+impl DependencyForbiddenGlobConflictBlocks {
     fn is_empty(&self) -> bool {
-        self.required.is_empty() && self.package_patterns.is_empty()
+        self.required.is_empty() && self.package_globs.is_empty()
     }
 }
 
@@ -131,26 +131,26 @@ impl CargoTomlRequirements {
             push_dependency_identity_overlaps(&scope.table_path(), merged, &mut conflicts);
         }
 
-        let banned_dependency_package_patterns = resolve_pattern_ban_map(
+        let forbidden_dependency_package_globs = resolve_forbidden_glob_map(
             reqs.iter()
-                .map(|(prov, req)| (prov.clone(), req.banned_dependency_package_patterns.clone()))
+                .map(|(prov, req)| (prov.clone(), req.forbidden_dependency_package_globs.clone()))
                 .collect(),
             DependencyScope::table_path,
             &mut conflicts,
         );
-        let mut dependency_pattern_conflicts = BTreeMap::new();
-        for (scope, patterns) in &banned_dependency_package_patterns {
+        let mut dependency_glob_conflicts = BTreeMap::new();
+        for (scope, globs) in &forbidden_dependency_package_globs {
             let Some(merged) = dependencies.get(scope) else {
                 continue;
             };
-            let blocks = push_dependency_package_pattern_conflicts(
+            let blocks = push_dependency_package_glob_conflicts(
                 &scope.table_path(),
                 merged,
-                patterns,
+                globs,
                 &mut conflicts,
             );
             if !blocks.is_empty() {
-                let _ = dependency_pattern_conflicts.insert(scope.clone(), blocks);
+                let _ = dependency_glob_conflicts.insert(scope.clone(), blocks);
             }
         }
 
@@ -169,31 +169,31 @@ impl CargoTomlRequirements {
             );
         }
 
-        let banned_patch_dependency_package_patterns = resolve_pattern_ban_map(
+        let forbidden_patch_dependency_package_globs = resolve_forbidden_glob_map(
             reqs.iter()
                 .map(|(prov, req)| {
                     (
                         prov.clone(),
-                        req.banned_patch_dependency_package_patterns.clone(),
+                        req.forbidden_patch_dependency_package_globs.clone(),
                     )
                 })
                 .collect(),
             |registry| format!("[patch.{registry}]"),
             &mut conflicts,
         );
-        let mut patch_dependency_pattern_conflicts = BTreeMap::new();
-        for (registry, patterns) in &banned_patch_dependency_package_patterns {
+        let mut patch_dependency_glob_conflicts = BTreeMap::new();
+        for (registry, globs) in &forbidden_patch_dependency_package_globs {
             let Some(merged) = patch.get(registry) else {
                 continue;
             };
-            let blocks = push_dependency_package_pattern_conflicts(
+            let blocks = push_dependency_package_glob_conflicts(
                 &format!("[patch.{registry}]"),
                 merged,
-                patterns,
+                globs,
                 &mut conflicts,
             );
             if !blocks.is_empty() {
-                let _ = patch_dependency_pattern_conflicts.insert(registry.clone(), blocks);
+                let _ = patch_dependency_glob_conflicts.insert(registry.clone(), blocks);
             }
         }
 
@@ -222,27 +222,28 @@ impl CargoTomlRequirements {
             push_dependency_identity_overlaps("[workspace.dependencies]", merged, &mut conflicts);
         }
 
-        let banned_workspace_dependency_package_patterns = resolve_maybe_pattern_bans(
+        let forbidden_workspace_dependency_package_globs = resolve_maybe_forbidden_globs(
             "[workspace.dependencies]",
             reqs.iter()
                 .map(|(prov, req)| {
                     (
                         prov.clone(),
-                        req.banned_workspace_dependency_package_patterns.clone(),
+                        req.forbidden_workspace_dependency_package_globs.clone(),
                     )
                 })
                 .collect(),
             &mut conflicts,
         );
-        let mut workspace_dependency_pattern_conflicts = DependencyPatternConflictBlocks::default();
-        if let (Some(merged), Some(patterns)) = (
+        let mut workspace_dependency_glob_conflicts =
+            DependencyForbiddenGlobConflictBlocks::default();
+        if let (Some(merged), Some(globs)) = (
             &workspace_dependencies,
-            &banned_workspace_dependency_package_patterns,
+            &forbidden_workspace_dependency_package_globs,
         ) {
-            workspace_dependency_pattern_conflicts = push_dependency_package_pattern_conflicts(
+            workspace_dependency_glob_conflicts = push_dependency_package_glob_conflicts(
                 "[workspace.dependencies]",
                 merged,
-                patterns,
+                globs,
                 &mut conflicts,
             );
         }
@@ -287,69 +288,66 @@ impl CargoTomlRequirements {
                 &mut conflicts,
             ),
             dependencies,
-            banned_dependency_package_patterns,
-            dependency_pattern_conflicts,
+            forbidden_dependency_package_globs,
+            dependency_glob_conflicts,
             workspace_dependencies,
-            banned_workspace_dependency_package_patterns,
-            workspace_dependency_pattern_conflicts,
+            forbidden_workspace_dependency_package_globs,
+            workspace_dependency_glob_conflicts,
             features,
             profiles,
             targets,
             patch,
-            banned_patch_dependency_package_patterns,
-            patch_dependency_pattern_conflicts,
+            forbidden_patch_dependency_package_globs,
+            patch_dependency_glob_conflicts,
         };
 
         (out, conflicts)
     }
 }
 
-fn resolve_pattern_ban_map<K, Pattern>(
-    input: Vec<(Provenance, BTreeMap<K, PatternBanRequirements<Pattern>>)>,
+fn resolve_forbidden_glob_map<K, Glob>(
+    input: Vec<(Provenance, BTreeMap<K, ForbiddenGlobRequirements<Glob>>)>,
     key_path: impl Fn(&K) -> String,
     conflicts: &mut Vec<ConflictEntry>,
-) -> BTreeMap<K, ResolvedPatternBanRequirements<Pattern>>
+) -> BTreeMap<K, ResolvedForbiddenGlobRequirements<Glob>>
 where
     K: Ord + Clone,
-    Pattern: PatternBanRequirement,
-    Pattern::Identity: ToString,
+    Glob: ForbiddenGlobRequirement,
+    Glob::Identity: ToString,
 {
-    let mut by_key: BTreeMap<K, Vec<(Provenance, PatternBanRequirements<Pattern>)>> =
+    let mut by_key: BTreeMap<K, Vec<(Provenance, ForbiddenGlobRequirements<Glob>)>> =
         BTreeMap::new();
     for (prov, map) in input {
-        for (key, patterns) in map {
-            by_key
-                .entry(key)
-                .or_default()
-                .push((prov.clone(), patterns));
+        for (key, globs) in map {
+            by_key.entry(key).or_default().push((prov.clone(), globs));
         }
     }
     by_key
         .into_iter()
-        .map(|(key, patterns)| {
+        .map(|(key, globs)| {
             let path = key_path(&key);
-            (key, resolve_pattern_bans(&path, patterns, conflicts))
+            (key, resolve_forbidden_globs(&path, globs, conflicts))
         })
         .collect()
 }
 
-fn resolve_maybe_pattern_bans<Pattern>(
+fn resolve_maybe_forbidden_globs<Glob>(
     key: &str,
-    input: Vec<(Provenance, Option<PatternBanRequirements<Pattern>>)>,
+    input: Vec<(Provenance, Option<ForbiddenGlobRequirements<Glob>>)>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> Option<ResolvedPatternBanRequirements<Pattern>>
+) -> Option<ResolvedForbiddenGlobRequirements<Glob>>
 where
-    Pattern: PatternBanRequirement,
-    Pattern::Identity: ToString,
+    Glob: ForbiddenGlobRequirement,
+    Glob::Identity: ToString,
 {
-    let patterns = input
+    let globs = input
         .into_iter()
-        .filter_map(|(prov, patterns)| patterns.map(|inner| (prov, inner)))
+        .filter_map(|(prov, globs)| globs.map(|inner| (prov, inner)))
         .collect::<Vec<_>>();
-    if patterns.is_empty() {
+    if globs.is_empty() {
         None
     } else {
-        Some(resolve_pattern_bans(key, patterns, conflicts))
+        Some(resolve_forbidden_globs(key, globs, conflicts))
     }
 }
 
@@ -509,21 +507,21 @@ fn push_dependency_file_key_package_conflicts(
     }
 }
 
-fn push_dependency_package_pattern_conflicts(
+fn push_dependency_package_glob_conflicts(
     key: &str,
     merged: &ResolvedItemRequirements<DependencyRequirement>,
-    patterns: &ResolvedPatternBanRequirements<DependencyPackagePattern>,
+    globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> DependencyPatternConflictBlocks {
-    let mut blocks = DependencyPatternConflictBlocks::default();
-    for (pattern_identity, pattern) in &patterns.banned {
-        let Ok(glob) = GlobBuilder::new(&pattern.merged.pattern)
+) -> DependencyForbiddenGlobConflictBlocks {
+    let mut blocks = DependencyForbiddenGlobConflictBlocks::default();
+    for (glob_identity, glob) in &globs.globs {
+        let Ok(compiled_glob) = GlobBuilder::new(&glob.merged.glob)
             .literal_separator(true)
             .build()
         else {
             continue;
         };
-        let matcher = glob.compile_matcher();
+        let matcher = compiled_glob.compile_matcher();
         for (requirement_identity, requirement) in &merged.required {
             let Some(package) = required_dependency_package(&requirement.merged) else {
                 continue;
@@ -536,19 +534,19 @@ fn push_dependency_package_pattern_conflicts(
                 .iter()
                 .map(|(prov, _)| (prov.clone(), format!("required package {package}")))
                 .collect::<Vec<_>>();
-            contributors.extend(pattern.collected.iter().map(|(prov, _)| {
+            contributors.extend(glob.collected.iter().map(|(prov, _)| {
                 (
                     prov.clone(),
-                    format!("banned package pattern {}", pattern.merged.pattern),
+                    format!("forbidden package glob {}", glob.merged.glob),
                 )
             }));
             conflicts.push(ConflictEntry {
                 key: format!("{key}.{package}"),
-                reason: "dependency-package-pattern-bans-required-package".to_owned(),
+                reason: "dependency-package-glob-forbids-required-package".to_owned(),
                 contributors,
             });
             let _ = blocks.required.insert(requirement_identity.clone());
-            let _ = blocks.package_patterns.insert(pattern_identity.clone());
+            let _ = blocks.package_globs.insert(glob_identity.clone());
         }
     }
     blocks

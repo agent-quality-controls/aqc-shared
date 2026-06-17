@@ -1,13 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use globset as _;
 use toml_edit as _;
 
 use aqc_clippy_toml_engine::{
-    BanEntry, BoolAssertion, ClippyTomlEngine, ClippyTomlRequirements, MsrvAssertion,
-    NumericAssertion, StringAssertion,
+    BanEntry, BoolAssertion, ClippyPathGlob, ClippyTomlEngine, ClippyTomlRequirements,
+    MsrvAssertion, NumericAssertion, StringAssertion,
 };
 use aqc_file_engine_core::{
-    Engine, EngineOutput, EngineRequirement, Finding, ItemRequirements, Provenance,
+    Engine, EngineOutput, EngineRequirement, Finding, ForbiddenGlobRequirements, ItemRequirements,
+    Provenance,
 };
 
 fn prov(policy: &str) -> Provenance {
@@ -38,6 +40,21 @@ fn ban(path: &str) -> BanEntry {
     }
 }
 
+fn path_glob(glob: &str) -> ClippyPathGlob {
+    ClippyPathGlob {
+        glob: glob.to_owned(),
+    }
+}
+
+fn path_globs(globs: Vec<(&str, &str)>) -> ForbiddenGlobRequirements<ClippyPathGlob> {
+    ForbiddenGlobRequirements {
+        globs: globs
+            .into_iter()
+            .map(|(glob, msg)| (path_glob(glob), msg.to_owned()))
+            .collect(),
+    }
+}
+
 fn ban_items(
     required: Vec<(BanEntry, String)>,
     banned: Vec<(BanEntry, String)>,
@@ -48,6 +65,80 @@ fn ban_items(
         banned,
         closed,
     }
+}
+
+#[test]
+fn forbidden_disallowed_path_globs_remove_matching_entries() {
+    let req = ClippyTomlRequirements {
+        forbidden_disallowed_method_path_globs: path_globs(vec![("std::env::*", "no env methods")]),
+        forbidden_disallowed_type_path_globs: path_globs(vec![("std::cell::*", "no cell types")]),
+        forbidden_disallowed_macro_path_globs: path_globs(vec![("std::*", "no std macros")]),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(
+            br#"disallowed-methods = ["std::env::set_var", "std::fs::read_to_string"]
+disallowed-types = ["std::cell::RefCell", "std::sync::Arc"]
+disallowed-macros = ["std::println", "tracing::info"]
+"#,
+        ),
+        vec![(prov("p1"), req)],
+    );
+    let text = String::from_utf8(output.expected_bytes)
+        .expect("engine output should remain valid UTF-8 TOML text");
+    assert!(!text.contains("std::env::set_var"));
+    assert!(text.contains("std::fs::read_to_string"));
+    assert!(!text.contains("std::cell::RefCell"));
+    assert!(text.contains("std::sync::Arc"));
+    assert!(!text.contains("std::println"));
+    assert!(text.contains("tracing::info"));
+    assert_eq!(output.findings.len(), 3);
+}
+
+#[test]
+fn forbidden_disallowed_path_glob_conflict_does_not_remove_required_entry() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ban_items(
+            vec![(ban("std::env::set_var"), "keep env".to_owned())],
+            Vec::new(),
+            None,
+        ),
+        forbidden_disallowed_method_path_globs: path_globs(vec![("std::env::*", "no env methods")]),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(br#"disallowed-methods = ["std::env::set_var"]"#),
+        vec![(prov("p1"), req)],
+    );
+    let text = String::from_utf8(output.expected_bytes)
+        .expect("engine output should remain valid UTF-8 TOML text");
+    assert!(text.contains("std::env::set_var"));
+    assert!(output.findings.iter().any(|finding| {
+        matches!(
+            finding,
+            Finding::ConflictingRequirements { reason, .. }
+                if reason == "disallowed-method-path-glob-forbids-required-path"
+        )
+    }));
+}
+
+#[test]
+fn invalid_forbidden_disallowed_path_glob_reports_invalid_requirements() {
+    let req = ClippyTomlRequirements {
+        forbidden_disallowed_method_path_globs: path_globs(vec![("[", "bad glob")]),
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(br#"disallowed-methods = ["std::env::set_var"]"#),
+        vec![(prov("p1"), req)],
+    );
+    assert!(output.findings.iter().any(|finding| {
+        matches!(
+            finding,
+            Finding::InvalidRequirements { message, .. }
+                if message.contains("invalid path glob")
+        )
+    }));
 }
 
 #[test]
