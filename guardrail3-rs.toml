@@ -99,6 +99,30 @@ reason = "Resolved conflict aggregate returned by merge; fields name the blocked
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+selector = "struct:RustfmtTomlRequirements"
+reason = "Declarative requirement struct; field-per-requirement-section is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+selector = "struct:ResolvedRustfmtTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+selector = "struct:RustfmtIgnorePathGlob"
+reason = "Plain data record for forbidden rustfmt ignore path globs."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+selector = "struct:RustfmtForbiddenIgnoreGlobConflictBlocks"
+reason = "Resolved conflict aggregate returned by merge; fields name the blocked required ignore paths and glob requirements."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/dependencies.rs"
 selector = "struct:DependencySpec"
 reason = "Plain data record mirroring a Cargo.toml dependency entry shape."
