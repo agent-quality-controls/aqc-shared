@@ -1,0 +1,28 @@
+[package]
+name = "aqc-rustfmt-toml-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "FileEngine for rustfmt.toml. Writes Rustfmt scalar and list settings via toml_edit."
+publish = true
+readme = "README.md"
+keywords = ["aqc", "rustfmt", "toml", "guardrails"]
+categories = ["development-tools", "config", "parser-implementations"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["all"]
+all = ["api"]
+api = []
+
+[dependencies]
+aqc-file-engine-core = { version = "0.1.0", path = "../../../aqc-file-engine-core" }
+toml_edit = "0.25"
