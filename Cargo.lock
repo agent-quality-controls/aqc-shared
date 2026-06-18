@@ -66,6 +66,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aqc-rust-syntax"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "syn",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

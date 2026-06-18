@@ -4,6 +4,7 @@ members = [
     "packages/aqc-filetree",
     "packages/aqc-fs-utils",
     "packages/aqc-git-helpers",
+    "packages/source/rust/aqc-rust-syntax",
     "packages/file-types/toml/aqc-cargo-toml-engine",
     "packages/file-types/toml/aqc-clippy-toml-engine",
 ]

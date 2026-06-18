@@ -1,0 +1,23 @@
+[package]
+name = "aqc-rust-syntax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+description = "File-local Rust syntax facts for Agent Quality Controls."
+publish = true
+readme = "README.md"
+keywords = ["aqc", "rust", "syntax", "syn"]
+categories = ["development-tools", "parser-implementations"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+[dependencies]
+proc-macro2 = { version = "1", features = ["span-locations"] }
+syn = { version = "2", features = ["full", "parsing", "visit"] }
