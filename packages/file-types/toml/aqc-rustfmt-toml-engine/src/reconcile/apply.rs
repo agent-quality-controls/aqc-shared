@@ -6,6 +6,7 @@ use toml_edit::DocumentMut;
 use crate::reconcile::settings;
 use crate::requirement::ResolvedRustfmtTomlRequirements;
 
+/// Applies resolved rustfmt requirements to a TOML document.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     requirement: &ResolvedRustfmtTomlRequirements,

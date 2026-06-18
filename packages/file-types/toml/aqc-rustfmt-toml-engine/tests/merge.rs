@@ -8,6 +8,8 @@ use aqc_rustfmt_toml_engine::{
 use globset as _;
 use toml_edit as _;
 
+type IgnoreGlobCases<'a> = Vec<(&'a str, &'a str)>;
+
 #[test]
 fn merge_keeps_equal_scalar_requirements() {
     let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![
@@ -68,7 +70,10 @@ fn merge_reports_conflicting_scalar_requirements() {
         1,
         "conflicting edition must produce one conflict"
     );
-    assert_eq!(conflicts[0].key, "edition", "conflict key must be file key");
+    let conflict = conflicts
+        .first()
+        .expect("one scalar conflict should be present");
+    assert_eq!(conflict.key, "edition", "conflict key must be file key");
 }
 
 #[test]
@@ -90,7 +95,11 @@ fn forbidden_ignore_path_globs_dedupe_attribution() {
 
     assert!(conflicts.is_empty(), "same glob should merge cleanly");
     assert_eq!(
-        resolved.forbidden_ignore_path_globs.globs["target/**"]
+        resolved
+            .forbidden_ignore_path_globs
+            .globs
+            .get("target/**")
+            .expect("merged forbidden glob should exist")
             .collected
             .len(),
         2,
@@ -149,7 +158,7 @@ fn req(assertion: RustfmtScalarAssertion) -> RustfmtTomlRequirements {
     }
 }
 
-fn ignore_globs(globs: Vec<(&str, &str)>) -> RustfmtTomlRequirements {
+fn ignore_globs(globs: IgnoreGlobCases<'_>) -> RustfmtTomlRequirements {
     RustfmtTomlRequirements {
         forbidden_ignore_path_globs: ForbiddenGlobRequirements {
             globs: globs

@@ -16,6 +16,25 @@ use aqc_file_engine_core::{
 };
 use globset::GlobBuilder;
 
+/// Resolved scalar settings keyed by rustfmt setting name.
+pub type ResolvedRustfmtScalarSettings = BTreeMap<
+    RustfmtScalarSetting,
+    ResolvedRequirement<ResolvedRustfmtScalarAssertion, RustfmtScalarAssertion>,
+>;
+
+/// Policy provenance entries that closed the rustfmt setting set.
+pub type ResolvedRustfmtClosedSettings = Vec<(Provenance, String)>;
+
+/// Raw rustfmt requirement inputs grouped with provenance.
+type RustfmtRequirementInput = Vec<(Provenance, RustfmtTomlRequirements)>;
+
+/// Result of merging rustfmt requirements.
+type RustfmtMergeOutput = (ResolvedRustfmtTomlRequirements, Vec<ConflictEntry>);
+
+/// List setting requirements grouped by rustfmt list setting.
+type RustfmtListRequirementsByKey =
+    BTreeMap<RustfmtListSetting, Vec<(Provenance, ListRequirements)>>;
+
 #[derive(Debug, Clone, Default)]
 pub struct RustfmtTomlRequirements {
     pub scalar_settings: BTreeMap<RustfmtScalarSetting, RustfmtScalarAssertion>,
@@ -26,21 +45,16 @@ pub struct RustfmtTomlRequirements {
 
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedRustfmtTomlRequirements {
-    pub scalar_settings: BTreeMap<
-        RustfmtScalarSetting,
-        ResolvedRequirement<ResolvedRustfmtScalarAssertion, RustfmtScalarAssertion>,
-    >,
+    pub scalar_settings: ResolvedRustfmtScalarSettings,
     pub list_settings: BTreeMap<RustfmtListSetting, ResolvedListRequirements>,
     pub forbidden_ignore_path_globs: ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
     pub ignore_glob_conflicts: RustfmtForbiddenIgnoreGlobConflictBlocks,
-    pub closed_settings: Vec<(Provenance, String)>,
+    pub closed_settings: ResolvedRustfmtClosedSettings,
 }
 
 impl RustfmtTomlRequirements {
     #[must_use]
-    pub fn merge(
-        reqs: Vec<(Provenance, RustfmtTomlRequirements)>,
-    ) -> (ResolvedRustfmtTomlRequirements, Vec<ConflictEntry>) {
+    pub fn merge(reqs: RustfmtRequirementInput) -> RustfmtMergeOutput {
         let mut conflicts = Vec::new();
         let scalar_settings = resolve_map(
             reqs.iter()
@@ -57,8 +71,7 @@ impl RustfmtTomlRequirements {
             &mut conflicts,
         );
 
-        let mut lists_by_key: BTreeMap<RustfmtListSetting, Vec<(Provenance, ListRequirements)>> =
-            BTreeMap::new();
+        let mut lists_by_key: RustfmtListRequirementsByKey = BTreeMap::new();
         let mut closed_settings = Vec::new();
         for (prov, req) in reqs {
             for (key, list) in req.list_settings {
@@ -179,6 +192,7 @@ impl OnEmptyClass for ResolvedRustfmtScalarAssertion {
     }
 }
 
+/// Converts a raw scalar assertion into its resolved form.
 fn resolve_assertion(assertion: &RustfmtScalarAssertion) -> ResolvedRustfmtScalarAssertion {
     match assertion {
         RustfmtScalarAssertion::Equals(value, message) => {
@@ -196,6 +210,7 @@ fn resolve_assertion(assertion: &RustfmtScalarAssertion) -> ResolvedRustfmtScala
     }
 }
 
+/// Renders a scalar assertion for conflict attribution.
 fn render_assertion(assertion: &RustfmtScalarAssertion) -> String {
     match assertion {
         RustfmtScalarAssertion::Equals(value, _) => format!("equals {value:?}"),
@@ -295,6 +310,10 @@ pub enum RustfmtScalarSetting {
 
 impl RustfmtScalarSetting {
     #[must_use]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Exhaustive rustfmt setting map is intentionally one match table."
+    )]
     pub const fn file_key(self) -> &'static str {
         match self {
             Self::MaxWidth => "max_width",
@@ -428,6 +447,7 @@ pub struct RustfmtForbiddenIgnoreGlobConflictBlocks {
     pub path_globs: BTreeSet<String>,
 }
 
+/// Records conflicts between required ignore entries and forbidden path globs.
 fn push_ignore_glob_conflicts(
     ignore: &ResolvedListRequirements,
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,

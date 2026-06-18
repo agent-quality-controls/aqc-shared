@@ -8,6 +8,7 @@ use toml_edit::DocumentMut;
 use super::toml_io::render_item;
 use crate::requirement::ResolvedRustfmtTomlRequirements;
 
+/// Removes settings not named by a closed requirement set.
 pub(super) fn apply_closed(
     doc: &mut DocumentMut,
     requirement: &ResolvedRustfmtTomlRequirements,

@@ -12,6 +12,7 @@ use crate::requirement::{
     ResolvedRustfmtScalarAssertion, ResolvedRustfmtTomlRequirements, RustfmtScalarAssertion,
 };
 
+/// Applies every resolved rustfmt setting group.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     requirement: &ResolvedRustfmtTomlRequirements,
@@ -34,6 +35,7 @@ pub(crate) fn apply(
     apply_closed(doc, requirement, findings);
 }
 
+/// Keeps attribution only from scalar assertions that fail the current value.
 fn scalar_attribution_for(
     doc: &DocumentMut,
     key: &str,
@@ -53,6 +55,7 @@ fn scalar_attribution_for(
     }
 }
 
+/// Returns whether a raw scalar assertion is unsatisfied by the current TOML item.
 fn scalar_assertion_fails(current: Option<&Item>, assertion: &RustfmtScalarAssertion) -> bool {
     match assertion {
         RustfmtScalarAssertion::Equals(want, _) => {

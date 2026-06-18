@@ -8,6 +8,7 @@ use toml_edit::{DocumentMut, Item, value as toml_value};
 use super::toml_io::render_item;
 use crate::requirement::ResolvedRustfmtScalarAssertion;
 
+/// Applies one resolved scalar assertion.
 pub(super) fn apply_scalar(
     doc: &mut DocumentMut,
     key: &str,
@@ -31,6 +32,7 @@ pub(super) fn apply_scalar(
     }
 }
 
+/// Writes a scalar value when it does not equal the expected value.
 fn apply_scalar_equals(
     doc: &mut DocumentMut,
     key: &str,
@@ -53,6 +55,7 @@ fn apply_scalar_equals(
     doc[key] = scalar_item(want);
 }
 
+/// Reports when a scalar value is not one of the allowed values.
 fn apply_scalar_one_of(
     doc: &DocumentMut,
     key: &str,
@@ -78,6 +81,7 @@ fn apply_scalar_one_of(
     });
 }
 
+/// Reports when a scalar key is missing.
 fn apply_scalar_present(
     doc: &DocumentMut,
     key: &str,
@@ -98,6 +102,7 @@ fn apply_scalar_present(
     });
 }
 
+/// Removes a scalar key that must be absent.
 fn apply_scalar_absent(
     doc: &mut DocumentMut,
     key: &str,
@@ -119,6 +124,7 @@ fn apply_scalar_absent(
     let _ = doc.as_table_mut().remove(key);
 }
 
+/// Returns whether a TOML item matches a scalar expectation.
 pub(super) fn scalar_matches(item: &Item, want: &ConfigScalar) -> bool {
     match want {
         ConfigScalar::Str(expected) => item.as_str() == Some(expected.as_str()),
@@ -127,6 +133,7 @@ pub(super) fn scalar_matches(item: &Item, want: &ConfigScalar) -> bool {
     }
 }
 
+/// Converts a scalar expectation to a TOML item.
 fn scalar_item(want: &ConfigScalar) -> Item {
     match want {
         ConfigScalar::Str(value) => toml_value(value.as_str()),
@@ -135,6 +142,7 @@ fn scalar_item(want: &ConfigScalar) -> Item {
     }
 }
 
+/// Renders a scalar expectation for findings.
 fn render_scalar(want: &ConfigScalar) -> String {
     match want {
         ConfigScalar::Str(value) => format!("{value:?}"),

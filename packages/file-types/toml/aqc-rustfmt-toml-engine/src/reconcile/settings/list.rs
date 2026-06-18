@@ -5,6 +5,7 @@ use toml_edit::DocumentMut;
 
 use super::toml_io::{attribution, list_values, render_item, render_list, write_list};
 
+/// Applies contains, excludes, and exact list requirements.
 pub(super) fn apply_list(
     doc: &mut DocumentMut,
     key: &str,
@@ -20,6 +21,7 @@ pub(super) fn apply_list(
     apply_list_exact(doc, key, requirements, findings);
 }
 
+/// Adds missing required list entries.
 fn apply_list_contains(
     doc: &mut DocumentMut,
     key: &str,
@@ -50,6 +52,7 @@ fn apply_list_contains(
     }
 }
 
+/// Removes forbidden list entries.
 fn apply_list_excludes(
     doc: &mut DocumentMut,
     key: &str,
@@ -83,6 +86,7 @@ fn apply_list_excludes(
     }
 }
 
+/// Replaces the list when an exact list requirement is unsatisfied.
 fn apply_list_exact(
     doc: &mut DocumentMut,
     key: &str,
@@ -112,6 +116,7 @@ fn apply_list_exact(
     write_list(doc, key, &exact.merged);
 }
 
+/// Reports malformed list shape before applying list requirements.
 fn report_list_shape(
     doc: &DocumentMut,
     key: &str,
@@ -152,6 +157,7 @@ fn report_list_shape(
     malformed
 }
 
+/// Returns the first message attached to list requirements.
 fn list_message(requirements: &ResolvedListRequirements) -> String {
     requirements
         .contains
@@ -174,6 +180,7 @@ fn list_message(requirements: &ResolvedListRequirements) -> String {
         .to_owned()
 }
 
+/// Returns attribution from all list requirement contributors.
 fn list_attribution(requirements: &ResolvedListRequirements) -> Vec<Provenance> {
     requirements
         .contains

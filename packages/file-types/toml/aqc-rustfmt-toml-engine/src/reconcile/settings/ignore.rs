@@ -9,6 +9,7 @@ use toml_edit::DocumentMut;
 use super::toml_io::{list_values, render_item, write_list};
 use crate::requirement::RustfmtIgnorePathGlob;
 
+/// Applies forbidden path globs to the `ignore` list.
 pub(super) fn apply_forbidden_ignore_path_globs(
     doc: &mut DocumentMut,
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
@@ -56,6 +57,7 @@ pub(super) fn apply_forbidden_ignore_path_globs(
     }
 }
 
+/// Removes `ignore` values matched by one compiled glob.
 fn remove_matching_ignore_values(
     doc: &mut DocumentMut,
     matcher: &GlobMatcher,
@@ -89,6 +91,7 @@ fn remove_matching_ignore_values(
     }
 }
 
+/// Reports malformed `ignore` list shape before glob matching.
 fn report_ignore_glob_shape(
     doc: &DocumentMut,
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
@@ -128,6 +131,7 @@ fn report_ignore_glob_shape(
     malformed
 }
 
+/// Returns the first message attached to forbidden ignore globs.
 fn ignore_glob_message(globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>) -> String {
     globs
         .globs
@@ -138,6 +142,7 @@ fn ignore_glob_message(globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePa
         .to_owned()
 }
 
+/// Returns attribution from all forbidden ignore glob contributors.
 fn ignore_glob_attribution(
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
 ) -> Vec<Provenance> {
@@ -148,6 +153,7 @@ fn ignore_glob_attribution(
         .collect()
 }
 
+/// Compiles a rustfmt ignore path glob.
 fn compile_ignore_path_glob(glob: &RustfmtIgnorePathGlob) -> Result<GlobMatcher, String> {
     GlobBuilder::new(&glob.glob)
         .literal_separator(true)

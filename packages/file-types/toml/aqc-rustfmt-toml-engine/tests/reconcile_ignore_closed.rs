@@ -10,6 +10,8 @@ use aqc_rustfmt_toml_engine::{
 use globset as _;
 use toml_edit as _;
 
+type IgnoreGlobCases<'a> = Vec<(&'a str, &'a str)>;
+
 #[test]
 fn forbidden_ignore_path_glob_removes_matching_values() {
     let output = reconcile(
@@ -34,7 +36,7 @@ fn forbidden_ignore_path_glob_removes_matching_values() {
     );
     assert!(
         output.findings.iter().any(
-            |finding| matches!(finding, Finding::Mismatch { key, expected, .. } if key == "ignore.target/generated" && expected == "absent (path glob)")
+            |finding| matches!(finding, Finding::Mismatch { key, expected: finding_expected, .. } if key == "ignore.target/generated" && finding_expected == "absent (path glob)")
         ),
         "matching ignore value should report a path-glob mismatch"
     );
@@ -78,7 +80,7 @@ fn forbidden_ignore_path_glob_reports_and_normalizes_malformed_ignore_list() {
     );
     assert!(
         output.findings.iter().any(
-            |finding| matches!(finding, Finding::Mismatch { key, expected, .. } if key == "ignore[1]" && expected == "string")
+            |finding| matches!(finding, Finding::Mismatch { key, expected: finding_expected, .. } if key == "ignore[1]" && finding_expected == "string")
         ),
         "non-string ignore item should report shape finding"
     );
@@ -206,7 +208,7 @@ fn reconcile_resolved(
     )
 }
 
-fn ignore_globs(globs: Vec<(&str, &str)>) -> ForbiddenGlobRequirements<RustfmtIgnorePathGlob> {
+fn ignore_globs(globs: IgnoreGlobCases<'_>) -> ForbiddenGlobRequirements<RustfmtIgnorePathGlob> {
     ForbiddenGlobRequirements {
         globs: globs
             .into_iter()
