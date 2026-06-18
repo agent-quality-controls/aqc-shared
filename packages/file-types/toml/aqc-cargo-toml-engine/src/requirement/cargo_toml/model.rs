@@ -4,6 +4,17 @@
     clippy::disallowed_types,
     reason = "`Any` is used only for EngineRequirement downcast dispatch."
 )]
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private aggregate model helpers support the shared requirement API."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Cargo aggregate structs expose field-per-section requirement shapes."
+)]
 
 use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};

@@ -12,23 +12,27 @@ use aqc_file_engine_core::{
     Provenance,
 };
 
+type ClippyRequirementInput = (Provenance, ClippyTomlRequirements);
+type PathGlobInput<'a> = (&'a str, &'a str);
+type BanRequirementInput = (BanEntry, String);
+
 fn prov(policy: &str) -> Provenance {
     Provenance {
         policy: policy.to_owned(),
     }
 }
 
-fn clippy_findings(reqs: Vec<(Provenance, ClippyTomlRequirements)>) -> Vec<Finding> {
+fn clippy_findings(reqs: Vec<ClippyRequirementInput>) -> Vec<Finding> {
     clippy_output(Some(b""), reqs).findings
 }
 
-fn clippy_output(
-    bytes: Option<&[u8]>,
-    reqs: Vec<(Provenance, ClippyTomlRequirements)>,
-) -> EngineOutput {
+fn clippy_output(bytes: Option<&[u8]>, reqs: Vec<ClippyRequirementInput>) -> EngineOutput {
     let reqs = reqs
         .into_iter()
-        .map(|(p, r)| (p, Box::new(r) as Box<dyn EngineRequirement>))
+        .map(|(p, r)| {
+            let requirement: Box<dyn EngineRequirement> = Box::new(r);
+            (p, requirement)
+        })
         .collect::<Vec<_>>();
     ClippyTomlEngine.reconcile(bytes, &reqs)
 }
@@ -46,7 +50,7 @@ fn path_glob(glob: &str) -> ClippyPathGlob {
     }
 }
 
-fn path_globs(globs: Vec<(&str, &str)>) -> ForbiddenGlobRequirements<ClippyPathGlob> {
+fn path_globs(globs: Vec<PathGlobInput<'_>>) -> ForbiddenGlobRequirements<ClippyPathGlob> {
     ForbiddenGlobRequirements {
         globs: globs
             .into_iter()
@@ -55,9 +59,9 @@ fn path_globs(globs: Vec<(&str, &str)>) -> ForbiddenGlobRequirements<ClippyPathG
     }
 }
 
-fn ban_items(
-    required: Vec<(BanEntry, String)>,
-    banned: Vec<(BanEntry, String)>,
+const fn ban_items(
+    required: Vec<BanRequirementInput>,
+    banned: Vec<BanRequirementInput>,
     closed: Option<String>,
 ) -> ItemRequirements<BanEntry> {
     ItemRequirements {
@@ -328,12 +332,12 @@ fn clippy_thresholds_compose_per_key() {
     };
     let (merged, conflicts) =
         ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    let NumericAssertion::AtMost(value, _) = merged.thresholds["too-many-lines-threshold"].merged
-    else {
-        panic!("expected NumericAssertion");
-    };
     assert!(conflicts.is_empty());
-    assert_eq!(value, 80);
+    let threshold = merged
+        .thresholds
+        .get("too-many-lines-threshold")
+        .expect("merged clippy requirements should contain too-many-lines-threshold");
+    assert!(matches!(threshold.merged, NumericAssertion::AtMost(80, _)));
 }
 
 #[test]
@@ -354,12 +358,15 @@ fn clippy_threshold_range_bounds_compose() {
     };
     let (merged, conflicts) =
         ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    let NumericAssertion::Range(min, max, _) = merged.thresholds["too-many-lines-threshold"].merged
-    else {
-        panic!("expected NumericAssertion::Range");
-    };
     assert!(conflicts.is_empty());
-    assert_eq!((min, max), (40, 80));
+    let threshold = merged
+        .thresholds
+        .get("too-many-lines-threshold")
+        .expect("merged clippy requirements should contain too-many-lines-threshold");
+    assert!(matches!(
+        threshold.merged,
+        NumericAssertion::Range(40, 80, _)
+    ));
 }
 
 #[test]
@@ -374,15 +381,15 @@ fn clippy_msrv_keeps_strongest_floor() {
     };
     let (merged, conflicts) =
         ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    let MsrvAssertion::AtLeast(version, _) = &merged
+    let msrv = merged
         .msrv
         .expect("merged clippy requirements should contain an msrv assertion")
-        .merged
-    else {
-        panic!("expected AtLeast");
-    };
+        .merged;
     assert!(conflicts.is_empty());
-    assert_eq!(version, "1.85");
+    assert!(matches!(
+        msrv,
+        MsrvAssertion::AtLeast(ref version, _) if version == "1.85"
+    ));
 }
 
 #[test]
@@ -414,8 +421,12 @@ fn clippy_scalar_implication_cases_compose() {
         (prov("p3"), third),
     ]);
     assert!(conflicts.is_empty());
+    let names = merged
+        .enums
+        .get("disallowed-names")
+        .expect("merged clippy requirements should contain disallowed-names");
     assert!(matches!(
-        merged.enums["disallowed-names"].merged,
+        names.merged,
         StringAssertion::Equals(ref value, _) if value == "warn"
     ));
 }

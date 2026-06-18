@@ -1,3 +1,9 @@
+#![expect(
+    clippy::field_reassign_with_default,
+    clippy::indexing_slicing,
+    reason = "These tests keep compact Cargo requirement fixtures and index known conflict entries."
+)]
+
 #[allow(
     dead_code,
     unused_imports,

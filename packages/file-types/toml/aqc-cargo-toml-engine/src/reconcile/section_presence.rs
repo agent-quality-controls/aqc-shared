@@ -5,6 +5,11 @@
 //! needs a `name` the engine cannot invent). `Absent`: remove the whole table
 //! when present (vacuous when already missing).
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Section reconciliation consumes resolved map requirement shapes."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement};

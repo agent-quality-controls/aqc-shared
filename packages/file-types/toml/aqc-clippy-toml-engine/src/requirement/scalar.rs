@@ -1,5 +1,22 @@
 //! Clippy scalar assertion requirement types.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private scalar helpers are internal requirement composition steps."
+    )
+)]
+#![expect(
+    clippy::excessive_nesting,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    clippy::type_complexity,
+    clippy::unnecessary_find_map,
+    clippy::wildcard_enum_match_arm,
+    reason = "Scalar requirement composition keeps compact match logic over closed local enums."
+)]
+
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
@@ -381,7 +398,7 @@ fn intersect_string_sets(
     let mut iter = oneofs.into_iter();
     let (mut out, msg) = iter.next()?;
     for (next, _) in iter {
-        out = out.intersection(&next).cloned().collect();
+        out.retain(|item| next.contains(item));
     }
     Some((out, msg))
 }

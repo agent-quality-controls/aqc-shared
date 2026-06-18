@@ -1,5 +1,17 @@
 //! Shared requirement merge helpers.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private aggregate resolution helpers are internal requirement steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Resolution helpers preserve the public requirement map shapes."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{

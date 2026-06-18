@@ -1,11 +1,28 @@
 //! `[package].<field>` / `[workspace.package].<field>` assertions.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private package-field composition helpers are internal requirement steps."
+    )
+)]
+#![expect(
+    clippy::indexing_slicing,
+    clippy::option_option,
+    clippy::type_complexity,
+    clippy::wildcard_enum_match_arm,
+    reason = "Package-field composition uses three-state resolution and closed local assertion enums."
+)]
+
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
     ResolvedListRequirements, ResolvedRequirement, parse_version_tuple, resolve_list,
 };
+
+use super::helpers::{intersect_string_sets_with_message, push_debug_conflict};
 
 /// What must hold about a single `[package].<field>` (or
 /// `[workspace.package].<field>`). One enum covers scalar and list-shaped
@@ -222,7 +239,7 @@ fn resolve_scalar_assertions(
         push_conflict(key, &items, conflicts);
         return None;
     }
-    let oneof = intersect_oneofs(oneofs);
+    let oneof = intersect_string_sets_with_message(oneofs);
     let floor = strongest_floor(floors);
 
     let merged = if let Some((value, msg)) = equals.first() {
@@ -266,15 +283,6 @@ fn resolve_scalar_assertions(
         merged,
         collected: items,
     })
-}
-
-fn intersect_oneofs(oneofs: Vec<(BTreeSet<String>, String)>) -> Option<(BTreeSet<String>, String)> {
-    let mut iter = oneofs.into_iter();
-    let (mut out, msg) = iter.next()?;
-    for (next, _) in iter {
-        out = out.intersection(&next).cloned().collect();
-    }
-    Some((out, msg))
 }
 
 fn strongest_floor(floors: Vec<(String, String)>) -> Option<(String, String)> {
@@ -321,12 +329,5 @@ fn push_conflict(
     items: &[(Provenance, PackageFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    conflicts.push(ConflictEntry {
-        key: key.to_owned(),
-        reason: "scalar-disagree".to_owned(),
-        contributors: items
-            .iter()
-            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
-            .collect(),
-    });
+    push_debug_conflict(key, "scalar-disagree", items, conflicts);
 }

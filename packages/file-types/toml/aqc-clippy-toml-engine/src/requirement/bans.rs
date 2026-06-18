@@ -1,5 +1,13 @@
 //! Clippy disallowed path requirement types.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private conflict helper only supports requirement merging."
+    )
+)]
+
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
@@ -82,7 +90,7 @@ pub(crate) fn push_clippy_path_glob_conflicts(
                     .map(|(prov, _)| (prov.clone(), "forbidden".to_owned())),
             );
             conflicts.push(ConflictEntry {
-                key: format!("{key}.{}", required_path),
+                key: format!("{key}.{required_path}"),
                 reason: reason.to_owned(),
                 contributors,
             });

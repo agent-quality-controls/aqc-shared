@@ -1,5 +1,17 @@
 //! Reconciliation for clippy.toml numeric threshold keys.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private threshold reconciliation helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Private threshold reconciliation helpers carry repeated resolved requirement shapes."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
@@ -47,11 +59,11 @@ fn assertion_fails(current: Option<&Item>, assertion: &NumericAssertion) -> bool
         NumericAssertion::Equals(want, _) => current_int != i64::try_from(*want).ok(),
         NumericAssertion::AtMost(want, _) => {
             let ceiling = i64::try_from(*want).unwrap_or(i64::MAX);
-            !current_int.is_some_and(|value| value <= ceiling)
+            current_int.is_none_or(|value| value > ceiling)
         }
         NumericAssertion::AtLeast(want, _) => {
             let floor = i64::try_from(*want).unwrap_or(0);
-            !current_int.is_some_and(|value| value >= floor)
+            current_int.is_none_or(|value| value < floor)
         }
         NumericAssertion::Range(min, max, _) => {
             let floor = i64::try_from(*min).unwrap_or(0);
@@ -84,7 +96,7 @@ fn apply_one(
             apply_range(doc, key, *min, *max, message, attribution, findings);
         }
         NumericAssertion::Present(message) => {
-            apply_present(doc, key, message, attribution, findings)
+            apply_present(doc, key, message, attribution, findings);
         }
         NumericAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
     }

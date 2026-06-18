@@ -1,12 +1,29 @@
 //! Target-table assertions: `[lib]` fields and the named `[[bin]]` /
 //! `[[example]]` / `[[test]]` / `[[bench]]` entries.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private target-table composition helpers are internal requirement steps."
+    )
+)]
+#![expect(
+    clippy::indexing_slicing,
+    clippy::option_option,
+    clippy::type_complexity,
+    clippy::wildcard_enum_match_arm,
+    reason = "Target-table composition uses three-state resolution and closed local assertion enums."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
     ResolvedListRequirements, ResolvedRequirement, resolve_list, resolve_map,
 };
+
+use super::helpers::{intersect_string_sets_with_message, push_debug_conflict};
 
 /// What must hold about a single target-table field (`path`, `harness`,
 /// `doctest`, `crate-type`, `required-features`, ...).
@@ -316,7 +333,7 @@ fn compose_field_scalar(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let oneof = intersect_oneofs(
+    let oneof = intersect_string_sets_with_message(
         items
             .iter()
             .filter_map(|(_, assertion)| match assertion {
@@ -352,15 +369,6 @@ fn compose_field_scalar(
         merged,
         collected: items,
     })
-}
-
-fn intersect_oneofs(oneofs: Vec<(BTreeSet<String>, String)>) -> Option<(BTreeSet<String>, String)> {
-    let mut iter = oneofs.into_iter();
-    let (mut out, msg) = iter.next()?;
-    for (next, _) in iter {
-        out = out.intersection(&next).cloned().collect();
-    }
-    Some((out, msg))
 }
 
 fn first_field_msg(items: &[(Provenance, TargetFieldAssertion)]) -> String {
@@ -401,14 +409,7 @@ fn push_field_conflict(
     items: &[(Provenance, TargetFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    conflicts.push(ConflictEntry {
-        key: key.to_owned(),
-        reason: "scalar-disagree".to_owned(),
-        contributors: items
-            .iter()
-            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
-            .collect(),
-    });
+    push_debug_conflict(key, "scalar-disagree", items, conflicts);
 }
 
 fn push_table_conflict(
@@ -416,12 +417,5 @@ fn push_table_conflict(
     items: &[(Provenance, TargetTableAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    conflicts.push(ConflictEntry {
-        key: key.to_owned(),
-        reason: "scalar-disagree".to_owned(),
-        contributors: items
-            .iter()
-            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
-            .collect(),
-    });
+    push_debug_conflict(key, "scalar-disagree", items, conflicts);
 }

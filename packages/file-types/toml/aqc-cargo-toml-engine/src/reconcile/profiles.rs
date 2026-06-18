@@ -4,6 +4,14 @@
 //! Lazy: check-only field assertions (`OneOf`, `Present`) and vacuous removals
 //! create no tables.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private profile reconciliation helpers are internal steps."
+    )
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};

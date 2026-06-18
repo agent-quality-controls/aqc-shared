@@ -1,5 +1,17 @@
 //! Dependency removal planning and execution.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private dependency removal helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Dependency match helpers return file-key/spec pairs from Cargo tables."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedForbiddenGlobRequirements, Severity};
@@ -93,36 +105,38 @@ pub(super) fn apply_package_glob_forbids(
             .iter()
             .map(|(prov, _)| prov.clone())
             .collect::<Vec<_>>();
-        let msg = entry
+        let message = entry
             .collected
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
         let matcher = match compile_package_glob(glob) {
             Ok(matcher) => matcher,
-            Err(message) => {
+            Err(error_message) => {
                 findings.push(Finding::InvalidRequirements {
                     key: format!("{display_path}.{}", glob.glob),
-                    message,
+                    message: error_message,
                     contributors: entry
                         .collected
                         .iter()
-                        .map(|(prov, msg)| (prov.policy.clone(), msg.clone()))
+                        .map(|(prov, contributor_message)| {
+                            (prov.policy.clone(), contributor_message.clone())
+                        })
                         .collect(),
                 });
                 continue;
             }
         };
-        let matches = table
+        let matched_dependencies = table
             .map(|table| read_package_glob_matches(table, &matcher))
             .unwrap_or_default();
-        for (file_key, current) in matches {
+        for (file_key, current) in matched_dependencies {
             queue_removal(
                 removals,
                 file_key,
                 current,
                 "absent (package glob)",
-                &msg,
+                &message,
                 &attribution,
             );
         }

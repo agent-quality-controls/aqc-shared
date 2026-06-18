@@ -1,5 +1,17 @@
 //! Dependency conflict checks used during requirement merging.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private aggregate conflict helpers are internal requirement steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Conflict helpers consume resolved dependency and forbidden-glob requirement shapes."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{

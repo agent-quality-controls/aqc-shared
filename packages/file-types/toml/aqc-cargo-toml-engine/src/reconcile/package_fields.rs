@@ -4,6 +4,18 @@
 //! (`Absent` or a list exclusion on an absent key) never create the table. The
 //! table is fetched mutably only when a write is about to happen.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private package-field helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Package-field reconciliation consumes resolved requirement map shapes."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};

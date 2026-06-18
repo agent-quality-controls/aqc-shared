@@ -1,8 +1,14 @@
 //! Declarative requirement and assertion types accepted by `CargoTomlEngine`.
 
+#![expect(
+    clippy::module_name_repetitions,
+    reason = "Public re-exports preserve Cargo domain names for downstream callers."
+)]
+
 mod cargo_toml;
 mod dependencies;
 mod features;
+mod helpers;
 mod lints;
 mod package;
 mod profiles;

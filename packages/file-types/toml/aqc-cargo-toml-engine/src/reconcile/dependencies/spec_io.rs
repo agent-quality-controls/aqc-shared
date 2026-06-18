@@ -1,5 +1,17 @@
 //! Parse, compare, and render TOML dependency entries.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private dependency TOML helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Dependency lookup helpers return Cargo file-key/spec pairs."
+)]
+
 use toml_edit::{Array, InlineTable, Item, Table, Value};
 
 use crate::requirement::DependencySpec;

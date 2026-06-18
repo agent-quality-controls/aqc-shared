@@ -1,5 +1,11 @@
 //! `[lints.<tool>]` / `[workspace.lints.<tool>]` tables and `[lints]`.
 
+#![expect(
+    clippy::excessive_nesting,
+    clippy::type_complexity,
+    reason = "Lint requirement composition groups collected requirements by lint tool."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{

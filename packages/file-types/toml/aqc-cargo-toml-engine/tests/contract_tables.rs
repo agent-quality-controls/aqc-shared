@@ -1,3 +1,11 @@
+#![expect(
+    clippy::as_conversions,
+    clippy::field_reassign_with_default,
+    clippy::missing_const_for_fn,
+    clippy::type_complexity,
+    reason = "Contract tests keep compact fixture construction close to each assertion."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_cargo_toml_engine as cargo;

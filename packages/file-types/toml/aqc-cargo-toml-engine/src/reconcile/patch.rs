@@ -1,6 +1,11 @@
 //! Reconcile `[patch.<registry>]` tables. Reuses the dependency helpers
 //! against the nested `[patch.<registry>]` table.
 
+#![expect(
+    clippy::type_complexity,
+    reason = "Patch reconciliation consumes resolved dependency and forbidden-glob maps."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements};

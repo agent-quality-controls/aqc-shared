@@ -1,5 +1,13 @@
 //! Clippy requirement merge orchestration.
 
+#![expect(
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::type_complexity,
+    clippy::use_self,
+    reason = "Merge orchestration is a field-by-field aggregate construction."
+)]
+
 use aqc_file_engine_core::{
     ConflictEntry, Provenance, resolve_forbidden_globs, resolve_items, resolve_map, resolve_maybe,
 };

@@ -1,5 +1,11 @@
 //! Public dependency reconciliation entry points.
 
+#![expect(
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    reason = "Dependency reconciliation passes resolved requirement sections and output sinks through module boundaries."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements};

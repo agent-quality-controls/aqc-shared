@@ -1,5 +1,17 @@
 //! Reconciliation for clippy.toml boolean settings.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private setting reconciliation helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Private setting reconciliation helpers carry repeated resolved requirement shapes."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};

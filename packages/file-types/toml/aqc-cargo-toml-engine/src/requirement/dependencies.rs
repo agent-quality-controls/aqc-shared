@@ -1,5 +1,11 @@
 //! Dependency-table scopes and entry payloads.
 
+#![expect(
+    clippy::too_many_lines,
+    clippy::use_self,
+    reason = "Cargo dependency records intentionally keep Cargo terminology in public API names."
+)]
+
 use std::collections::BTreeSet;
 use std::fmt;
 

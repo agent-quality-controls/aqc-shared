@@ -1,4 +1,16 @@
 //! Reconcile `[features]`.
+
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private feature reconciliation helpers are internal steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Feature reconciliation consumes resolved item requirement shapes."
+)]
 //!
 //! Lazy: a ban-only requirement against a missing `[features]` table
 //! writes nothing. The table is fetched mutably only on a write.

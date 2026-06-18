@@ -1,5 +1,20 @@
 //! Requirement aggregate merge implementation.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private aggregate merge helpers are internal requirement steps."
+    )
+)]
+#![expect(
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::type_complexity,
+    clippy::use_self,
+    reason = "Cargo aggregate merging is a field-by-field construction over public requirement shapes."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{ConflictEntry, Provenance, resolve_map};
@@ -48,7 +63,7 @@ impl CargoTomlRequirements {
             reqs.iter()
                 .map(|(prov, req)| (prov.clone(), req.dependencies.clone()))
                 .collect(),
-            |scope| scope.table_path(),
+            DependencyScope::table_path,
             &mut conflicts,
         );
         for (scope, merged) in &dependencies {
@@ -59,7 +74,7 @@ impl CargoTomlRequirements {
             reqs.iter()
                 .map(|(prov, req)| (prov.clone(), req.forbidden_dependency_package_globs.clone()))
                 .collect(),
-            |scope| scope.table_path(),
+            DependencyScope::table_path,
             &mut conflicts,
         );
         let dependency_glob_conflicts = collect_dependency_glob_conflicts(
@@ -139,8 +154,8 @@ impl CargoTomlRequirements {
             &mut conflicts,
         );
         let workspace_dependency_glob_conflicts = collect_workspace_glob_conflicts(
-            &workspace_dependencies,
-            &forbidden_workspace_dependency_package_globs,
+            workspace_dependencies.as_ref(),
+            forbidden_workspace_dependency_package_globs.as_ref(),
             &mut conflicts,
         );
 
@@ -256,9 +271,9 @@ fn collect_patch_glob_conflicts(
 }
 
 fn collect_workspace_glob_conflicts(
-    dependencies: &Option<aqc_file_engine_core::ResolvedItemRequirements<DependencyRequirement>>,
-    forbidden_globs: &Option<
-        aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
+    dependencies: Option<&aqc_file_engine_core::ResolvedItemRequirements<DependencyRequirement>>,
+    forbidden_globs: Option<
+        &aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> DependencyForbiddenGlobConflictBlocks {

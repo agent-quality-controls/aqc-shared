@@ -1,3 +1,10 @@
+#![expect(
+    clippy::as_conversions,
+    clippy::missing_const_for_fn,
+    clippy::type_complexity,
+    reason = "Shared test helpers keep compact Cargo requirement fixture shapes."
+)]
+
 pub(crate) use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) use aqc_cargo_toml_engine as cargo;

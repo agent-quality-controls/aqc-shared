@@ -1,3 +1,12 @@
+#![expect(
+    clippy::field_reassign_with_default,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::shadow_unrelated,
+    clippy::wildcard_enum_match_arm,
+    reason = "Attribution tests keep compact fixtures and pattern assertions near expected findings."
+)]
+
 #[allow(
     dead_code,
     unused_imports,

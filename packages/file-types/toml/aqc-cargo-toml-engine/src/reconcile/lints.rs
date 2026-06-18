@@ -1,5 +1,18 @@
 //! Reconcile `[lints.<tool>]` and `[workspace.lints.<tool>]` tables.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private lint-table helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    reason = "Lint table reconciliation passes TOML location, policy values, and findings together."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
@@ -169,9 +182,10 @@ fn apply_banned(
 ) {
     let Some(current) = tool_ref(doc, root, tool).and_then(|t| {
         t.get(lint).map(|item| {
-            read_entry(t, lint)
-                .map(|entry| display_entry(&entry))
-                .unwrap_or_else(|| item.to_string().trim().to_owned())
+            read_entry(t, lint).map_or_else(
+                || item.to_string().trim().to_owned(),
+                |entry| display_entry(&entry),
+            )
         })
     }) else {
         return;
@@ -207,7 +221,7 @@ fn apply_closed_extras(
     let extras = on_disk.difference(allowed).cloned().collect::<Vec<_>>();
     for extra in &extras {
         let current = tool_ref(doc, root, tool)
-            .and_then(|table| read_entry(table, extra))
+            .and_then(|current_table| read_entry(current_table, extra))
             .map(|entry| display_entry(&entry));
         findings.push(Finding::Mismatch {
             key: format!("[{}.{tool}].{extra}", root.prefix()),
@@ -217,8 +231,8 @@ fn apply_closed_extras(
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });
-        if let Some(table) = tool_mut_existing(doc, root, tool) {
-            let _ = table.remove(extra);
+        if let Some(current_table) = tool_mut_existing(doc, root, tool) {
+            let _ = current_table.remove(extra);
         }
     }
 }

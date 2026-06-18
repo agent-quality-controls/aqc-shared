@@ -6,6 +6,19 @@
 //! check-only field does not create a missing entry (it cannot be satisfied
 //! by writing); all-writable `Fields` create the entry with its name.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private target-table helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::too_many_lines,
+    clippy::type_complexity,
+    reason = "Target table reconciliation keeps nested Cargo target fields in one traversal."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, OnEmpty, OnEmptyClass, Provenance, ResolvedRequirement};
@@ -276,7 +289,7 @@ fn apply_field(
                 let blocked = BTreeSet::from([item.clone()]);
                 let present = on_disk
                     .iter()
-                    .filter(|item| blocked.contains(*item))
+                    .filter(|value| blocked.contains(*value))
                     .cloned()
                     .collect::<Vec<_>>();
                 if !present.is_empty() {
@@ -296,7 +309,7 @@ fn apply_field(
                     );
                     let kept = on_disk
                         .into_iter()
-                        .filter(|item| !blocked.contains(item))
+                        .filter(|value| !blocked.contains(value))
                         .collect::<Vec<_>>();
                     util::write_string_array(ensure_loc(doc, loc), field, &kept);
                 }

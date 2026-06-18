@@ -1,5 +1,13 @@
 //! Reconciliation for clippy.toml ban tables.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private ban-table helpers are internal reconciliation steps."
+    )
+)]
+
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
@@ -124,10 +132,10 @@ fn apply_forbidden_path_globs(
             .unwrap_or_default();
         let matcher = match compile_path_glob(glob) {
             Ok(matcher) => matcher,
-            Err(message) => {
+            Err(error_message) => {
                 findings.push(Finding::InvalidRequirements {
                     key: format!("{table_key}.{}", glob.glob),
-                    message,
+                    message: error_message,
                     contributors: entry
                         .collected
                         .iter()
@@ -139,10 +147,11 @@ fn apply_forbidden_path_globs(
         };
         let mut removals = Vec::new();
         for (i, value) in array.iter().enumerate() {
-            if let Some(path) = read_entry_path(value) {
-                if matcher.is_match(&path) {
-                    removals.push((i, path));
-                }
+            let Some(path) = read_entry_path(value) else {
+                continue;
+            };
+            if matcher.is_match(&path) {
+                removals.push((i, path));
             }
         }
         for (i, path) in removals.into_iter().rev() {

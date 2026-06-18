@@ -2,6 +2,18 @@
 //!
 //! Lazy: check-only assertions and vacuous removals never create `[workspace]`.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private workspace-field helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::type_complexity,
+    reason = "Workspace-field reconciliation consumes resolved requirement map shapes."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core as core_types;

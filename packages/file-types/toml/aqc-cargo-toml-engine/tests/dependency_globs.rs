@@ -1,3 +1,9 @@
+#![expect(
+    clippy::field_reassign_with_default,
+    clippy::indexing_slicing,
+    reason = "Dependency glob tests keep compact fixtures and index known merged keys."
+)]
+
 #[allow(
     dead_code,
     unused_imports,

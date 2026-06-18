@@ -1,11 +1,30 @@
 //! `[profile.<name>]` requirements.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private profile composition helpers are internal requirement steps."
+    )
+)]
+#![expect(
+    clippy::indexing_slicing,
+    clippy::manual_retain,
+    clippy::type_complexity,
+    clippy::unnecessary_find_map,
+    clippy::use_self,
+    clippy::wildcard_enum_match_arm,
+    reason = "Profile requirement composition uses closed local assertion enums and collected provenance tuples."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, OnEmpty, OnEmptyClass, Provenance, Resolve, ResolvedRequirement,
     resolve_map,
 };
+
+use super::helpers::push_debug_conflict;
 
 /// What must hold about a single profile field.
 #[derive(Debug, Clone)]
@@ -114,7 +133,7 @@ fn intersect_oneofs(
     let mut iter = oneofs.into_iter();
     let (mut out, msg) = iter.next()?;
     for (next, _) in iter {
-        out.retain(|item| next.contains(item));
+        out = out.into_iter().filter(|item| next.contains(item)).collect();
     }
     Some((out, msg))
 }
@@ -136,14 +155,7 @@ fn push_conflict(
     items: &[(Provenance, ProfileFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    conflicts.push(ConflictEntry {
-        key: key.to_owned(),
-        reason: "scalar-disagree".to_owned(),
-        contributors: items
-            .iter()
-            .map(|(prov, value)| (prov.clone(), format!("{value:?}")))
-            .collect(),
-    });
+    push_debug_conflict(key, "scalar-disagree", items, conflicts);
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]

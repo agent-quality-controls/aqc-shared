@@ -1,3 +1,8 @@
+#![expect(
+    clippy::indexing_slicing,
+    reason = "These assertions index known merged fixture keys."
+)]
+
 #[allow(
     dead_code,
     unused_imports,

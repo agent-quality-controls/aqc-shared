@@ -1,5 +1,19 @@
 //! Required dependency reconciliation.
 
+#![cfg_attr(
+    not(test),
+    expect(
+        clippy::missing_docs_in_private_items,
+        reason = "Private required-dependency helpers are internal reconciliation steps."
+    )
+)]
+#![expect(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::type_complexity,
+    reason = "Required dependency reconciliation keeps Cargo writeability checks with the table update."
+)]
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedItemRequirements, Severity};
@@ -44,7 +58,7 @@ pub(super) fn apply_required(
 
     let current = table_at(doc, path).and_then(|t| {
         if let Some(file_key) = requirement.file_key.as_deref() {
-            read_spec(t, file_key).map(|spec| (file_key.to_owned(), spec))
+            read_spec(t, file_key).map(|current_spec| (file_key.to_owned(), current_spec))
         } else {
             let matches = find_all_by_package(t, requirement.value.package.as_deref()?);
             if matches

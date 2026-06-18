@@ -1,5 +1,11 @@
 //! Clippy requirement aggregate types.
 
+#![expect(
+    clippy::disallowed_types,
+    clippy::type_complexity,
+    reason = "`Any` is required by the shared EngineRequirement downcast API; resolved requirement fields mirror public API sections."
+)]
+
 use core::any::Any;
 use std::collections::BTreeMap;
 
