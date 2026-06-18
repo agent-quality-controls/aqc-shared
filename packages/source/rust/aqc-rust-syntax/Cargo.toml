@@ -15,6 +15,10 @@ include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+default = ["api"]
+api = []
+
 [lints]
 workspace = true
 

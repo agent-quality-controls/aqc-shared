@@ -4,6 +4,8 @@ allowed_deps = [
   "aqc-file-engine-core",
   "globset",
   "ignore",
+  "proc-macro2",
+  "syn",
   "tempfile",
   "toml_edit",
 ]
@@ -58,3 +60,21 @@ rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/dependencies.rs"
 selector = "struct:DependencySpec"
 reason = "Plain data record mirroring a Cargo.toml dependency entry shape."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/source/rust/aqc-rust-syntax/src/model.rs"
+selector = "struct:RustFileSyntax"
+reason = "Syntax facts are plain data records; callers consume the parsed facts directly."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/source/rust/aqc-rust-syntax/src/model.rs"
+selector = "struct:RustEnumDecl"
+reason = "Enum declaration facts are plain data records; named fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/source/rust/aqc-rust-syntax/src/model.rs"
+selector = "struct:RustSyntaxError"
+reason = "Parse errors carry a single user-facing parser message as data."

@@ -1,0 +1,32 @@
+[workspace]
+changelog_config = "cliff.toml"
+dependencies_update = true
+git_release_enable = true
+git_tag_enable = true
+publish = true
+release_always = false
+semver_check = true
+
+[[package]]
+name = "aqc-cargo-toml-engine"
+
+[[package]]
+name = "aqc-clippy-toml-engine"
+
+[[package]]
+name = "aqc-file-engine-core"
+
+[[package]]
+name = "aqc-filetree"
+
+[[package]]
+name = "aqc-fs-utils"
+
+[[package]]
+name = "aqc-git-helpers"
+
+[[package]]
+name = "aqc-rust-syntax"
+
+[[package]]
+name = "aqc-rustfmt-toml-engine"
