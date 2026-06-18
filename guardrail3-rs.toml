@@ -39,15 +39,21 @@ reason = "Error type carrying structured data; named pub fields are the API."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml.rs"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/model.rs"
 selector = "struct:CargoTomlRequirements"
 reason = "Declarative requirement struct; bulk-form field-per-target is the API."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml.rs"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/model.rs"
 selector = "struct:ResolvedCargoTomlRequirements"
 reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/model.rs"
+selector = "struct:DependencyForbiddenGlobConflictBlocks"
+reason = "Resolved conflict aggregate returned by merge; fields name the blocked required dependencies and glob requirements."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
