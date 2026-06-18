@@ -45,6 +45,24 @@ reason = "Declarative requirement struct; bulk-form field-per-target is the API.
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml.rs"
+selector = "struct:ResolvedCargoTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/targets.rs"
+selector = "struct:TargetRequirements"
+reason = "Declarative requirement struct for Cargo target tables; field-per-target-kind is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/targets.rs"
+selector = "struct:ResolvedTargetRequirements"
+reason = "Resolved target-table aggregate returned by merge; fields mirror target sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
 selector = "struct:ClippyTomlRequirements"
 reason = "Declarative requirement struct; bulk-form field-per-target is the API."

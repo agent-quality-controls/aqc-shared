@@ -13,23 +13,55 @@ pub mod requirement;
 #[cfg(feature = "api")]
 pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
-pub use requirement::{
-    CargoTomlRequirements, DependencyIdentity, DependencyKind, DependencyPackageGlob,
-    DependencyRequirement, DependencyScope, DependencySpec,
-};
+pub type CargoTomlRequirements = requirement::CargoTomlRequirements;
 #[cfg(feature = "api")]
-pub use requirement::{FeatureMembers, LintSetting, PackageLintsAssertion};
+pub type DependencyForbiddenGlobConflictBlocks = requirement::DependencyForbiddenGlobConflictBlocks;
 #[cfg(feature = "api")]
-pub use requirement::{
-    ManifestSection, PackageFieldAssertion, ResolvedPackageFieldAssertion, SectionPresenceAssertion,
-};
+pub type DependencyIdentity = requirement::DependencyIdentity;
 #[cfg(feature = "api")]
-pub use requirement::{ProfileFieldAssertion, ProfileRequirements};
+pub type DependencyKind = requirement::DependencyKind;
 #[cfg(feature = "api")]
-pub use requirement::{
-    ResolvedTargetFieldAssertion, ResolvedTargetTableAssertion, ResolvedWorkspaceFieldAssertion,
-    TargetFieldAssertion, TargetRequirements, TargetTableAssertion, WorkspaceFieldAssertion,
-};
+pub type DependencyPackageGlob = requirement::DependencyPackageGlob;
+#[cfg(feature = "api")]
+pub type DependencyRequirement = requirement::DependencyRequirement;
+#[cfg(feature = "api")]
+pub type DependencyScope = requirement::DependencyScope;
+#[cfg(feature = "api")]
+pub type DependencySpec = requirement::DependencySpec;
+#[cfg(feature = "api")]
+pub type FeatureMembers = requirement::FeatureMembers;
+#[cfg(feature = "api")]
+pub type LintSetting = requirement::LintSetting;
+#[cfg(feature = "api")]
+pub type ManifestSection = requirement::ManifestSection;
+#[cfg(feature = "api")]
+pub type PackageFieldAssertion = requirement::PackageFieldAssertion;
+#[cfg(feature = "api")]
+pub type PackageLintsAssertion = requirement::PackageLintsAssertion;
+#[cfg(feature = "api")]
+pub type ProfileFieldAssertion = requirement::ProfileFieldAssertion;
+#[cfg(feature = "api")]
+pub type ProfileRequirements = requirement::ProfileRequirements;
+#[cfg(feature = "api")]
+pub type ResolvedCargoTomlRequirements = requirement::ResolvedCargoTomlRequirements;
+#[cfg(feature = "api")]
+pub type ResolvedPackageFieldAssertion = requirement::ResolvedPackageFieldAssertion;
+#[cfg(feature = "api")]
+pub type ResolvedTargetFieldAssertion = requirement::ResolvedTargetFieldAssertion;
+#[cfg(feature = "api")]
+pub type ResolvedTargetTableAssertion = requirement::ResolvedTargetTableAssertion;
+#[cfg(feature = "api")]
+pub type ResolvedWorkspaceFieldAssertion = requirement::ResolvedWorkspaceFieldAssertion;
+#[cfg(feature = "api")]
+pub type SectionPresenceAssertion = requirement::SectionPresenceAssertion;
+#[cfg(feature = "api")]
+pub type TargetFieldAssertion = requirement::TargetFieldAssertion;
+#[cfg(feature = "api")]
+pub type TargetRequirements = requirement::TargetRequirements;
+#[cfg(feature = "api")]
+pub type TargetTableAssertion = requirement::TargetTableAssertion;
+#[cfg(feature = "api")]
+pub type WorkspaceFieldAssertion = requirement::WorkspaceFieldAssertion;
 
 /// Stable engine id; matches this crate's `[package].name` and the value
 /// returned by `<CargoTomlRequirements as EngineRequirement>::engine_id`.
