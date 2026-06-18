@@ -207,7 +207,8 @@ fn init_writes_clippy_ban_array_item() {
         ..ClippyTomlRequirements::default()
     };
     let output = clippy_output(None, vec![(prov("p1"), req)]);
-    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    let text = String::from_utf8(output.expected_bytes)
+        .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("disallowed-methods"));
     assert!(text.contains("path = \"std::env::set_var\""));
     assert!(text.contains("reason = \"ban\""));
@@ -227,7 +228,8 @@ fn required_clippy_ban_updates_missing_reason() {
         Some(b"disallowed-methods = [\"std::env::set_var\"]\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    let text = String::from_utf8(output.expected_bytes)
+        .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("reason = \"ban\""));
     assert_eq!(output.findings.len(), 1);
 }
@@ -246,7 +248,8 @@ fn required_clippy_ban_handles_non_array_without_panic() {
         Some(b"disallowed-methods = \"bad\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    let text = String::from_utf8(output.expected_bytes)
+        .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("path = \"std::env::set_var\""));
     assert!(!output.findings.is_empty());
 }
@@ -267,7 +270,8 @@ fn banned_clippy_ban_removes_duplicate_entries() {
         ),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes).expect("utf8");
+    let text = String::from_utf8(output.expected_bytes)
+        .expect("engine output should remain valid UTF-8 TOML text");
     assert!(!text.contains("std::env::set_var"));
     assert_eq!(output.findings.len(), 2);
 }
@@ -284,7 +288,11 @@ fn clippy_banned_absent_does_not_create_empty_array() {
     };
     let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);
     assert!(output.findings.is_empty());
-    assert_eq!(String::from_utf8(output.expected_bytes).expect("utf8"), "");
+    assert_eq!(
+        String::from_utf8(output.expected_bytes)
+            .expect("engine output should remain valid UTF-8 TOML text"),
+        ""
+    );
 }
 
 #[test]
@@ -295,7 +303,11 @@ fn clippy_closed_absent_does_not_create_empty_array() {
     };
     let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);
     assert!(output.findings.is_empty());
-    assert_eq!(String::from_utf8(output.expected_bytes).expect("utf8"), "");
+    assert_eq!(
+        String::from_utf8(output.expected_bytes)
+            .expect("engine output should remain valid UTF-8 TOML text"),
+        ""
+    );
 }
 
 #[test]
@@ -362,7 +374,11 @@ fn clippy_msrv_keeps_strongest_floor() {
     };
     let (merged, conflicts) =
         ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    let MsrvAssertion::AtLeast(version, _) = &merged.msrv.expect("msrv").merged else {
+    let MsrvAssertion::AtLeast(version, _) = &merged
+        .msrv
+        .expect("merged clippy requirements should contain an msrv assertion")
+        .merged
+    else {
         panic!("expected AtLeast");
     };
     assert!(conflicts.is_empty());
@@ -445,7 +461,7 @@ fn clippy_scalar_implication_attributes_only_failed_assertions() {
         .findings
         .iter()
         .find(|finding| matches!(finding, Finding::Mismatch { message, .. } if message == "equals"))
-        .expect("equals mismatch");
+        .expect("expected an equals mismatch finding");
     assert!(matches!(
         mismatch,
         Finding::Mismatch { attribution, .. }

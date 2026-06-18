@@ -70,6 +70,12 @@ reason = "Declarative requirement struct; bulk-form field-per-target is the API.
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
+selector = "struct:ResolvedClippyTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement.rs"
 selector = "struct:BanEntry"
 reason = "Plain data record mirroring clippy's disallowed-methods/types/macros entry shape."
 
