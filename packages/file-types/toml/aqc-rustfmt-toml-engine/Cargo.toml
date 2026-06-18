@@ -25,4 +25,5 @@ api = []
 
 [dependencies]
 aqc-file-engine-core = { version = "0.1.0", path = "../../../aqc-file-engine-core" }
+globset = "0.4"
 toml_edit = "0.25"

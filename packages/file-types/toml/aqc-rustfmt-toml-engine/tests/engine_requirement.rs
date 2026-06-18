@@ -1,5 +1,6 @@
 use aqc_file_engine_core::EngineRequirement;
 use aqc_rustfmt_toml_engine::{ENGINE_ID, RustfmtTomlRequirements};
+use globset as _;
 use toml_edit as _;
 
 #[test]

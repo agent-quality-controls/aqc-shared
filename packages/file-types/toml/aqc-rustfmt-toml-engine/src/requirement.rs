@@ -9,14 +9,18 @@ use core::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, EngineRequirement, ListRequirements, OnEmpty, OnEmptyClass,
-    Provenance, Resolve, ResolvedListRequirements, ResolvedRequirement, resolve_list, resolve_map,
+    ConfigScalar, ConflictEntry, EngineRequirement, ForbiddenGlobRequirement,
+    ForbiddenGlobRequirements, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
+    ResolvedForbiddenGlobRequirements, ResolvedListRequirements, ResolvedRequirement,
+    resolve_forbidden_globs, resolve_list, resolve_map,
 };
+use globset::GlobBuilder;
 
 #[derive(Debug, Clone, Default)]
 pub struct RustfmtTomlRequirements {
     pub scalar_settings: BTreeMap<RustfmtScalarSetting, RustfmtScalarAssertion>,
     pub list_settings: BTreeMap<RustfmtListSetting, ListRequirements>,
+    pub forbidden_ignore_path_globs: ForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
     pub closed_settings: Option<String>,
 }
 
@@ -27,6 +31,8 @@ pub struct ResolvedRustfmtTomlRequirements {
         ResolvedRequirement<ResolvedRustfmtScalarAssertion, RustfmtScalarAssertion>,
     >,
     pub list_settings: BTreeMap<RustfmtListSetting, ResolvedListRequirements>,
+    pub forbidden_ignore_path_globs: ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
+    pub ignore_glob_conflicts: RustfmtForbiddenIgnoreGlobConflictBlocks,
     pub closed_settings: Vec<(Provenance, String)>,
 }
 
@@ -41,6 +47,13 @@ impl RustfmtTomlRequirements {
                 .map(|(prov, req)| (prov.clone(), req.scalar_settings.clone()))
                 .collect(),
             |key| key.file_key().to_owned(),
+            &mut conflicts,
+        );
+        let forbidden_ignore_path_globs = resolve_forbidden_globs(
+            RustfmtListSetting::Ignore.file_key(),
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), req.forbidden_ignore_path_globs.clone()))
+                .collect(),
             &mut conflicts,
         );
 
@@ -63,11 +76,19 @@ impl RustfmtTomlRequirements {
         for (key, lists) in lists_by_key {
             let _ = list_settings.insert(key, resolve_list(key.file_key(), lists, &mut conflicts));
         }
+        let ignore_glob_conflicts = list_settings.get(&RustfmtListSetting::Ignore).map_or_else(
+            RustfmtForbiddenIgnoreGlobConflictBlocks::default,
+            |ignore| {
+                push_ignore_glob_conflicts(ignore, &forbidden_ignore_path_globs, &mut conflicts)
+            },
+        );
 
         (
             ResolvedRustfmtTomlRequirements {
                 scalar_settings,
                 list_settings,
+                forbidden_ignore_path_globs,
+                ignore_glob_conflicts,
                 closed_settings,
             },
             conflicts,
@@ -378,4 +399,85 @@ impl RustfmtListSetting {
             Self::SkipMacroInvocations => "skip_macro_invocations",
         }
     }
+}
+
+/// Path glob used only for forbidden `ignore` entries.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RustfmtIgnorePathGlob {
+    pub glob: String,
+}
+
+impl ForbiddenGlobRequirement for RustfmtIgnorePathGlob {
+    type Identity = String;
+
+    fn merge_identity(&self) -> Self::Identity {
+        self.glob.clone()
+    }
+
+    fn render(&self) -> String {
+        self.glob.clone()
+    }
+}
+
+/// Required `ignore` values and forbidden `ignore` globs that conflict.
+#[derive(Debug, Clone, Default)]
+pub struct RustfmtForbiddenIgnoreGlobConflictBlocks {
+    /// Required `ignore` values blocked during reconciliation.
+    pub required: BTreeSet<String>,
+    /// Forbidden `ignore` globs blocked during reconciliation.
+    pub path_globs: BTreeSet<String>,
+}
+
+fn push_ignore_glob_conflicts(
+    ignore: &ResolvedListRequirements,
+    globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> RustfmtForbiddenIgnoreGlobConflictBlocks {
+    let mut blocks = RustfmtForbiddenIgnoreGlobConflictBlocks::default();
+    for (glob_identity, glob) in &globs.globs {
+        let Ok(compiled) = GlobBuilder::new(&glob.merged.glob).build() else {
+            continue;
+        };
+        let matcher = compiled.compile_matcher();
+        let required = ignore
+            .contains
+            .keys()
+            .chain(ignore.exact.iter().flat_map(|exact| exact.merged.iter()))
+            .filter(|path| matcher.is_match(path.as_str()))
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if required.is_empty() {
+            continue;
+        }
+        for path in required {
+            let mut contributors = ignore
+                .contains
+                .get(&path)
+                .into_iter()
+                .flat_map(|req| req.collected.iter())
+                .map(|(prov, _)| (prov.clone(), "required".to_owned()))
+                .collect::<Vec<_>>();
+            contributors.extend(
+                ignore
+                    .exact
+                    .iter()
+                    .flat_map(|req| req.collected.iter())
+                    .filter(|(_, (values, _))| values.iter().any(|value| value == &path))
+                    .map(|(prov, _)| (prov.clone(), "required".to_owned())),
+            );
+            contributors.extend(
+                glob.collected
+                    .iter()
+                    .map(|(prov, _)| (prov.clone(), "forbidden".to_owned())),
+            );
+            conflicts.push(ConflictEntry {
+                key: format!("{}.{}", RustfmtListSetting::Ignore.file_key(), path),
+                reason: "ignore-path-glob-forbids-required-path".to_owned(),
+                contributors,
+            });
+            let _ = blocks.required.insert(path);
+            let _ = blocks.path_globs.insert(glob_identity.clone());
+        }
+    }
+    blocks
 }

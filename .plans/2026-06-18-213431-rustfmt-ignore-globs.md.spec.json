@@ -1,0 +1,109 @@
+{
+  "version": 4,
+  "requirements": {
+    "tree": {
+      "verifier": [
+        "builtin:tree"
+      ],
+      "reason": "Rustfmt ignore-glob plan: required shared engine files.",
+      "required": [
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/lib.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/engine_requirement.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/merge.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/reconcile.rs"
+      ]
+    },
+    "content": [
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
+        ],
+        "reason": "Rustfmt engine uses the same glob matcher crate as Cargo and Clippy engines.",
+        "required": [
+          "globset = \"0.4\""
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+        ],
+        "reason": "Engine requirement surface adds forbidden ignore path globs and resolves them through shared core.",
+        "required": [
+          "resolve_forbidden_globs",
+          "pub forbidden_ignore_path_globs: ForbiddenGlobRequirements<RustfmtIgnorePathGlob>",
+          "pub forbidden_ignore_path_globs: ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>",
+          "pub struct RustfmtIgnorePathGlob",
+          "impl ForbiddenGlobRequirement for RustfmtIgnorePathGlob",
+          "ignore-path-glob-forbids-required-path"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings.rs"
+        ],
+        "reason": "Reconcile applies forbidden ignore globs only to the Rustfmt ignore list.",
+        "required": [
+          "apply_forbidden_ignore_path_globs",
+          "compile_ignore_path_glob",
+          "report_ignore_glob_shape",
+          "expected: \"absent (path glob)\".to_owned()",
+          "Finding::InvalidRequirements",
+          "then_some(\"ignore\")"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/lib.rs"
+        ],
+        "reason": "Rustfmt ignore glob type is exported by the engine crate.",
+        "required": [
+          "RustfmtIgnorePathGlob"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/merge.rs"
+        ],
+        "reason": "Merge tests cover dedupe attribution and required-list conflict blocking.",
+        "required": [
+          "forbidden_ignore_path_globs_dedupe_attribution",
+          "forbidden_ignore_path_glob_conflicts_with_required_ignore_path",
+          "ignore-path-glob-forbids-required-path"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/reconcile.rs"
+        ],
+        "reason": "Reconcile tests cover removal, invalid glob syntax, malformed ignore shape, and closed settings.",
+        "required": [
+          "forbidden_ignore_path_glob_removes_matching_values",
+          "invalid_forbidden_ignore_path_glob_reports_invalid_requirements",
+          "forbidden_ignore_path_glob_reports_and_normalizes_malformed_ignore_list",
+          "closed_settings_keep_ignore_when_only_glob_rules_manage_it"
+        ]
+      }
+    ]
+  }
+}
