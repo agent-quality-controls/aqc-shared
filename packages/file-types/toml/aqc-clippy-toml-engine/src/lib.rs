@@ -15,8 +15,9 @@ mod requirement;
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    BanEntry, BoolAssertion, ClippyPathGlob, ClippyTomlRequirements, MsrvAssertion,
-    NumericAssertion, StringAssertion,
+    BanEntry, BoolAssertion, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob,
+    ClippyTomlRequirements, MsrvAssertion, NumericAssertion, ResolvedClippyTomlRequirements,
+    StringAssertion,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value
