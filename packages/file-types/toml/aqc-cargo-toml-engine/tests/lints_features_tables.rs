@@ -1,0 +1,289 @@
+#[allow(
+    dead_code,
+    unused_imports,
+    reason = "Shared integration test helpers; this split test uses a subset."
+)]
+mod common;
+use common::*;
+
+#[test]
+fn cargo_lints_required_and_banned_different_keys_compose() {
+    let mut required = BTreeMap::new();
+    let entry = cargo::LintSetting {
+        level: "deny".to_owned(),
+        priority: None,
+    };
+    let _ = required.insert("unwrap_used".to_owned(), (entry, "unwrap".to_owned()));
+    let mut banned = BTreeMap::new();
+    let _ = banned.insert("dbg_macro".to_owned(), "no dbg".to_owned());
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.workspace_lints.insert(
+        "clippy".to_owned(),
+        keyed_items(KeyedFixture {
+            required,
+            banned,
+            closed: None,
+        }),
+    );
+    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    assert!(findings.is_empty());
+}
+
+#[test]
+fn banned_cargo_lint_removes_malformed_existing_key() {
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.workspace_lints.insert(
+        "clippy".to_owned(),
+        keyed_items(KeyedFixture::<cargo::LintSetting> {
+            required: BTreeMap::new(),
+            banned: BTreeMap::from([("unwrap_used".to_owned(), "no unwrap".to_owned())]),
+            closed: None,
+        }),
+    );
+    let out = cargo_output(
+        Some(b"[workspace.lints.clippy]\nunwrap_used = 123\n"),
+        vec![(prov("p1"), req)],
+    );
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+    assert!(!text.contains("unwrap_used"));
+    assert_eq!(out.findings.len(), 1);
+}
+
+#[test]
+fn cargo_features_use_table_composition_rules() {
+    let mut names = BTreeSet::new();
+    let _ = names.insert("dep:serde".to_owned());
+    let entry = cargo::FeatureMembers { members: names };
+    let mut required = BTreeMap::new();
+    let _ = required.insert("default".to_owned(), (entry, "default".to_owned()));
+    let table: KeyedFixture<cargo::FeatureMembers> = KeyedFixture {
+        required,
+        banned: BTreeMap::new(),
+        closed: None,
+    };
+    let mut req = cargo::CargoTomlRequirements::default();
+    req.features = Some(keyed_items(table));
+    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    assert!(conflicts.is_empty());
+    assert!(
+        merged
+            .features
+            .expect("features")
+            .required
+            .contains_key("default")
+    );
+}
+
+#[test]
+fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
+    let closed = KeyedFixture::<cargo::DependencySpec> {
+        required: BTreeMap::from([(
+            "serde".to_owned(),
+            (dep_spec(Some("1")), "serde".to_owned()),
+        )]),
+        banned: BTreeMap::new(),
+        closed: Some("only serde".to_owned()),
+    };
+    let outside = KeyedFixture::<cargo::DependencySpec> {
+        required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
+        banned: BTreeMap::new(),
+        closed: None,
+    };
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+        (prov("closer"), dep_req(closed)),
+        (prov("outside"), dep_req(outside)),
+    ]);
+    let contributors = &conflicts[0].contributors;
+    assert!(
+        contributors
+            .iter()
+            .any(|(p, v)| p.policy == "closer" && v == "closed")
+    );
+}
+
+#[test]
+fn table_closed_allows_outside_banned_entry() {
+    let table = KeyedFixture::<cargo::DependencySpec> {
+        required: BTreeMap::new(),
+        banned: BTreeMap::from([("openssl".to_owned(), "ban".to_owned())]),
+        closed: Some("closed".to_owned()),
+    };
+    let (_, conflicts) =
+        cargo::CargoTomlRequirements::merge(vec![(prov("closer"), dep_req(table))]);
+    assert!(conflicts.is_empty());
+}
+
+#[test]
+fn table_two_closed_tables_with_different_required_keys_conflict() {
+    let closed = Some("closed".to_owned());
+    let left = KeyedFixture {
+        required: BTreeMap::from([(
+            "serde".to_owned(),
+            (dep_spec(Some("1")), "serde".to_owned()),
+        )]),
+        banned: BTreeMap::new(),
+        closed: closed.clone(),
+    };
+    let right = KeyedFixture {
+        required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
+        banned: BTreeMap::new(),
+        closed,
+    };
+    let findings = cargo_findings(vec![
+        (prov("p1"), dep_req(left)),
+        (prov("p2"), dep_req(right)),
+    ]);
+    assert!(
+        findings
+            .iter()
+            .any(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. }))
+    );
+}
+
+#[test]
+fn table_same_required_key_compatible_entries_compose() {
+    let mut left = BTreeMap::new();
+    let _ = left.insert(
+        "serde".to_owned(),
+        (dep_spec(Some("1")), "serde".to_owned()),
+    );
+    let mut features = BTreeSet::new();
+    let _ = features.insert("derive".to_owned());
+    let mut right = BTreeMap::new();
+    let _ = right.insert(
+        "serde".to_owned(),
+        (
+            cargo::DependencySpec {
+                features,
+                ..cargo::DependencySpec::default()
+            },
+            "features".to_owned(),
+        ),
+    );
+    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![
+        (
+            prov("p1"),
+            dep_req(KeyedFixture {
+                required: left,
+                banned: BTreeMap::new(),
+                closed: None,
+            }),
+        ),
+        (
+            prov("p2"),
+            dep_req(KeyedFixture {
+                required: right,
+                banned: BTreeMap::new(),
+                closed: None,
+            }),
+        ),
+    ]);
+    assert!(findings.is_empty());
+}
+
+#[test]
+fn table_same_required_key_incompatible_entries_conflict() {
+    let findings = cargo_findings(vec![
+        (
+            prov("p1"),
+            dep_req(KeyedFixture {
+                required: BTreeMap::from([(
+                    "serde".to_owned(),
+                    (dep_spec(Some("1")), "one".to_owned()),
+                )]),
+                banned: BTreeMap::new(),
+                closed: None,
+            }),
+        ),
+        (
+            prov("p2"),
+            dep_req(KeyedFixture {
+                required: BTreeMap::from([(
+                    "serde".to_owned(),
+                    (dep_spec(Some("2")), "two".to_owned()),
+                )]),
+                banned: BTreeMap::new(),
+                closed: None,
+            }),
+        ),
+    ]);
+    assert!(
+        findings
+            .iter()
+            .any(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. }))
+    );
+}
+
+#[test]
+fn list_contains_and_excludes_different_items_compose() {
+    let list = engine_core::ListRequirements {
+        contains: BTreeMap::from([("derive".to_owned(), "need derive".to_owned())]),
+        excludes: BTreeMap::from([("rc".to_owned(), "no rc".to_owned())]),
+        exact: None,
+    };
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    assert!(conflicts.is_empty());
+}
+
+#[test]
+fn list_contains_and_excludes_same_item_conflicts() {
+    let list = engine_core::ListRequirements {
+        contains: BTreeMap::from([("derive".to_owned(), "need".to_owned())]),
+        excludes: BTreeMap::from([("derive".to_owned(), "ban".to_owned())]),
+        exact: None,
+    };
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let findings = cargo_findings(vec![(prov("p1"), req)]);
+    assert!(matches!(
+        findings
+            .iter()
+            .find(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. })),
+        Some(engine_core::Finding::ConflictingRequirements { .. })
+    ));
+}
+
+#[test]
+fn list_contains_and_exact_compose_when_exact_contains_item() {
+    let exact = Some((
+        vec!["derive".to_owned(), "std".to_owned()],
+        "exact".to_owned(),
+    ));
+    let list = engine_core::ListRequirements {
+        contains: BTreeMap::from([("derive".to_owned(), "need".to_owned())]),
+        excludes: BTreeMap::new(),
+        exact,
+    };
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    assert!(conflicts.is_empty());
+}
+
+#[test]
+fn list_excludes_and_exact_compose_when_exact_omits_item() {
+    let list = engine_core::ListRequirements {
+        contains: BTreeMap::new(),
+        excludes: BTreeMap::from([("rc".to_owned(), "no rc".to_owned())]),
+        exact: Some((vec!["derive".to_owned()], "exact".to_owned())),
+    };
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    assert!(conflicts.is_empty());
+}
