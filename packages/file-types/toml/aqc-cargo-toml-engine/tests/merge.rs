@@ -1,19 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use aqc_cargo_toml_engine as cargo;
+use aqc_file_engine_core as engine_core;
+use engine_core::Engine;
 use globset as _;
 use toml_edit as _;
-
-use aqc_cargo_toml_engine::{
-    CargoTomlEngine, CargoTomlRequirements, DependencyIdentity, DependencyKind,
-    DependencyPackageGlob, DependencyRequirement, DependencyScope, DependencySpec, FeatureMembers,
-    LintSetting, PackageFieldAssertion, PackageLintsAssertion, ProfileFieldAssertion,
-    ProfileRequirements, ResolvedPackageFieldAssertion, TargetFieldAssertion, TargetRequirements,
-    TargetTableAssertion,
-};
-use aqc_file_engine_core::{
-    ConfigScalar, Engine, EngineRequirement, Finding, ForbiddenGlobRequirements, ItemRequirements,
-    KeyedItem, ListRequirements, Provenance,
-};
 
 #[derive(Debug, Clone)]
 struct KeyedFixture<Entry> {
@@ -22,55 +13,57 @@ struct KeyedFixture<Entry> {
     closed: Option<String>,
 }
 
-fn prov(policy: &str) -> Provenance {
-    Provenance {
+fn prov(policy: &str) -> engine_core::Provenance {
+    engine_core::Provenance {
         policy: policy.to_owned(),
     }
 }
 
-fn normal_scope() -> DependencyScope {
-    DependencyScope {
-        kind: DependencyKind::Normal,
+fn normal_scope() -> cargo::DependencyScope {
+    cargo::DependencyScope {
+        kind: cargo::DependencyKind::Normal,
         target: None,
     }
 }
 
-fn unix_scope() -> DependencyScope {
-    DependencyScope {
-        kind: DependencyKind::Normal,
+fn unix_scope() -> cargo::DependencyScope {
+    cargo::DependencyScope {
+        kind: cargo::DependencyKind::Normal,
         target: Some("cfg(unix)".to_owned()),
     }
 }
 
-fn dep_spec(version: Option<&str>) -> DependencySpec {
-    DependencySpec {
+fn dep_spec(version: Option<&str>) -> cargo::DependencySpec {
+    cargo::DependencySpec {
         version: version.map(str::to_owned),
-        ..DependencySpec::default()
+        ..cargo::DependencySpec::default()
     }
 }
 
-fn dep_req(table: KeyedFixture<DependencySpec>) -> CargoTomlRequirements {
-    let mut req = CargoTomlRequirements::default();
+fn dep_req(table: KeyedFixture<cargo::DependencySpec>) -> cargo::CargoTomlRequirements {
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.dependencies.insert(normal_scope(), dep_items(table));
     req
 }
 
-fn dep_item_req(items: ItemRequirements<DependencyRequirement>) -> CargoTomlRequirements {
-    let mut req = CargoTomlRequirements::default();
+fn dep_item_req(
+    items: engine_core::ItemRequirements<cargo::DependencyRequirement>,
+) -> cargo::CargoTomlRequirements {
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.dependencies.insert(normal_scope(), items);
     req
 }
 
-fn dependency_package_glob(glob: &str) -> DependencyPackageGlob {
-    DependencyPackageGlob {
+fn dependency_package_glob(glob: &str) -> cargo::DependencyPackageGlob {
+    cargo::DependencyPackageGlob {
         glob: glob.to_owned(),
     }
 }
 
 fn dependency_package_globs(
     globs: Vec<(&str, &str)>,
-) -> ForbiddenGlobRequirements<DependencyPackageGlob> {
-    ForbiddenGlobRequirements {
+) -> engine_core::ForbiddenGlobRequirements<cargo::DependencyPackageGlob> {
+    engine_core::ForbiddenGlobRequirements {
         globs: globs
             .into_iter()
             .map(|(glob, msg)| (dependency_package_glob(glob), msg.to_owned()))
@@ -78,21 +71,21 @@ fn dependency_package_globs(
     }
 }
 
-fn dep_glob_req(globs: Vec<(&str, &str)>) -> CargoTomlRequirements {
-    let mut req = CargoTomlRequirements::default();
+fn dep_glob_req(globs: Vec<(&str, &str)>) -> cargo::CargoTomlRequirements {
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req
         .forbidden_dependency_package_globs
         .insert(normal_scope(), dependency_package_globs(globs));
     req
 }
 
-fn package_requirement(package: &str, version: Option<&str>) -> DependencyRequirement {
-    DependencyRequirement {
+fn package_requirement(package: &str, version: Option<&str>) -> cargo::DependencyRequirement {
+    cargo::DependencyRequirement {
         file_key: None,
-        value: DependencySpec {
+        value: cargo::DependencySpec {
             package: Some(package.to_owned()),
             version: version.map(str::to_owned),
-            ..DependencySpec::default()
+            ..cargo::DependencySpec::default()
         },
     }
 }
@@ -101,25 +94,27 @@ fn local_dependency_requirement(
     file_key: &str,
     package: Option<&str>,
     version: Option<&str>,
-) -> DependencyRequirement {
-    DependencyRequirement {
+) -> cargo::DependencyRequirement {
+    cargo::DependencyRequirement {
         file_key: Some(file_key.to_owned()),
-        value: DependencySpec {
+        value: cargo::DependencySpec {
             package: package.map(str::to_owned),
             version: version.map(str::to_owned),
-            ..DependencySpec::default()
+            ..cargo::DependencySpec::default()
         },
     }
 }
 
-fn dep_items(table: KeyedFixture<DependencySpec>) -> ItemRequirements<DependencyRequirement> {
-    ItemRequirements {
+fn dep_items(
+    table: KeyedFixture<cargo::DependencySpec>,
+) -> engine_core::ItemRequirements<cargo::DependencyRequirement> {
+    engine_core::ItemRequirements {
         required: table
             .required
             .into_iter()
             .map(|(file_key, (value, msg))| {
                 (
-                    DependencyRequirement {
+                    cargo::DependencyRequirement {
                         file_key: Some(file_key),
                         value,
                     },
@@ -132,9 +127,9 @@ fn dep_items(table: KeyedFixture<DependencySpec>) -> ItemRequirements<Dependency
             .into_iter()
             .map(|(file_key, msg)| {
                 (
-                    DependencyRequirement {
+                    cargo::DependencyRequirement {
                         file_key: Some(file_key),
-                        value: DependencySpec::default(),
+                        value: cargo::DependencySpec::default(),
                     },
                     msg,
                 )
@@ -144,19 +139,21 @@ fn dep_items(table: KeyedFixture<DependencySpec>) -> ItemRequirements<Dependency
     }
 }
 
-fn keyed_items<Entry: Default>(table: KeyedFixture<Entry>) -> ItemRequirements<KeyedItem<Entry>> {
-    ItemRequirements {
+fn keyed_items<Entry: Default>(
+    table: KeyedFixture<Entry>,
+) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
+    engine_core::ItemRequirements {
         required: table
             .required
             .into_iter()
-            .map(|(file_key, (value, msg))| (KeyedItem { file_key, value }, msg))
+            .map(|(file_key, (value, msg))| (engine_core::KeyedItem { file_key, value }, msg))
             .collect(),
         banned: table
             .banned
             .into_iter()
             .map(|(file_key, msg)| {
                 (
-                    KeyedItem {
+                    engine_core::KeyedItem {
                         file_key,
                         value: Entry::default(),
                     },
@@ -168,42 +165,44 @@ fn keyed_items<Entry: Default>(table: KeyedFixture<Entry>) -> ItemRequirements<K
     }
 }
 
-fn cargo_findings(reqs: Vec<(Provenance, CargoTomlRequirements)>) -> Vec<Finding> {
+fn cargo_findings(
+    reqs: Vec<(engine_core::Provenance, cargo::CargoTomlRequirements)>,
+) -> Vec<engine_core::Finding> {
     cargo_findings_with(Some(b""), reqs)
 }
 
 fn cargo_findings_with(
     bytes: Option<&[u8]>,
-    reqs: Vec<(Provenance, CargoTomlRequirements)>,
-) -> Vec<Finding> {
+    reqs: Vec<(engine_core::Provenance, cargo::CargoTomlRequirements)>,
+) -> Vec<engine_core::Finding> {
     let reqs = reqs
         .into_iter()
-        .map(|(p, r)| (p, Box::new(r) as Box<dyn EngineRequirement>))
+        .map(|(p, r)| (p, Box::new(r) as Box<dyn engine_core::EngineRequirement>))
         .collect::<Vec<_>>();
-    CargoTomlEngine.reconcile(bytes, &reqs).findings
+    cargo::CargoTomlEngine.reconcile(bytes, &reqs).findings
 }
 
 fn cargo_output(
     bytes: Option<&[u8]>,
-    reqs: Vec<(Provenance, CargoTomlRequirements)>,
-) -> aqc_file_engine_core::EngineOutput {
+    reqs: Vec<(engine_core::Provenance, cargo::CargoTomlRequirements)>,
+) -> engine_core::EngineOutput {
     let reqs = reqs
         .into_iter()
-        .map(|(p, r)| (p, Box::new(r) as Box<dyn EngineRequirement>))
+        .map(|(p, r)| (p, Box::new(r) as Box<dyn engine_core::EngineRequirement>))
         .collect::<Vec<_>>();
-    CargoTomlEngine.reconcile(bytes, &reqs)
+    cargo::CargoTomlEngine.reconcile(bytes, &reqs)
 }
 
-fn has_conflict(findings: &[Finding]) -> bool {
+fn has_conflict(findings: &[engine_core::Finding]) -> bool {
     findings
         .iter()
-        .any(|f| matches!(f, Finding::ConflictingRequirements { .. }))
+        .any(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. }))
 }
 
-fn mismatch_count_for_key(findings: &[Finding], wanted: &str) -> usize {
+fn mismatch_count_for_key(findings: &[engine_core::Finding], wanted: &str) -> usize {
     findings
         .iter()
-        .filter(|finding| matches!(finding, Finding::Mismatch { key, .. } if key == wanted))
+        .filter(|finding| matches!(finding, engine_core::Finding::Mismatch { key, .. } if key == wanted))
         .count()
 }
 
@@ -216,7 +215,7 @@ fn dependency_required_and_banned_different_keys_compose() {
     );
     let mut banned = BTreeMap::new();
     let _ = banned.insert("openssl".to_owned(), "no openssl".to_owned());
-    let (_, findings) = CargoTomlRequirements::merge(vec![(
+    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![(
         prov("p1"),
         dep_req(KeyedFixture {
             required,
@@ -247,14 +246,14 @@ fn dependency_required_and_banned_same_key_conflicts() {
     assert!(
         matches!(
             findings.first(),
-            Some(Finding::ConflictingRequirements { .. })
+            Some(engine_core::Finding::ConflictingRequirements { .. })
         ) || has_conflict(&findings)
     );
 }
 
 #[test]
 fn required_and_banned_different_dependency_identities_coexist() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -265,7 +264,7 @@ fn required_and_banned_different_dependency_identities_coexist() {
         )],
         closed: None,
     });
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
 }
 
@@ -273,7 +272,7 @@ fn required_and_banned_different_dependency_identities_coexist() {
 fn required_and_banned_same_dependency_identity_conflict() {
     let findings = cargo_findings(vec![(
         prov("p1"),
-        dep_item_req(ItemRequirements {
+        dep_item_req(engine_core::ItemRequirements {
             required: vec![(
                 package_requirement("serde_json", Some("1")),
                 "serde".to_owned(),
@@ -290,7 +289,7 @@ fn required_and_banned_same_dependency_identity_conflict() {
 
 #[test]
 fn closed_collection_rejects_outside_required_identity() {
-    let closer = dep_item_req(ItemRequirements {
+    let closer = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -298,13 +297,15 @@ fn closed_collection_rejects_outside_required_identity() {
         banned: Vec::new(),
         closed: Some("only serde".to_owned()),
     });
-    let outside = dep_item_req(ItemRequirements {
+    let outside = dep_item_req(engine_core::ItemRequirements {
         required: vec![(package_requirement("toml", Some("0.8")), "toml".to_owned())],
         banned: Vec::new(),
         closed: None,
     });
-    let (_, conflicts) =
-        CargoTomlRequirements::merge(vec![(prov("closer"), closer), (prov("outside"), outside)]);
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+        (prov("closer"), closer),
+        (prov("outside"), outside),
+    ]);
     assert!(conflicts.iter().any(|conflict| {
         conflict
             .contributors
@@ -315,7 +316,7 @@ fn closed_collection_rejects_outside_required_identity() {
 
 #[test]
 fn dependency_local_key_requirement_does_not_pass_on_package_only_match() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             local_dependency_requirement("json", Some("serde_json"), Some("1")),
             "need rename".to_owned(),
@@ -328,13 +329,13 @@ fn dependency_local_key_requirement_does_not_pass_on_package_only_match() {
         vec![(prov("p1"), req)],
     );
     assert!(findings.iter().any(|finding| {
-        matches!(finding, Finding::Mismatch { key, .. } if key == "[dependencies].json")
+        matches!(finding, engine_core::Finding::Mismatch { key, .. } if key == "[dependencies].json")
     }));
 }
 
 #[test]
 fn dependency_package_identity_requirement_passes_under_renamed_key() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -351,7 +352,7 @@ fn dependency_package_identity_requirement_passes_under_renamed_key() {
 
 #[test]
 fn dependency_package_identity_ban_catches_renamed_key() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         banned: vec![(
             package_requirement("serde_json", None),
@@ -373,7 +374,7 @@ fn dependency_package_identity_ban_catches_renamed_key() {
 fn local_key_requirement_and_package_identity_ban_conflict() {
     let findings = cargo_findings(vec![(
         prov("p1"),
-        dep_item_req(ItemRequirements {
+        dep_item_req(engine_core::ItemRequirements {
             required: vec![(
                 local_dependency_requirement("json", Some("serde_json"), Some("1")),
                 "need rename".to_owned(),
@@ -392,7 +393,7 @@ fn local_key_requirement_and_package_identity_ban_conflict() {
 fn same_package_identity_with_different_explicit_file_keys_conflicts() {
     let findings = cargo_findings(vec![(
         prov("p1"),
-        dep_item_req(ItemRequirements {
+        dep_item_req(engine_core::ItemRequirements {
             required: vec![
                 (
                     local_dependency_requirement("json", Some("serde_json"), Some("1")),
@@ -410,7 +411,7 @@ fn same_package_identity_with_different_explicit_file_keys_conflicts() {
     assert!(findings.iter().any(|finding| {
         matches!(
             finding,
-            Finding::ConflictingRequirements { key, reason, .. }
+            engine_core::Finding::ConflictingRequirements { key, reason, .. }
                 if key == "[dependencies].serde_json.file_key"
                     && reason == "dependency-package-multiple-file-keys"
         )
@@ -419,7 +420,7 @@ fn same_package_identity_with_different_explicit_file_keys_conflicts() {
 
 #[test]
 fn package_identity_requirement_checks_all_duplicate_package_entries() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -440,7 +441,7 @@ fn package_identity_requirement_checks_all_duplicate_package_entries() {
 fn local_key_json_and_package_identity_json_do_not_collide() {
     let findings = cargo_findings(vec![(
         prov("p1"),
-        dep_item_req(ItemRequirements {
+        dep_item_req(engine_core::ItemRequirements {
             required: vec![
                 (
                     local_dependency_requirement("json", Some("serde_json"), Some("1")),
@@ -462,13 +463,13 @@ fn local_key_json_and_package_identity_json_do_not_collide() {
 fn invalid_dependency_requirement_conflicts() {
     let findings = cargo_findings(vec![(
         prov("p1"),
-        dep_item_req(ItemRequirements {
+        dep_item_req(engine_core::ItemRequirements {
             required: vec![(
-                DependencyRequirement {
+                cargo::DependencyRequirement {
                     file_key: None,
-                    value: DependencySpec {
+                    value: cargo::DependencySpec {
                         version: Some("1".to_owned()),
-                        ..DependencySpec::default()
+                        ..cargo::DependencySpec::default()
                     },
                 },
                 "invalid".to_owned(),
@@ -487,7 +488,7 @@ fn patch_package_identity_requirement_without_file_key_is_unwritable() {
 
 #[test]
 fn package_identity_dependency_is_satisfied_by_plain_key() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -514,7 +515,7 @@ fn local_key_dependency_is_not_satisfied_by_package_identity() {
 
 #[test]
 fn missing_package_identity_dependency_writes_package_name() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -532,7 +533,7 @@ fn missing_package_identity_dependency_writes_package_name() {
 
 #[test]
 fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reserved() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![
             (
                 package_requirement("serde_json", Some("1")),
@@ -550,7 +551,7 @@ fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reser
     let text =
         String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
-        matches!(finding, Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
+        matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
     }));
     assert!(text.contains("package = \"serde_renamed\""));
     assert!(!text.contains("serde_json = \"1\""));
@@ -558,7 +559,7 @@ fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reser
 
 #[test]
 fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_different_package() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
@@ -573,7 +574,7 @@ fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_diff
     let text =
         String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
-        matches!(finding, Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
+        matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
     }));
     assert!(text.contains("package = \"serde_renamed\""));
     assert!(!text.contains("serde_json = \"1\""));
@@ -581,7 +582,7 @@ fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_diff
 
 #[test]
 fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![
             (
                 local_dependency_requirement("json", Some("serde_json"), Some("1")),
@@ -601,7 +602,7 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
     assert!(out.findings.iter().any(|finding| {
         matches!(
             finding,
-            Finding::ConflictingRequirements { key, reason, .. }
+            engine_core::Finding::ConflictingRequirements { key, reason, .. }
                 if key == "[dependencies].json"
                     && reason == "dependency-file-key-package-conflict"
         )
@@ -610,7 +611,7 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
         out.findings
             .iter()
             .filter(|finding| {
-                matches!(finding, Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].json")
+                matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].json")
             })
             .count(),
         2
@@ -620,7 +621,7 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
 
 #[test]
 fn renamed_banned_package_reports_one_finding() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         banned: vec![(
             package_requirement("serde_json", None),
@@ -669,7 +670,7 @@ fn package_glob_forbid_catches_renamed_dependency_package() {
 
 #[test]
 fn package_glob_forbid_applies_to_workspace_dependencies() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     req.forbidden_workspace_dependency_package_globs =
         Some(dependency_package_globs(vec![("openssl-*", "no openssl")]));
     let out = cargo_output(
@@ -688,7 +689,7 @@ fn package_glob_forbid_applies_to_workspace_dependencies() {
 
 #[test]
 fn package_glob_forbid_applies_to_patch_tables() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.forbidden_patch_dependency_package_globs.insert(
         "crates-io".to_owned(),
         dependency_package_globs(vec![("openssl-*", "no openssl")]),
@@ -711,7 +712,7 @@ fn package_glob_forbid_applies_to_patch_tables() {
 
 #[test]
 fn package_glob_forbid_applies_to_target_dependency_scope() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.forbidden_dependency_package_globs.insert(
         unix_scope(),
         dependency_package_globs(vec![("openssl-*", "no openssl")]),
@@ -750,7 +751,7 @@ fn package_glob_forbid_catches_dependency_subtable() {
 
 #[test]
 fn dependency_package_identity_ban_catches_subtable() {
-    let req = dep_item_req(ItemRequirements {
+    let req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         banned: vec![(
             package_requirement("openssl-sys", None),
@@ -773,7 +774,7 @@ fn dependency_package_identity_ban_catches_subtable() {
 
 #[test]
 fn required_package_matching_glob_forbid_conflicts() {
-    let exact = dep_item_req(ItemRequirements {
+    let exact = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("openssl-sys", Some("0.9")),
             "need openssl".to_owned(),
@@ -783,7 +784,7 @@ fn required_package_matching_glob_forbid_conflicts() {
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let (_, conflicts) =
-        CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), glob)]);
+        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), glob)]);
     assert!(
         conflicts.iter().any(|conflict| {
             conflict.reason == "dependency-package-glob-forbids-required-package"
@@ -793,7 +794,7 @@ fn required_package_matching_glob_forbid_conflicts() {
 
 #[test]
 fn required_package_matching_glob_forbid_does_not_write_dependency() {
-    let exact = dep_item_req(ItemRequirements {
+    let exact = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("openssl-sys", Some("0.9")),
             "need openssl".to_owned(),
@@ -811,7 +812,7 @@ fn required_package_matching_glob_forbid_does_not_write_dependency() {
 
 #[test]
 fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
-    let exact = dep_item_req(ItemRequirements {
+    let exact = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             local_dependency_requirement("ssl", Some("openssl-sys"), Some("0.9")),
             "need openssl".to_owned(),
@@ -836,7 +837,7 @@ fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
 
 #[test]
 fn required_closed_dependency_matching_glob_forbid_does_not_remove_dependency() {
-    let exact = dep_item_req(ItemRequirements {
+    let exact = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             local_dependency_requirement("ssl", Some("openssl-sys"), Some("0.9")),
             "need openssl".to_owned(),
@@ -864,7 +865,7 @@ fn same_forbidden_package_glob_dedupes_attribution() {
     let left = dep_glob_req(vec![("openssl-*", "left")]);
     let right = dep_glob_req(vec![("openssl-*", "right")]);
     let (merged, conflicts) =
-        CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
     assert!(conflicts.is_empty());
     let glob = &merged.forbidden_dependency_package_globs[&normal_scope()].globs["openssl-*"];
     assert_eq!(glob.collected.len(), 2);
@@ -872,7 +873,7 @@ fn same_forbidden_package_glob_dedupes_attribution() {
 
 #[test]
 fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
-    let mut req = dep_item_req(ItemRequirements {
+    let mut req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         banned: vec![(
             package_requirement("openssl-sys", None),
@@ -897,7 +898,7 @@ fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
     assert!(out.findings.iter().any(|finding| {
         matches!(
             finding,
-            Finding::Mismatch { attribution, .. } if attribution.len() == 1
+            engine_core::Finding::Mismatch { attribution, .. } if attribution.len() == 1
         )
     }));
     assert!(!text.contains("openssl-sys"));
@@ -905,7 +906,7 @@ fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
 
 #[test]
 fn closed_collection_and_forbidden_glob_remove_dependency_once() {
-    let mut req = dep_item_req(ItemRequirements {
+    let mut req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         banned: Vec::new(),
         closed: Some("closed".to_owned()),
@@ -936,17 +937,17 @@ fn invalid_forbidden_package_glob_reports_invalid_requirements() {
     assert!(findings.iter().any(|finding| {
         matches!(
             finding,
-            Finding::InvalidRequirements { key, .. } if key == "[dependencies].["
+            engine_core::Finding::InvalidRequirements { key, .. } if key == "[dependencies].["
         )
     }));
 }
 
 #[test]
 fn patch_package_identity_init_reports_unwritable_required_key() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.patch.insert(
         "crates-io".to_owned(),
-        ItemRequirements {
+        engine_core::ItemRequirements {
             required: vec![(
                 package_requirement("serde_json", Some("1")),
                 "serde".to_owned(),
@@ -957,22 +958,22 @@ fn patch_package_identity_init_reports_unwritable_required_key() {
     );
     let findings = cargo_output(None, vec![(prov("p1"), req)]).findings;
     assert!(findings.iter().any(|finding| {
-        matches!(finding, Finding::UnwritableRequiredKey { key, .. } if key == "[patch.crates-io].serde_json")
+        matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[patch.crates-io].serde_json")
     }));
 }
 
 #[test]
 fn patch_requirement_with_file_key_writes_patch_entry() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.patch.insert(
         "crates-io".to_owned(),
-        ItemRequirements {
+        engine_core::ItemRequirements {
             required: vec![(
-                DependencyRequirement {
+                cargo::DependencyRequirement {
                     file_key: Some("serde_json".to_owned()),
-                    value: DependencySpec {
+                    value: cargo::DependencySpec {
                         path: Some("../serde_json".to_owned()),
-                        ..DependencySpec::default()
+                        ..cargo::DependencySpec::default()
                     },
                 },
                 "patch serde".to_owned(),
@@ -994,9 +995,9 @@ fn dependency_partial_specs_compose_fieldwise() {
     let _ = left.insert(
         "serde".to_owned(),
         (
-            DependencySpec {
+            cargo::DependencySpec {
                 version: Some("1".to_owned()),
-                ..DependencySpec::default()
+                ..cargo::DependencySpec::default()
             },
             "v".to_owned(),
         ),
@@ -1007,14 +1008,14 @@ fn dependency_partial_specs_compose_fieldwise() {
     let _ = right.insert(
         "serde".to_owned(),
         (
-            DependencySpec {
+            cargo::DependencySpec {
                 features,
-                ..DependencySpec::default()
+                ..cargo::DependencySpec::default()
             },
             "f".to_owned(),
         ),
     );
-    let (merged, conflicts) = CargoTomlRequirements::merge(vec![
+    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("p1"),
             dep_req(KeyedFixture {
@@ -1032,8 +1033,8 @@ fn dependency_partial_specs_compose_fieldwise() {
             }),
         ),
     ]);
-    let spec: &DependencySpec = &merged.dependencies[&normal_scope()].required
-        [&DependencyIdentity::LocalKey("serde".to_owned())]
+    let spec: &cargo::DependencySpec = &merged.dependencies[&normal_scope()].required
+        [&cargo::DependencyIdentity::LocalKey("serde".to_owned())]
         .merged
         .value;
     assert!(conflicts.is_empty());
@@ -1068,8 +1069,8 @@ fn dependency_incompatible_same_field_specs_conflict() {
     assert!(matches!(
         findings
             .iter()
-            .find(|f| matches!(f, Finding::ConflictingRequirements { .. })),
-        Some(Finding::ConflictingRequirements { .. })
+            .find(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. })),
+        Some(engine_core::Finding::ConflictingRequirements { .. })
     ));
 }
 
@@ -1079,17 +1080,17 @@ fn dependency_each_field_composes_independently() {
     let _ = required.insert(
         "serde".to_owned(),
         (
-            DependencySpec {
+            cargo::DependencySpec {
                 default_features: Some(false),
                 optional: Some(true),
                 registry: Some("crates-io".to_owned()),
                 package: Some("serde-renamed".to_owned()),
-                ..DependencySpec::default()
+                ..cargo::DependencySpec::default()
             },
             "attrs".to_owned(),
         ),
     );
-    let (merged, conflicts) = CargoTomlRequirements::merge(vec![(
+    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(
         prov("p1"),
         dep_req(KeyedFixture {
             required,
@@ -1097,8 +1098,8 @@ fn dependency_each_field_composes_independently() {
             closed: None,
         }),
     )]);
-    let spec: &DependencySpec = &merged.dependencies[&normal_scope()].required
-        [&DependencyIdentity::Package("serde-renamed".to_owned())]
+    let spec: &cargo::DependencySpec = &merged.dependencies[&normal_scope()].required
+        [&cargo::DependencyIdentity::Package("serde-renamed".to_owned())]
         .merged
         .value;
     assert!(conflicts.is_empty());
@@ -1111,14 +1112,14 @@ fn dependency_each_field_composes_independently() {
 #[test]
 fn cargo_lints_required_and_banned_different_keys_compose() {
     let mut required = BTreeMap::new();
-    let entry = LintSetting {
+    let entry = cargo::LintSetting {
         level: "deny".to_owned(),
         priority: None,
     };
     let _ = required.insert("unwrap_used".to_owned(), (entry, "unwrap".to_owned()));
     let mut banned = BTreeMap::new();
     let _ = banned.insert("dbg_macro".to_owned(), "no dbg".to_owned());
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.workspace_lints.insert(
         "clippy".to_owned(),
         keyed_items(KeyedFixture {
@@ -1127,16 +1128,16 @@ fn cargo_lints_required_and_banned_different_keys_compose() {
             closed: None,
         }),
     );
-    let (_, findings) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(findings.is_empty());
 }
 
 #[test]
 fn banned_cargo_lint_removes_malformed_existing_key() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.workspace_lints.insert(
         "clippy".to_owned(),
-        keyed_items(KeyedFixture::<LintSetting> {
+        keyed_items(KeyedFixture::<cargo::LintSetting> {
             required: BTreeMap::new(),
             banned: BTreeMap::from([("unwrap_used".to_owned(), "no unwrap".to_owned())]),
             closed: None,
@@ -1156,17 +1157,17 @@ fn banned_cargo_lint_removes_malformed_existing_key() {
 fn cargo_features_use_table_composition_rules() {
     let mut names = BTreeSet::new();
     let _ = names.insert("dep:serde".to_owned());
-    let entry = FeatureMembers { members: names };
+    let entry = cargo::FeatureMembers { members: names };
     let mut required = BTreeMap::new();
     let _ = required.insert("default".to_owned(), (entry, "default".to_owned()));
-    let table: KeyedFixture<FeatureMembers> = KeyedFixture {
+    let table: KeyedFixture<cargo::FeatureMembers> = KeyedFixture {
         required,
         banned: BTreeMap::new(),
         closed: None,
     };
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     req.features = Some(keyed_items(table));
-    let (merged, conflicts) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
     assert!(
         merged
@@ -1179,7 +1180,7 @@ fn cargo_features_use_table_composition_rules() {
 
 #[test]
 fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
-    let closed = KeyedFixture::<DependencySpec> {
+    let closed = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::from([(
             "serde".to_owned(),
             (dep_spec(Some("1")), "serde".to_owned()),
@@ -1187,12 +1188,12 @@ fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
         banned: BTreeMap::new(),
         closed: Some("only serde".to_owned()),
     };
-    let outside = KeyedFixture::<DependencySpec> {
+    let outside = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
         banned: BTreeMap::new(),
         closed: None,
     };
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
         (prov("closer"), dep_req(closed)),
         (prov("outside"), dep_req(outside)),
     ]);
@@ -1206,12 +1207,13 @@ fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
 
 #[test]
 fn table_closed_allows_outside_banned_entry() {
-    let table = KeyedFixture::<DependencySpec> {
+    let table = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::new(),
         banned: BTreeMap::from([("openssl".to_owned(), "ban".to_owned())]),
         closed: Some("closed".to_owned()),
     };
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![(prov("closer"), dep_req(table))]);
+    let (_, conflicts) =
+        cargo::CargoTomlRequirements::merge(vec![(prov("closer"), dep_req(table))]);
     assert!(conflicts.is_empty());
 }
 
@@ -1238,7 +1240,7 @@ fn table_two_closed_tables_with_different_required_keys_conflict() {
     assert!(
         findings
             .iter()
-            .any(|f| matches!(f, Finding::ConflictingRequirements { .. }))
+            .any(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. }))
     );
 }
 
@@ -1255,14 +1257,14 @@ fn table_same_required_key_compatible_entries_compose() {
     let _ = right.insert(
         "serde".to_owned(),
         (
-            DependencySpec {
+            cargo::DependencySpec {
                 features,
-                ..DependencySpec::default()
+                ..cargo::DependencySpec::default()
             },
             "features".to_owned(),
         ),
     );
-    let (_, findings) = CargoTomlRequirements::merge(vec![
+    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("p1"),
             dep_req(KeyedFixture {
@@ -1312,42 +1314,44 @@ fn table_same_required_key_incompatible_entries_conflict() {
     assert!(
         findings
             .iter()
-            .any(|f| matches!(f, Finding::ConflictingRequirements { .. }))
+            .any(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. }))
     );
 }
 
 #[test]
 fn list_contains_and_excludes_different_items_compose() {
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::from([("derive".to_owned(), "need derive".to_owned())]),
         excludes: BTreeMap::from([("rc".to_owned(), "no rc".to_owned())]),
         exact: None,
     };
-    let mut req = CargoTomlRequirements::default();
-    let _ = req
-        .package_fields
-        .insert("keywords".to_owned(), PackageFieldAssertion::List(list));
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
 }
 
 #[test]
 fn list_contains_and_excludes_same_item_conflicts() {
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::from([("derive".to_owned(), "need".to_owned())]),
         excludes: BTreeMap::from([("derive".to_owned(), "ban".to_owned())]),
         exact: None,
     };
-    let mut req = CargoTomlRequirements::default();
-    let _ = req
-        .package_fields
-        .insert("keywords".to_owned(), PackageFieldAssertion::List(list));
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
     let findings = cargo_findings(vec![(prov("p1"), req)]);
     assert!(matches!(
         findings
             .iter()
-            .find(|f| matches!(f, Finding::ConflictingRequirements { .. })),
-        Some(Finding::ConflictingRequirements { .. })
+            .find(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. })),
+        Some(engine_core::Finding::ConflictingRequirements { .. })
     ));
 }
 
@@ -1357,48 +1361,50 @@ fn list_contains_and_exact_compose_when_exact_contains_item() {
         vec!["derive".to_owned(), "std".to_owned()],
         "exact".to_owned(),
     ));
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::from([("derive".to_owned(), "need".to_owned())]),
         excludes: BTreeMap::new(),
         exact,
     };
-    let mut req = CargoTomlRequirements::default();
-    let _ = req
-        .package_fields
-        .insert("keywords".to_owned(), PackageFieldAssertion::List(list));
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
 }
 
 #[test]
 fn list_excludes_and_exact_compose_when_exact_omits_item() {
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::new(),
         excludes: BTreeMap::from([("rc".to_owned(), "no rc".to_owned())]),
         exact: Some((vec!["derive".to_owned()], "exact".to_owned())),
     };
-    let mut req = CargoTomlRequirements::default();
-    let _ = req
-        .package_fields
-        .insert("keywords".to_owned(), PackageFieldAssertion::List(list));
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
 }
 
 #[test]
 fn profiles_attribute_only_failed_field_assertions() {
-    let mut profile = ProfileRequirements::default();
+    let mut profile = cargo::ProfileRequirements::default();
     let _ = profile.fields.insert(
         "opt-level".to_owned(),
-        ProfileFieldAssertion::Equals(ConfigScalar::Int(3), "opt".to_owned()),
+        cargo::ProfileFieldAssertion::Equals(engine_core::ConfigScalar::Int(3), "opt".to_owned()),
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.profiles.insert("release".to_owned(), profile);
     let findings = cargo_findings(vec![(prov("profile-policy"), req)]);
     let contributors = findings
         .iter()
         .filter_map(|f| match f {
-            Finding::Mismatch { attribution, .. } => Some(attribution),
+            engine_core::Finding::Mismatch { attribution, .. } => Some(attribution),
             _ => None,
         })
         .flatten()
@@ -1408,28 +1414,31 @@ fn profiles_attribute_only_failed_field_assertions() {
 
 #[test]
 fn target_tables_attribute_only_failed_field_assertions() {
-    let mut path_targets = TargetRequirements::default();
+    let mut path_targets = cargo::TargetRequirements::default();
     let _ = path_targets.bin_targets.insert(
         "cli".to_owned(),
-        TargetTableAssertion::Fields(BTreeMap::from([(
+        cargo::TargetTableAssertion::Fields(BTreeMap::from([(
             "path".to_owned(),
-            TargetFieldAssertion::Equals(
-                ConfigScalar::Str("src/bin/cli.rs".to_owned()),
+            cargo::TargetFieldAssertion::Equals(
+                engine_core::ConfigScalar::Str("src/bin/cli.rs".to_owned()),
                 "path".to_owned(),
             ),
         )])),
     );
-    let mut harness_targets = TargetRequirements::default();
+    let mut harness_targets = cargo::TargetRequirements::default();
     let _ = harness_targets.bin_targets.insert(
         "cli".to_owned(),
-        TargetTableAssertion::Fields(BTreeMap::from([(
+        cargo::TargetTableAssertion::Fields(BTreeMap::from([(
             "harness".to_owned(),
-            TargetFieldAssertion::Equals(ConfigScalar::Bool(true), "harness".to_owned()),
+            cargo::TargetFieldAssertion::Equals(
+                engine_core::ConfigScalar::Bool(true),
+                "harness".to_owned(),
+            ),
         )])),
     );
-    let mut path_req = CargoTomlRequirements::default();
+    let mut path_req = cargo::CargoTomlRequirements::default();
     path_req.targets = path_targets;
-    let mut harness_req = CargoTomlRequirements::default();
+    let mut harness_req = cargo::CargoTomlRequirements::default();
     harness_req.targets = harness_targets;
     let findings = cargo_findings_with(
         Some(
@@ -1446,7 +1455,7 @@ harness = true
     let contributors = findings
         .iter()
         .filter_map(|f| match f {
-            Finding::Mismatch { attribution, .. } => Some(attribution),
+            engine_core::Finding::Mismatch { attribution, .. } => Some(attribution),
             _ => None,
         })
         .flatten()
@@ -1457,25 +1466,27 @@ harness = true
 
 #[test]
 fn list_findings_use_per_item_attribution() {
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::from([("derive".to_owned(), "need derive".to_owned())]),
         excludes: BTreeMap::new(),
         exact: None,
     };
-    let mut contains_req = CargoTomlRequirements::default();
-    let _ = contains_req
-        .package_fields
-        .insert("keywords".to_owned(), PackageFieldAssertion::List(list));
+    let mut contains_req = cargo::CargoTomlRequirements::default();
+    let _ = contains_req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
 
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::new(),
         excludes: BTreeMap::from([("rc".to_owned(), "no rc".to_owned())]),
         exact: None,
     };
-    let mut excludes_req = CargoTomlRequirements::default();
-    let _ = excludes_req
-        .package_fields
-        .insert("keywords".to_owned(), PackageFieldAssertion::List(list));
+    let mut excludes_req = cargo::CargoTomlRequirements::default();
+    let _ = excludes_req.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(list),
+    );
 
     let findings = cargo_findings_with(
         Some(
@@ -1489,36 +1500,36 @@ keywords = ["rc"]
         ],
     );
     let contains = findings.iter().find(
-        |finding| matches!(finding, Finding::Mismatch { message, .. } if message == "need derive"),
+        |finding| matches!(finding, engine_core::Finding::Mismatch { message, .. } if message == "need derive"),
     );
     let excludes = findings
         .iter()
-        .find(|finding| matches!(finding, Finding::Mismatch { message, .. } if message == "no rc"));
+        .find(|finding| matches!(finding, engine_core::Finding::Mismatch { message, .. } if message == "no rc"));
     assert!(matches!(
         contains,
-        Some(Finding::Mismatch { attribution, .. }) if attribution.iter().all(|p| p.policy == "contains-policy")
+        Some(engine_core::Finding::Mismatch { attribution, .. }) if attribution.iter().all(|p| p.policy == "contains-policy")
     ));
     assert!(matches!(
         excludes,
-        Some(Finding::Mismatch { attribution, .. }) if attribution.iter().all(|p| p.policy == "excludes-policy")
+        Some(engine_core::Finding::Mismatch { attribution, .. }) if attribution.iter().all(|p| p.policy == "excludes-policy")
     ));
 }
 
 #[test]
 fn target_table_list_fields_use_unified_list_rules() {
-    let list = ListRequirements {
+    let list = engine_core::ListRequirements {
         contains: BTreeMap::from([("feat-a".to_owned(), "need".to_owned())]),
         excludes: BTreeMap::new(),
         exact: None,
     };
-    let field = TargetFieldAssertion::List(list);
-    let mut targets = TargetRequirements::default();
+    let field = cargo::TargetFieldAssertion::List(list);
+    let mut targets = cargo::TargetRequirements::default();
     let _ = targets
         .lib_fields
         .insert("required-features".to_owned(), field);
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     req.targets = targets;
-    let (_, conflicts) = CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
 }
 
@@ -1526,17 +1537,19 @@ fn target_table_list_fields_use_unified_list_rules() {
 fn scalar_implication_cases_compose() {
     let mut set = BTreeSet::new();
     let _ = set.insert("2021".to_owned());
-    let exact =
-        PackageFieldAssertion::Equals(ConfigScalar::Str("2021".to_owned()), "exact".to_owned());
-    let one = PackageFieldAssertion::OneOf(set, "one".to_owned());
-    let present = PackageFieldAssertion::Present("present".to_owned());
-    let mut left = CargoTomlRequirements::default();
+    let exact = cargo::PackageFieldAssertion::Equals(
+        engine_core::ConfigScalar::Str("2021".to_owned()),
+        "exact".to_owned(),
+    );
+    let one = cargo::PackageFieldAssertion::OneOf(set, "one".to_owned());
+    let present = cargo::PackageFieldAssertion::Present("present".to_owned());
+    let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert("edition".to_owned(), exact);
-    let mut right = CargoTomlRequirements::default();
+    let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert("edition".to_owned(), one);
-    let mut third = CargoTomlRequirements::default();
+    let mut third = cargo::CargoTomlRequirements::default();
     let _ = third.package_fields.insert("edition".to_owned(), present);
-    let (merged, conflicts) = CargoTomlRequirements::merge(vec![
+    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![
         (prov("p1"), left),
         (prov("p2"), right),
         (prov("p3"), third),
@@ -1544,7 +1557,7 @@ fn scalar_implication_cases_compose() {
     assert!(conflicts.is_empty());
     assert!(matches!(
         merged.package_fields["edition"].merged,
-        ResolvedPackageFieldAssertion::Equals(ConfigScalar::Str(ref value), _) if value == "2021"
+        cargo::ResolvedPackageFieldAssertion::Equals(engine_core::ConfigScalar::Str(ref value), _) if value == "2021"
     ));
 }
 
@@ -1553,20 +1566,23 @@ fn scalar_implication_attributes_only_failed_assertions() {
     let mut allowed = BTreeSet::new();
     let _ = allowed.insert("2021".to_owned());
     let _ = allowed.insert("2024".to_owned());
-    let mut exact_policy = CargoTomlRequirements::default();
+    let mut exact_policy = cargo::CargoTomlRequirements::default();
     let _ = exact_policy.package_fields.insert(
         "edition".to_owned(),
-        PackageFieldAssertion::Equals(ConfigScalar::Str("2021".to_owned()), "exact".to_owned()),
+        cargo::PackageFieldAssertion::Equals(
+            engine_core::ConfigScalar::Str("2021".to_owned()),
+            "exact".to_owned(),
+        ),
     );
-    let mut oneof_policy = CargoTomlRequirements::default();
+    let mut oneof_policy = cargo::CargoTomlRequirements::default();
     let _ = oneof_policy.package_fields.insert(
         "edition".to_owned(),
-        PackageFieldAssertion::OneOf(allowed, "one".to_owned()),
+        cargo::PackageFieldAssertion::OneOf(allowed, "one".to_owned()),
     );
-    let mut present_policy = CargoTomlRequirements::default();
+    let mut present_policy = cargo::CargoTomlRequirements::default();
     let _ = present_policy.package_fields.insert(
         "edition".to_owned(),
-        PackageFieldAssertion::Present("present".to_owned()),
+        cargo::PackageFieldAssertion::Present("present".to_owned()),
     );
     let findings = cargo_findings_with(
         Some(
@@ -1582,11 +1598,11 @@ edition = "2024"
     );
     let mismatch = findings
         .iter()
-        .find(|finding| matches!(finding, Finding::Mismatch { message, .. } if message == "exact"))
+        .find(|finding| matches!(finding, engine_core::Finding::Mismatch { message, .. } if message == "exact"))
         .expect("expected an exact-list mismatch finding");
     assert!(matches!(
         mismatch,
-        Finding::Mismatch { attribution, .. }
+        engine_core::Finding::Mismatch { attribution, .. }
             if attribution.iter().any(|p| p.policy == "exact-policy")
                 && attribution.iter().all(|p| p.policy != "oneof-policy" && p.policy != "present-policy")
     ));
@@ -1594,22 +1610,22 @@ edition = "2024"
 
 #[test]
 fn workspace_inheritance_composes_with_present() {
-    let mut left = CargoTomlRequirements::default();
+    let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert(
         "version".to_owned(),
-        PackageFieldAssertion::Present("present".to_owned()),
+        cargo::PackageFieldAssertion::Present("present".to_owned()),
     );
-    let mut right = CargoTomlRequirements::default();
+    let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert(
         "version".to_owned(),
-        PackageFieldAssertion::InheritsWorkspace("inherit".to_owned()),
+        cargo::PackageFieldAssertion::InheritsWorkspace("inherit".to_owned()),
     );
     let (merged, conflicts) =
-        CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
     assert!(conflicts.is_empty());
     assert!(matches!(
         merged.package_fields["version"].merged,
-        ResolvedPackageFieldAssertion::InheritsWorkspace(ref msg) if msg == "inherit"
+        cargo::ResolvedPackageFieldAssertion::InheritsWorkspace(ref msg) if msg == "inherit"
     ));
 }
 
@@ -1617,39 +1633,42 @@ fn workspace_inheritance_composes_with_present() {
 fn cargo_scalar_incompatible_cases_conflict() {
     let mut set = BTreeSet::new();
     let _ = set.insert("2018".to_owned());
-    let mut left = CargoTomlRequirements::default();
+    let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert(
         "edition".to_owned(),
-        PackageFieldAssertion::Equals(ConfigScalar::Str("2021".to_owned()), "2021".to_owned()),
+        cargo::PackageFieldAssertion::Equals(
+            engine_core::ConfigScalar::Str("2021".to_owned()),
+            "2021".to_owned(),
+        ),
     );
-    let mut right = CargoTomlRequirements::default();
+    let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert(
         "edition".to_owned(),
-        PackageFieldAssertion::OneOf(set, "2018 only".to_owned()),
+        cargo::PackageFieldAssertion::OneOf(set, "2018 only".to_owned()),
     );
     let findings = cargo_findings(vec![(prov("p1"), left), (prov("p2"), right)]);
     assert!(
         findings
             .iter()
-            .any(|f| matches!(f, Finding::ConflictingRequirements { .. }))
+            .any(|f| matches!(f, engine_core::Finding::ConflictingRequirements { .. }))
     );
 }
 
 #[test]
 fn cargo_at_least_version_keeps_strongest_floor() {
-    let mut left = CargoTomlRequirements::default();
+    let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert(
         "rust-version".to_owned(),
-        PackageFieldAssertion::AtLeastVersion("1.80".to_owned(), "old".to_owned()),
+        cargo::PackageFieldAssertion::AtLeastVersion("1.80".to_owned(), "old".to_owned()),
     );
-    let mut right = CargoTomlRequirements::default();
+    let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert(
         "rust-version".to_owned(),
-        PackageFieldAssertion::AtLeastVersion("1.85".to_owned(), "new".to_owned()),
+        cargo::PackageFieldAssertion::AtLeastVersion("1.85".to_owned(), "new".to_owned()),
     );
     let (merged, conflicts) =
-        CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    let ResolvedPackageFieldAssertion::AtLeastVersion(version, _) =
+        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+    let cargo::ResolvedPackageFieldAssertion::AtLeastVersion(version, _) =
         &merged.package_fields["rust-version"].merged
     else {
         panic!("expected AtLeastVersion");
@@ -1664,7 +1683,7 @@ fn package_lints_inline_preserves_per_lint_attribution() {
         required: BTreeMap::from([(
             "unwrap_used".to_owned(),
             (
-                LintSetting {
+                cargo::LintSetting {
                     level: "deny".to_owned(),
                     priority: None,
                 },
@@ -1674,8 +1693,8 @@ fn package_lints_inline_preserves_per_lint_attribution() {
         banned: BTreeMap::new(),
         closed: None,
     };
-    let mut req = CargoTomlRequirements::default();
-    req.package_lints = Some(PackageLintsAssertion::Inline(BTreeMap::from([(
+    let mut req = cargo::CargoTomlRequirements::default();
+    req.package_lints = Some(cargo::PackageLintsAssertion::Inline(BTreeMap::from([(
         "clippy".to_owned(),
         keyed_items(table),
     )])));
@@ -1683,7 +1702,7 @@ fn package_lints_inline_preserves_per_lint_attribution() {
     let contributors = findings
         .iter()
         .filter_map(|f| match f {
-            Finding::Mismatch { attribution, .. } => Some(attribution),
+            engine_core::Finding::Mismatch { attribution, .. } => Some(attribution),
             _ => None,
         })
         .flatten()

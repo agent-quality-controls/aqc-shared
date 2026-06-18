@@ -1,42 +1,40 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_cargo_toml_engine::{
-    CargoTomlEngine, CargoTomlRequirements, LintSetting, ManifestSection, PackageFieldAssertion,
-    PackageLintsAssertion, SectionPresenceAssertion, WorkspaceFieldAssertion,
-};
-use aqc_file_engine_core::{
-    ConfigScalar, Engine, EngineOutput, EngineRequirement, Finding, ItemRequirements, KeyedItem,
-    ListRequirements, Provenance,
-};
+use aqc_cargo_toml_engine as cargo;
+use aqc_file_engine_core as engine_core;
+use engine_core::Engine;
 use globset as _;
 use toml_edit as _;
 
-fn prov() -> Provenance {
-    Provenance {
+fn prov() -> engine_core::Provenance {
+    engine_core::Provenance {
         policy: "contract".to_owned(),
     }
 }
 
-fn output(req: CargoTomlRequirements, current: Option<&[u8]>) -> EngineOutput {
-    let reqs = vec![(prov(), Box::new(req) as Box<dyn EngineRequirement>)];
-    CargoTomlEngine.reconcile(current, &reqs)
+fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_core::EngineOutput {
+    let reqs = vec![(
+        prov(),
+        Box::new(req) as Box<dyn engine_core::EngineRequirement>,
+    )];
+    cargo::CargoTomlEngine.reconcile(current, &reqs)
 }
 
 fn keyed_items<Entry: Default>(
     required: BTreeMap<String, (Entry, String)>,
     banned: BTreeMap<String, String>,
     closed: Option<String>,
-) -> ItemRequirements<KeyedItem<Entry>> {
-    ItemRequirements {
+) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
+    engine_core::ItemRequirements {
         required: required
             .into_iter()
-            .map(|(file_key, (value, msg))| (KeyedItem { file_key, value }, msg))
+            .map(|(file_key, (value, msg))| (engine_core::KeyedItem { file_key, value }, msg))
             .collect(),
         banned: banned
             .into_iter()
             .map(|(file_key, msg)| {
                 (
-                    KeyedItem {
+                    engine_core::KeyedItem {
                         file_key,
                         value: Entry::default(),
                     },
@@ -50,10 +48,13 @@ fn keyed_items<Entry: Default>(
 
 #[test]
 fn package_scalar_equals_writes_on_empty() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.package_fields.insert(
         "edition".to_owned(),
-        PackageFieldAssertion::Equals(ConfigScalar::Str("2024".to_owned()), "edition".to_owned()),
+        cargo::PackageFieldAssertion::Equals(
+            engine_core::ConfigScalar::Str("2024".to_owned()),
+            "edition".to_owned(),
+        ),
     );
     let out = output(req, None);
     let text =
@@ -66,23 +67,21 @@ fn package_scalar_equals_writes_on_empty() {
 fn package_one_of_is_check_only_on_empty() {
     let mut allowed = BTreeSet::new();
     let _ = allowed.insert("MIT".to_owned());
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.package_fields.insert(
         "license".to_owned(),
-        PackageFieldAssertion::OneOf(allowed, "license".to_owned()),
+        cargo::PackageFieldAssertion::OneOf(allowed, "license".to_owned()),
     );
     let out = output(req, None);
-    assert!(
-        out.findings
-            .iter()
-            .any(|f| matches!(f, Finding::Mismatch { key, .. } if key == "[package].license"))
-    );
+    assert!(out.findings.iter().any(
+        |f| matches!(f, engine_core::Finding::Mismatch { key, .. } if key == "[package].license")
+    ));
 }
 
 #[test]
 fn package_lints_inherit_writes_workspace_true() {
-    let mut req = CargoTomlRequirements::default();
-    req.package_lints = Some(PackageLintsAssertion::Inherit(
+    let mut req = cargo::CargoTomlRequirements::default();
+    req.package_lints = Some(cargo::PackageLintsAssertion::Inherit(
         true,
         "inherit lints".to_owned(),
     ));
@@ -95,22 +94,23 @@ fn package_lints_inherit_writes_workspace_true() {
 
 #[test]
 fn inline_lint_table_writes_one_lint() {
-    let table: ItemRequirements<KeyedItem<LintSetting>> = keyed_items(
-        BTreeMap::from([(
-            "unwrap_used".to_owned(),
-            (
-                LintSetting {
-                    level: "deny".to_owned(),
-                    priority: None,
-                },
-                "outer".to_owned(),
-            ),
-        )]),
-        BTreeMap::new(),
-        None,
-    );
-    let mut req = CargoTomlRequirements::default();
-    req.package_lints = Some(PackageLintsAssertion::Inline(BTreeMap::from([(
+    let table: engine_core::ItemRequirements<engine_core::KeyedItem<cargo::LintSetting>> =
+        keyed_items(
+            BTreeMap::from([(
+                "unwrap_used".to_owned(),
+                (
+                    cargo::LintSetting {
+                        level: "deny".to_owned(),
+                        priority: None,
+                    },
+                    "outer".to_owned(),
+                ),
+            )]),
+            BTreeMap::new(),
+            None,
+        );
+    let mut req = cargo::CargoTomlRequirements::default();
+    req.package_lints = Some(cargo::PackageLintsAssertion::Inline(BTreeMap::from([(
         "clippy".to_owned(),
         table,
     )])));
@@ -123,10 +123,10 @@ fn inline_lint_table_writes_one_lint() {
 
 #[test]
 fn workspace_field_list_uses_unified_list_requirements() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.workspace_fields.insert(
         "members".to_owned(),
-        WorkspaceFieldAssertion::List(ListRequirements {
+        cargo::WorkspaceFieldAssertion::List(engine_core::ListRequirements {
             contains: BTreeMap::from([("crates/*".to_owned(), "members".to_owned())]),
             excludes: BTreeMap::new(),
             exact: None,
@@ -142,10 +142,10 @@ fn workspace_field_list_uses_unified_list_requirements() {
 
 #[test]
 fn section_presence_absent_removes_table() {
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.section_presence.insert(
-        ManifestSection::Badges,
-        SectionPresenceAssertion::Absent("no badges".to_owned()),
+        cargo::ManifestSection::Badges,
+        cargo::SectionPresenceAssertion::Absent("no badges".to_owned()),
     );
     let out = output(
         req,

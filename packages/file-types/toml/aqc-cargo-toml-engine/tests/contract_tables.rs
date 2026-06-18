@@ -1,46 +1,43 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_cargo_toml_engine::{
-    CargoTomlEngine, CargoTomlRequirements, DependencyKind, DependencyRequirement, DependencyScope,
-    DependencySpec, FeatureMembers, ProfileFieldAssertion, ProfileRequirements,
-    TargetFieldAssertion, TargetRequirements, TargetTableAssertion,
-};
-use aqc_file_engine_core::{
-    ConfigScalar, Engine, EngineOutput, EngineRequirement, ItemRequirements, KeyedItem,
-    ListRequirements, Provenance,
-};
+use aqc_cargo_toml_engine as cargo;
+use aqc_file_engine_core as engine_core;
+use engine_core::Engine;
 use globset as _;
 use toml_edit as _;
 
-fn prov() -> Provenance {
-    Provenance {
+fn prov() -> engine_core::Provenance {
+    engine_core::Provenance {
         policy: "contract".to_owned(),
     }
 }
 
-fn output(req: CargoTomlRequirements, current: Option<&[u8]>) -> EngineOutput {
-    let reqs = vec![(prov(), Box::new(req) as Box<dyn EngineRequirement>)];
-    CargoTomlEngine.reconcile(current, &reqs)
+fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_core::EngineOutput {
+    let reqs = vec![(
+        prov(),
+        Box::new(req) as Box<dyn engine_core::EngineRequirement>,
+    )];
+    cargo::CargoTomlEngine.reconcile(current, &reqs)
 }
 
-fn normal_scope() -> DependencyScope {
-    DependencyScope {
-        kind: DependencyKind::Normal,
+fn normal_scope() -> cargo::DependencyScope {
+    cargo::DependencyScope {
+        kind: cargo::DependencyKind::Normal,
         target: None,
     }
 }
 
 fn dep_items(
-    required: BTreeMap<String, (DependencySpec, String)>,
+    required: BTreeMap<String, (cargo::DependencySpec, String)>,
     banned: BTreeMap<String, String>,
     closed: Option<String>,
-) -> ItemRequirements<DependencyRequirement> {
-    ItemRequirements {
+) -> engine_core::ItemRequirements<cargo::DependencyRequirement> {
+    engine_core::ItemRequirements {
         required: required
             .into_iter()
             .map(|(file_key, (value, msg))| {
                 (
-                    DependencyRequirement {
+                    cargo::DependencyRequirement {
                         file_key: Some(file_key),
                         value,
                     },
@@ -52,9 +49,9 @@ fn dep_items(
             .into_iter()
             .map(|(file_key, msg)| {
                 (
-                    DependencyRequirement {
+                    cargo::DependencyRequirement {
                         file_key: Some(file_key),
-                        value: DependencySpec::default(),
+                        value: cargo::DependencySpec::default(),
                     },
                     msg,
                 )
@@ -68,17 +65,17 @@ fn keyed_items<Entry: Default>(
     required: BTreeMap<String, (Entry, String)>,
     banned: BTreeMap<String, String>,
     closed: Option<String>,
-) -> ItemRequirements<KeyedItem<Entry>> {
-    ItemRequirements {
+) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
+    engine_core::ItemRequirements {
         required: required
             .into_iter()
-            .map(|(file_key, (value, msg))| (KeyedItem { file_key, value }, msg))
+            .map(|(file_key, (value, msg))| (engine_core::KeyedItem { file_key, value }, msg))
             .collect(),
         banned: banned
             .into_iter()
             .map(|(file_key, msg)| {
                 (
-                    KeyedItem {
+                    engine_core::KeyedItem {
                         file_key,
                         value: Entry::default(),
                     },
@@ -96,9 +93,9 @@ fn dependency_table_required_entry_writes_version() {
         BTreeMap::from([(
             "serde".to_owned(),
             (
-                DependencySpec {
+                cargo::DependencySpec {
                     version: Some("1".to_owned()),
-                    ..DependencySpec::default()
+                    ..cargo::DependencySpec::default()
                 },
                 "serde".to_owned(),
             ),
@@ -106,7 +103,7 @@ fn dependency_table_required_entry_writes_version() {
         BTreeMap::new(),
         None,
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.dependencies.insert(normal_scope(), table);
     let out = output(req, None);
     let text =
@@ -122,7 +119,7 @@ fn dependency_table_banned_entry_removes_key() {
         BTreeMap::from([("serde".to_owned(), "no serde".to_owned())]),
         None,
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.dependencies.insert(normal_scope(), table);
     let out = output(
         req,
@@ -140,9 +137,9 @@ fn workspace_dependencies_use_same_table_product() {
         BTreeMap::from([(
             "serde".to_owned(),
             (
-                DependencySpec {
+                cargo::DependencySpec {
                     version: Some("1".to_owned()),
-                    ..DependencySpec::default()
+                    ..cargo::DependencySpec::default()
                 },
                 "serde".to_owned(),
             ),
@@ -150,7 +147,7 @@ fn workspace_dependencies_use_same_table_product() {
         BTreeMap::new(),
         None,
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     req.workspace_dependencies = Some(table);
     let out = output(req, None);
     let text =
@@ -163,8 +160,8 @@ fn workspace_dependencies_use_same_table_product() {
 fn features_table_writes_required_feature_entry() {
     let mut enabled = BTreeSet::new();
     let _ = enabled.insert("dep:serde".to_owned());
-    let entry = FeatureMembers { members: enabled };
-    let mut req = CargoTomlRequirements::default();
+    let entry = cargo::FeatureMembers { members: enabled };
+    let mut req = cargo::CargoTomlRequirements::default();
     req.features = Some(keyed_items(
         BTreeMap::from([("default".to_owned(), (entry, "default".to_owned()))]),
         BTreeMap::new(),
@@ -179,12 +176,12 @@ fn features_table_writes_required_feature_entry() {
 
 #[test]
 fn required_empty_feature_writes_empty_array_when_absent() {
-    let req = CargoTomlRequirements {
+    let req = cargo::CargoTomlRequirements {
         features: Some(keyed_items(
             BTreeMap::from([(
                 "empty".to_owned(),
                 (
-                    FeatureMembers {
+                    cargo::FeatureMembers {
                         members: BTreeSet::new(),
                     },
                     "empty".to_owned(),
@@ -193,7 +190,7 @@ fn required_empty_feature_writes_empty_array_when_absent() {
             BTreeMap::new(),
             None,
         )),
-        ..CargoTomlRequirements::default()
+        ..cargo::CargoTomlRequirements::default()
     };
     let out = output(req, None);
     let text =
@@ -203,12 +200,12 @@ fn required_empty_feature_writes_empty_array_when_absent() {
 
 #[test]
 fn required_empty_feature_overwrites_malformed_value() {
-    let req = CargoTomlRequirements {
+    let req = cargo::CargoTomlRequirements {
         features: Some(keyed_items(
             BTreeMap::from([(
                 "empty".to_owned(),
                 (
-                    FeatureMembers {
+                    cargo::FeatureMembers {
                         members: BTreeSet::new(),
                     },
                     "empty".to_owned(),
@@ -217,7 +214,7 @@ fn required_empty_feature_overwrites_malformed_value() {
             BTreeMap::new(),
             None,
         )),
-        ..CargoTomlRequirements::default()
+        ..cargo::CargoTomlRequirements::default()
     };
     let out = output(req, Some(b"[features]\nempty = \"bad\"\n"));
     let text =
@@ -228,12 +225,12 @@ fn required_empty_feature_overwrites_malformed_value() {
 
 #[test]
 fn profile_nested_fields_are_addressable() {
-    let mut profile = ProfileRequirements::default();
+    let mut profile = cargo::ProfileRequirements::default();
     let _ = profile.fields.insert(
         "opt-level".to_owned(),
-        ProfileFieldAssertion::Equals(ConfigScalar::Int(3), "opt".to_owned()),
+        cargo::ProfileFieldAssertion::Equals(engine_core::ConfigScalar::Int(3), "opt".to_owned()),
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.profiles.insert("release".to_owned(), profile);
     let out = output(req, None);
     let text =
@@ -244,18 +241,18 @@ fn profile_nested_fields_are_addressable() {
 
 #[test]
 fn named_target_fields_are_addressable() {
-    let mut targets = TargetRequirements::default();
+    let mut targets = cargo::TargetRequirements::default();
     let _ = targets.bin_targets.insert(
         "cli".to_owned(),
-        TargetTableAssertion::Fields(BTreeMap::from([(
+        cargo::TargetTableAssertion::Fields(BTreeMap::from([(
             "path".to_owned(),
-            TargetFieldAssertion::Equals(
-                ConfigScalar::Str("src/bin/cli.rs".to_owned()),
+            cargo::TargetFieldAssertion::Equals(
+                engine_core::ConfigScalar::Str("src/bin/cli.rs".to_owned()),
                 "path".to_owned(),
             ),
         )])),
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     req.targets = targets;
     let out = output(req, None);
     let text =
@@ -267,16 +264,16 @@ fn named_target_fields_are_addressable() {
 
 #[test]
 fn target_lib_list_field_uses_unified_list_requirements() {
-    let mut targets = TargetRequirements::default();
+    let mut targets = cargo::TargetRequirements::default();
     let _ = targets.lib_fields.insert(
         "required-features".to_owned(),
-        TargetFieldAssertion::List(ListRequirements {
+        cargo::TargetFieldAssertion::List(engine_core::ListRequirements {
             contains: BTreeMap::from([("feat-a".to_owned(), "feature".to_owned())]),
             excludes: BTreeMap::new(),
             exact: None,
         }),
     );
-    let mut req = CargoTomlRequirements::default();
+    let mut req = cargo::CargoTomlRequirements::default();
     req.targets = targets;
     let out = output(req, None);
     let text =
