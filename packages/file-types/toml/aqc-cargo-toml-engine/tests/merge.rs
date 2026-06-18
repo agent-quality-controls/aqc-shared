@@ -363,7 +363,8 @@ fn dependency_package_identity_ban_catches_renamed_key() {
         Some(b"[dependencies]\njson = { package = \"serde_json\", version = \"1\" }\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(out.findings.len(), 1);
     assert!(!text.contains("json ="));
 }
@@ -522,7 +523,8 @@ fn missing_package_identity_dependency_writes_package_name() {
         closed: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[dependencies]"));
     assert!(text.contains("serde_json = \"1\""));
     assert!(!text.contains("package = \"serde_json\""));
@@ -545,7 +547,8 @@ fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reser
         closed: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
         matches!(finding, Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
     }));
@@ -567,7 +570,8 @@ fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_diff
         Some(b"[dependencies]\nserde_json = { package = \"serde_renamed\", version = \"2\" }\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
         matches!(finding, Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
     }));
@@ -592,7 +596,8 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
         closed: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
         matches!(
             finding,
@@ -636,7 +641,8 @@ fn package_glob_forbid_catches_plain_dependency_key() {
         Some(b"[dependencies]\nopenssl-sys = \"0.9\"\nserde = \"1\"\n"),
         vec![(prov("p1"), dep_glob_req(vec![("openssl-*", "no openssl")]))],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].openssl-sys"),
         1
@@ -651,7 +657,8 @@ fn package_glob_forbid_catches_renamed_dependency_package() {
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\nserde = \"1\"\n"),
         vec![(prov("p1"), dep_glob_req(vec![("openssl-*", "no openssl")]))],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].ssl"),
         1
@@ -669,7 +676,8 @@ fn package_glob_forbid_applies_to_workspace_dependencies() {
         Some(b"[workspace.dependencies]\nopenssl-sys = \"0.9\"\nserde = \"1\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[workspace.dependencies].openssl-sys"),
         1
@@ -691,7 +699,8 @@ fn package_glob_forbid_applies_to_patch_tables() {
         ),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[patch.crates-io].ssl"),
         1
@@ -711,7 +720,8 @@ fn package_glob_forbid_applies_to_target_dependency_scope() {
         Some(b"[target.'cfg(unix)'.dependencies]\nopenssl-sys = \"0.9\"\nserde = \"1\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(
             &out.findings,
@@ -729,7 +739,8 @@ fn package_glob_forbid_catches_dependency_subtable() {
         Some(b"[dependencies.openssl]\npackage = \"openssl-sys\"\nversion = \"0.9\"\n"),
         vec![(prov("p1"), dep_glob_req(vec![("openssl-*", "no openssl")]))],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].openssl"),
         1
@@ -751,7 +762,8 @@ fn dependency_package_identity_ban_catches_subtable() {
         Some(b"[dependencies.openssl]\npackage = \"openssl-sys\"\nversion = \"0.9\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].openssl"),
         1
@@ -791,7 +803,8 @@ fn required_package_matching_glob_forbid_does_not_write_dependency() {
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let out = cargo_output(None, vec![(prov("p1"), exact), (prov("p2"), glob)]);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(has_conflict(&out.findings));
     assert!(!text.contains("openssl-sys"));
 }
@@ -811,7 +824,8 @@ fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\n"),
         vec![(prov("p1"), exact), (prov("p2"), glob)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(has_conflict(&out.findings));
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].ssl"),
@@ -835,7 +849,8 @@ fn required_closed_dependency_matching_glob_forbid_does_not_remove_dependency() 
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\n"),
         vec![(prov("p1"), exact), (prov("p2"), glob)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(has_conflict(&out.findings));
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].ssl"),
@@ -873,7 +888,8 @@ fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
         Some(b"[dependencies]\nopenssl-sys = \"0.9\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].openssl-sys"),
         1
@@ -902,7 +918,8 @@ fn closed_collection_and_forbidden_glob_remove_dependency_once() {
         Some(b"[dependencies]\nopenssl-sys = \"0.9\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(
         mismatch_count_for_key(&out.findings, "[dependencies].openssl-sys"),
         1
@@ -965,7 +982,8 @@ fn patch_requirement_with_file_key_writes_patch_entry() {
         },
     );
     let out = cargo_output(None, vec![(prov("p1"), req)]);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[patch.crates-io]"));
     assert!(text.contains("serde_json = { path = \"../serde_json\" }"));
 }
@@ -1128,7 +1146,8 @@ fn banned_cargo_lint_removes_malformed_existing_key() {
         Some(b"[workspace.lints.clippy]\nunwrap_used = 123\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(!text.contains("unwrap_used"));
     assert_eq!(out.findings.len(), 1);
 }
@@ -1564,7 +1583,7 @@ edition = "2024"
     let mismatch = findings
         .iter()
         .find(|finding| matches!(finding, Finding::Mismatch { message, .. } if message == "exact"))
-        .expect("exact mismatch");
+        .expect("expected an exact-list mismatch finding");
     assert!(matches!(
         mismatch,
         Finding::Mismatch { attribution, .. }

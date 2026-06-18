@@ -56,7 +56,8 @@ fn package_scalar_equals_writes_on_empty() {
         PackageFieldAssertion::Equals(ConfigScalar::Str("2024".to_owned()), "edition".to_owned()),
     );
     let out = output(req, None);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[package]"));
     assert!(text.contains("edition = \"2024\""));
 }
@@ -86,7 +87,8 @@ fn package_lints_inherit_writes_workspace_true() {
         "inherit lints".to_owned(),
     ));
     let out = output(req, None);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[lints]"));
     assert!(text.contains("workspace = true"));
 }
@@ -113,7 +115,8 @@ fn inline_lint_table_writes_one_lint() {
         table,
     )])));
     let out = output(req, None);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[lints.clippy]"));
     assert!(text.contains("unwrap_used = \"deny\""));
 }
@@ -130,7 +133,8 @@ fn workspace_field_list_uses_unified_list_requirements() {
         }),
     );
     let out = output(req, None);
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(!out.findings.is_empty());
     assert!(text.contains("[workspace]"));
     assert!(text.contains("members = [\"crates/*\"]"));
@@ -147,7 +151,8 @@ fn section_presence_absent_removes_table() {
         req,
         Some(b"[badges]\nmaintenance = { status = \"actively-developed\" }\n"),
     );
-    let text = String::from_utf8(out.expected_bytes).expect("utf8");
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(!out.findings.is_empty());
     assert!(!text.contains("[badges]"));
 }
