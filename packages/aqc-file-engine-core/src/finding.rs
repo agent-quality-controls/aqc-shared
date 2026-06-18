@@ -16,6 +16,9 @@
 
 use crate::types::{Provenance, Severity};
 
+/// Rendered policy contributors for a requirement-level finding.
+pub type RenderedContributors = Vec<(String, String)>;
+
 /// A structured finding emitted by a `FileEngine` or a linter adapter.
 #[derive(Debug, Clone)]
 pub enum Finding {
@@ -56,7 +59,7 @@ pub enum Finding {
         /// Which relational rule the set violates.
         message: String,
         /// Each policy whose requirement participates in the invalid set.
-        contributors: Vec<(String, String)>,
+        contributors: RenderedContributors,
     },
     /// The file isn't valid in its native grammar (e.g. malformed TOML).
     ParseError { message: String, severity: Severity },
@@ -71,7 +74,7 @@ pub enum Finding {
         /// The in-file key (e.g. `[workspace.lints.clippy].unwrap_used`).
         key: String,
         /// Each disagreeing policy id + its rendered value.
-        contributors: Vec<(String, String)>,
+        contributors: RenderedContributors,
         /// Which rule fired (scalar-disagree / set-key-disagree / exact-mismatch).
         reason: String,
     },
