@@ -13,17 +13,17 @@
     clippy::option_option,
     clippy::type_complexity,
     clippy::wildcard_enum_match_arm,
-    reason = "Target-table composition uses three-state resolution and closed local assertion enums."
+    reason = "Target-table composition uses three-state resolution and core scalar assertions."
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
-    ResolvedListRequirements, ResolvedRequirement, resolve_list, resolve_map,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion, resolve_list, resolve_map,
 };
 
-use super::helpers::{intersect_string_sets_with_message, push_debug_conflict};
+use super::helpers::push_debug_conflict;
 
 /// What must hold about a single target-table field (`path`, `harness`,
 /// `doctest`, `crate-type`, `required-features`, ...).
@@ -31,41 +31,23 @@ use super::helpers::{intersect_string_sets_with_message, push_debug_conflict};
 /// Equality (and therefore merge agreement) ignores the policy message.
 #[derive(Debug, Clone)]
 pub enum TargetFieldAssertion {
-    /// The field equals this value.
-    Equals(ConfigScalar, String),
-    /// The field's value is one of these (check-only).
-    OneOf(BTreeSet<String>, String),
-    /// List product requirements for this field.
+    Scalar(ScalarAssertion<ConfigScalar>),
     List(ListRequirements),
-    /// The field is set, to anything (check-only).
-    Present(String),
-    /// The field is not set.
-    Absent(String),
 }
 
 /// Resolved target-table field assertion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvedTargetFieldAssertion {
-    /// The field equals this value.
-    Equals(ConfigScalar, String),
-    /// The field's value is one of these.
-    OneOf(BTreeSet<String>, String),
-    /// Resolved list product requirements for this field.
+    Scalar(ScalarAssertion<ConfigScalar>),
     List(ResolvedListRequirements),
-    /// The field is set, to anything.
-    Present(String),
-    /// The field is not set.
-    Absent(String),
 }
 
 /// Semantic equality: messages excluded.
 impl PartialEq for TargetFieldAssertion {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Equals(a, _), Self::Equals(b, _)) => a == b,
-            (Self::OneOf(a, _), Self::OneOf(b, _)) => a == b,
+            (Self::Scalar(a), Self::Scalar(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
-            (Self::Present(_), Self::Present(_)) | (Self::Absent(_), Self::Absent(_)) => true,
             _ => false,
         }
     }
@@ -79,21 +61,18 @@ impl Resolve for TargetFieldAssertion {
         items: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
+        if !items
+            .iter()
+            .all(|(_, assertion)| target_field_assertion_is_legal(key, assertion))
+        {
+            push_unsupported_field_conflict(key, &items, conflicts);
+            return None;
+        }
         if let Some(resolved) = resolve_list_or_present(key, &items, conflicts) {
             return resolved.map(|merged| ResolvedRequirement {
                 merged,
                 collected: items,
             });
-        }
-        if items.iter().any(|(_, a)| matches!(a, Self::Absent(_))) {
-            if items.iter().all(|(_, a)| matches!(a, Self::Absent(_))) {
-                return Some(ResolvedRequirement {
-                    merged: ResolvedTargetFieldAssertion::Absent(first_field_msg(&items)),
-                    collected: items,
-                });
-            }
-            push_field_conflict(key, &items, conflicts);
-            return None;
         }
         compose_field_scalar(key, items, conflicts)
     }
@@ -102,8 +81,8 @@ impl Resolve for TargetFieldAssertion {
 impl OnEmptyClass for TargetFieldAssertion {
     fn on_empty(&self) -> OnEmpty {
         match self {
-            Self::Equals(..) | Self::List(..) | Self::Absent(..) => OnEmpty::Writes,
-            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
+            Self::Scalar(assertion) => assertion.on_empty(),
+            Self::List(_) => OnEmpty::Writes,
         }
     }
 }
@@ -111,8 +90,8 @@ impl OnEmptyClass for TargetFieldAssertion {
 impl OnEmptyClass for ResolvedTargetFieldAssertion {
     fn on_empty(&self) -> OnEmpty {
         match self {
-            Self::Equals(..) | Self::List(..) | Self::Absent(..) => OnEmpty::Writes,
-            Self::OneOf(..) | Self::Present(..) => OnEmpty::ChecksOnly,
+            Self::Scalar(assertion) => assertion.on_empty(),
+            Self::List(_) => OnEmpty::Writes,
         }
     }
 }
@@ -303,7 +282,8 @@ fn resolve_list_or_present(
     if !items.iter().all(|(_, a)| {
         matches!(
             a,
-            TargetFieldAssertion::List(_) | TargetFieldAssertion::Present(_)
+            TargetFieldAssertion::List(_)
+                | TargetFieldAssertion::Scalar(ScalarAssertion::Present(_))
         )
     }) {
         push_field_conflict(key, items, conflicts);
@@ -326,62 +306,26 @@ fn compose_field_scalar(
     items: Vec<(Provenance, TargetFieldAssertion)>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> Option<ResolvedRequirement<ResolvedTargetFieldAssertion, TargetFieldAssertion>> {
-    let equals = items
+    if !items
         .iter()
-        .filter_map(|(_, assertion)| match assertion {
-            TargetFieldAssertion::Equals(value, msg) => Some((value.clone(), msg.clone())),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let oneof = intersect_string_sets_with_message(
-        items
-            .iter()
-            .filter_map(|(_, assertion)| match assertion {
-                TargetFieldAssertion::OneOf(values, msg) => Some((values.clone(), msg.clone())),
-                _ => None,
-            })
-            .collect(),
-    );
-
-    let merged = if equals.windows(2).any(|pair| pair[0].0 != pair[1].0) {
+        .all(|(_, assertion)| matches!(assertion, TargetFieldAssertion::Scalar(_)))
+    {
         push_field_conflict(key, &items, conflicts);
         return None;
-    } else if let Some((value, msg)) = equals.first() {
-        if oneof
-            .as_ref()
-            .is_some_and(|(allowed, _)| !allowed.contains(&scalar_text(value)))
-        {
-            push_field_conflict(key, &items, conflicts);
-            return None;
-        }
-        ResolvedTargetFieldAssertion::Equals(value.clone(), msg.clone())
-    } else if let Some((allowed, msg)) = oneof {
-        if allowed.is_empty() {
-            push_field_conflict(key, &items, conflicts);
-            return None;
-        }
-        ResolvedTargetFieldAssertion::OneOf(allowed, msg)
-    } else {
-        ResolvedTargetFieldAssertion::Present(first_field_msg(&items))
-    };
-
-    Some(ResolvedRequirement {
-        merged,
-        collected: items,
-    })
-}
-
-fn first_field_msg(items: &[(Provenance, TargetFieldAssertion)]) -> String {
-    items
+    }
+    let scalar_items = items
         .iter()
-        .find_map(|(_, assertion)| match assertion {
-            TargetFieldAssertion::Equals(_, msg)
-            | TargetFieldAssertion::OneOf(_, msg)
-            | TargetFieldAssertion::Present(msg)
-            | TargetFieldAssertion::Absent(msg) => Some(msg.clone()),
+        .filter_map(|(prov, assertion)| match assertion {
+            TargetFieldAssertion::Scalar(assertion) => Some((prov.clone(), assertion.clone())),
             TargetFieldAssertion::List(_) => None,
         })
-        .unwrap_or_default()
+        .collect();
+    let resolved = ScalarAssertion::<ConfigScalar>::resolve(key, scalar_items, conflicts)?;
+
+    Some(ResolvedRequirement {
+        merged: ResolvedTargetFieldAssertion::Scalar(resolved.merged),
+        collected: items,
+    })
 }
 
 fn first_table_msg(items: &[(Provenance, TargetTableAssertion)]) -> String {
@@ -396,20 +340,33 @@ fn first_table_msg(items: &[(Provenance, TargetTableAssertion)]) -> String {
         .unwrap_or_default()
 }
 
-fn scalar_text(value: &ConfigScalar) -> String {
-    match value {
-        ConfigScalar::Str(value) => value.clone(),
-        ConfigScalar::Int(value) => value.to_string(),
-        ConfigScalar::Bool(value) => value.to_string(),
-    }
-}
-
 fn push_field_conflict(
     key: &str,
     items: &[(Provenance, TargetFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
     push_debug_conflict(key, "scalar-disagree", items, conflicts);
+}
+
+fn target_field_assertion_is_legal(key: &str, assertion: &TargetFieldAssertion) -> bool {
+    let field = key.rsplit('.').next().unwrap_or(key);
+    match field {
+        "crate-type" | "required-features" => matches!(
+            assertion,
+            TargetFieldAssertion::List(_)
+                | TargetFieldAssertion::Scalar(ScalarAssertion::Present(_))
+                | TargetFieldAssertion::Scalar(ScalarAssertion::Absent(_))
+        ),
+        _ => matches!(assertion, TargetFieldAssertion::Scalar(_)),
+    }
+}
+
+fn push_unsupported_field_conflict(
+    key: &str,
+    items: &[(Provenance, TargetFieldAssertion)],
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    push_debug_conflict(key, "scalar-operation-unsupported", items, conflicts);
 }
 
 fn push_table_conflict(

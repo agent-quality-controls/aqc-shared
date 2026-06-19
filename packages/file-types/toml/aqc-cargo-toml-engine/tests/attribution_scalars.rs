@@ -20,7 +20,7 @@ fn profiles_attribute_only_failed_field_assertions() {
     let mut profile = cargo::ProfileRequirements::default();
     let _ = profile.fields.insert(
         "opt-level".to_owned(),
-        cargo::ProfileFieldAssertion::Equals(engine_core::ConfigScalar::Int(3), "opt".to_owned()),
+        engine_core::ScalarAssertion::Equals(engine_core::ConfigScalar::Int(3), "opt".to_owned()),
     );
     let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.profiles.insert("release".to_owned(), profile);
@@ -43,10 +43,10 @@ fn target_tables_attribute_only_failed_field_assertions() {
         "cli".to_owned(),
         cargo::TargetTableAssertion::Fields(BTreeMap::from([(
             "path".to_owned(),
-            cargo::TargetFieldAssertion::Equals(
+            cargo::TargetFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
                 engine_core::ConfigScalar::Str("src/bin/cli.rs".to_owned()),
                 "path".to_owned(),
-            ),
+            )),
         )])),
     );
     let mut harness_targets = cargo::TargetRequirements::default();
@@ -54,10 +54,10 @@ fn target_tables_attribute_only_failed_field_assertions() {
         "cli".to_owned(),
         cargo::TargetTableAssertion::Fields(BTreeMap::from([(
             "harness".to_owned(),
-            cargo::TargetFieldAssertion::Equals(
+            cargo::TargetFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
                 engine_core::ConfigScalar::Bool(true),
                 "harness".to_owned(),
-            ),
+            )),
         )])),
     );
     let mut path_req = cargo::CargoTomlRequirements::default();
@@ -160,13 +160,18 @@ fn target_table_list_fields_use_unified_list_rules() {
 #[test]
 fn scalar_implication_cases_compose() {
     let mut set = BTreeSet::new();
-    let _ = set.insert("2021".to_owned());
-    let exact = cargo::PackageFieldAssertion::Equals(
+    let _ = set.insert(engine_core::ConfigScalar::Str("2021".to_owned()));
+    let exact = cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
         engine_core::ConfigScalar::Str("2021".to_owned()),
         "exact".to_owned(),
-    );
-    let one = cargo::PackageFieldAssertion::OneOf(set, "one".to_owned());
-    let present = cargo::PackageFieldAssertion::Present("present".to_owned());
+    ));
+    let one = cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+        set,
+        "one".to_owned(),
+    ));
+    let present = cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Present(
+        "present".to_owned(),
+    ));
     let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert("edition".to_owned(), exact);
     let mut right = cargo::CargoTomlRequirements::default();
@@ -181,32 +186,37 @@ fn scalar_implication_cases_compose() {
     assert!(conflicts.is_empty());
     assert!(matches!(
         merged.package_fields["edition"].merged,
-        cargo::ResolvedPackageFieldAssertion::Equals(engine_core::ConfigScalar::Str(ref value), _) if value == "2021"
+        cargo::ResolvedPackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(engine_core::ConfigScalar::Str(ref value), _)) if value == "2021"
     ));
 }
 
 #[test]
 fn scalar_implication_attributes_only_failed_assertions() {
     let mut allowed = BTreeSet::new();
-    let _ = allowed.insert("2021".to_owned());
-    let _ = allowed.insert("2024".to_owned());
+    let _ = allowed.insert(engine_core::ConfigScalar::Str("2021".to_owned()));
+    let _ = allowed.insert(engine_core::ConfigScalar::Str("2024".to_owned()));
     let mut exact_policy = cargo::CargoTomlRequirements::default();
     let _ = exact_policy.package_fields.insert(
         "edition".to_owned(),
-        cargo::PackageFieldAssertion::Equals(
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
             engine_core::ConfigScalar::Str("2021".to_owned()),
             "exact".to_owned(),
-        ),
+        )),
     );
     let mut oneof_policy = cargo::CargoTomlRequirements::default();
     let _ = oneof_policy.package_fields.insert(
         "edition".to_owned(),
-        cargo::PackageFieldAssertion::OneOf(allowed, "one".to_owned()),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+            allowed,
+            "one".to_owned(),
+        )),
     );
     let mut present_policy = cargo::CargoTomlRequirements::default();
     let _ = present_policy.package_fields.insert(
         "edition".to_owned(),
-        cargo::PackageFieldAssertion::Present("present".to_owned()),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Present(
+            "present".to_owned(),
+        )),
     );
     let findings = cargo_findings_with(
         Some(
@@ -237,7 +247,9 @@ fn workspace_inheritance_composes_with_present() {
     let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert(
         "version".to_owned(),
-        cargo::PackageFieldAssertion::Present("present".to_owned()),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Present(
+            "present".to_owned(),
+        )),
     );
     let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert(
@@ -256,19 +268,22 @@ fn workspace_inheritance_composes_with_present() {
 #[test]
 fn cargo_scalar_incompatible_cases_conflict() {
     let mut set = BTreeSet::new();
-    let _ = set.insert("2018".to_owned());
+    let _ = set.insert(engine_core::ConfigScalar::Str("2018".to_owned()));
     let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert(
         "edition".to_owned(),
-        cargo::PackageFieldAssertion::Equals(
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
             engine_core::ConfigScalar::Str("2021".to_owned()),
             "2021".to_owned(),
-        ),
+        )),
     );
     let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert(
         "edition".to_owned(),
-        cargo::PackageFieldAssertion::OneOf(set, "2018 only".to_owned()),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+            set,
+            "2018 only".to_owned(),
+        )),
     );
     let findings = cargo_findings(vec![(prov("p1"), left), (prov("p2"), right)]);
     assert!(
@@ -283,22 +298,29 @@ fn cargo_at_least_version_keeps_strongest_floor() {
     let mut left = cargo::CargoTomlRequirements::default();
     let _ = left.package_fields.insert(
         "rust-version".to_owned(),
-        cargo::PackageFieldAssertion::AtLeastVersion("1.80".to_owned(), "old".to_owned()),
+        cargo::PackageFieldAssertion::OrderedVersion(engine_core::ScalarAssertion::AtLeast(
+            engine_core::DottedVersion::new("1.80"),
+            "old".to_owned(),
+        )),
     );
     let mut right = cargo::CargoTomlRequirements::default();
     let _ = right.package_fields.insert(
         "rust-version".to_owned(),
-        cargo::PackageFieldAssertion::AtLeastVersion("1.85".to_owned(), "new".to_owned()),
+        cargo::PackageFieldAssertion::OrderedVersion(engine_core::ScalarAssertion::AtLeast(
+            engine_core::DottedVersion::new("1.85"),
+            "new".to_owned(),
+        )),
     );
     let (merged, conflicts) =
         cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    let cargo::ResolvedPackageFieldAssertion::AtLeastVersion(version, _) =
-        &merged.package_fields["rust-version"].merged
+    let cargo::ResolvedPackageFieldAssertion::OrderedVersion(
+        engine_core::ScalarAssertion::AtLeast(version, _),
+    ) = &merged.package_fields["rust-version"].merged
     else {
-        panic!("expected AtLeastVersion");
+        panic!("expected OrderedVersion AtLeast");
     };
     assert!(conflicts.is_empty());
-    assert_eq!(version, "1.85");
+    assert_eq!(version.as_str(), "1.85");
 }
 
 #[test]

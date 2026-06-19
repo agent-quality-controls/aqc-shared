@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConfigScalar, FileEngine, Finding, Provenance};
+use aqc_file_engine_core::{ConfigScalar, FileEngine, Finding, Provenance, ScalarAssertion};
 use aqc_rustfmt_toml_engine::{
-    ResolvedRustfmtTomlRequirements, RustfmtScalarAssertion, RustfmtScalarSetting,
-    RustfmtTomlEngine, RustfmtTomlRequirements,
+    ResolvedRustfmtTomlRequirements, RustfmtScalarSetting, RustfmtTomlEngine,
+    RustfmtTomlRequirements,
 };
 use globset as _;
 use toml_edit as _;
@@ -15,7 +15,7 @@ fn equals_writes_missing_scalar() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::MaxWidth,
-                RustfmtScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
+                ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
             )]),
             ..RustfmtTomlRequirements::default()
         },
@@ -38,7 +38,7 @@ fn missing_file_writes_scalar() {
     let req = RustfmtTomlRequirements {
         scalar_settings: BTreeMap::from([(
             RustfmtScalarSetting::MaxWidth,
-            RustfmtScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
+            ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
         )]),
         ..RustfmtTomlRequirements::default()
     };
@@ -75,7 +75,7 @@ fn absent_removes_existing_scalar() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::GroupImports,
-                RustfmtScalarAssertion::Absent("nightly".to_owned()),
+                ScalarAssertion::Absent("nightly".to_owned()),
             )]),
             ..RustfmtTomlRequirements::default()
         },
@@ -100,8 +100,11 @@ fn one_of_reports_without_writing_choice() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::Edition,
-                RustfmtScalarAssertion::OneOf(
-                    BTreeSet::from(["2021".to_owned(), "2024".to_owned()]),
+                ScalarAssertion::OneOf(
+                    BTreeSet::from([
+                        ConfigScalar::Str("2021".to_owned()),
+                        ConfigScalar::Str("2024".to_owned()),
+                    ]),
                     "edition set".to_owned(),
                 ),
             )]),
@@ -124,7 +127,7 @@ fn present_reports_missing_without_writing_choice() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::Edition,
-                RustfmtScalarAssertion::Present("edition present".to_owned()),
+                ScalarAssertion::Present("edition present".to_owned()),
             )]),
             ..RustfmtTomlRequirements::default()
         },
@@ -145,7 +148,7 @@ fn wrong_scalar_type_writes_desired_value() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::MaxWidth,
-                RustfmtScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
+                ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
             )]),
             ..RustfmtTomlRequirements::default()
         },
@@ -166,7 +169,7 @@ fn malformed_toml_reports_parse_error() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::MaxWidth,
-                RustfmtScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
+                ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
             )]),
             ..RustfmtTomlRequirements::default()
         },

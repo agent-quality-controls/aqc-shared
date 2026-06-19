@@ -11,16 +11,14 @@
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    Finding, Provenance, ResolvedRequirement, Severity, parse_version_tuple,
+    DottedVersion, Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity,
 };
 use toml_edit::{DocumentMut, Item, value};
-
-use crate::requirement::MsrvAssertion;
 
 /// Apply the resolved `msrv` requirement to the document.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged: &ResolvedRequirement<MsrvAssertion, MsrvAssertion>,
+    merged: &ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>,
     findings: &mut Vec<Finding>,
 ) {
     let current = doc
@@ -40,7 +38,7 @@ pub(crate) fn apply(
 
 fn attribution_for(
     current: Option<&str>,
-    resolved: &ResolvedRequirement<MsrvAssertion, MsrvAssertion>,
+    resolved: &ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>,
 ) -> Vec<Provenance> {
     let filtered = resolved
         .collected
@@ -59,36 +57,53 @@ fn attribution_for(
     }
 }
 
-fn assertion_fails(current: Option<&str>, assertion: &MsrvAssertion) -> bool {
+fn assertion_fails(current: Option<&str>, assertion: &ScalarAssertion<DottedVersion>) -> bool {
     match assertion {
-        MsrvAssertion::Equals(want, _) => current != Some(want.as_str()),
-        MsrvAssertion::AtLeast(min, _) => !current.is_some_and(|value| ge_version(value, min)),
-        MsrvAssertion::OneOf(allowed, _) => !current.is_some_and(|value| allowed.contains(value)),
-        MsrvAssertion::Present(_) => current.is_none(),
-        MsrvAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::Equals(want, _) => current != Some(want.as_str()),
+        ScalarAssertion::AtLeast(min, _) => {
+            !current.is_some_and(|value| DottedVersion::new(value) >= min.clone())
+        }
+        ScalarAssertion::AtMost(max, _) => {
+            !current.is_some_and(|value| DottedVersion::new(value) <= max.clone())
+        }
+        ScalarAssertion::Range(min, max, _) => !current.is_some_and(|value| {
+            let value = DottedVersion::new(value);
+            value >= min.clone() && value <= max.clone()
+        }),
+        ScalarAssertion::OneOf(allowed, _) => {
+            !current.is_some_and(|value| allowed.contains(&DottedVersion::new(value)))
+        }
+        ScalarAssertion::Present(_) => current.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
     }
 }
 
-/// Apply a single `MsrvAssertion` against the current on-disk value.
+/// Apply a single scalar assertion against the current on-disk `msrv` value.
 fn apply_one(
     doc: &mut DocumentMut,
     current: Option<&str>,
-    assertion: &MsrvAssertion,
+    assertion: &ScalarAssertion<DottedVersion>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        MsrvAssertion::Equals(want, message) => {
-            apply_equals(doc, current, want, message, attribution, findings);
+        ScalarAssertion::Equals(want, message) => {
+            apply_equals(doc, current, want.as_str(), message, attribution, findings);
         }
-        MsrvAssertion::AtLeast(min, message) => {
+        ScalarAssertion::AtLeast(min, message) => {
             apply_at_least(doc, current, min, message, attribution, findings);
         }
-        MsrvAssertion::OneOf(allowed, message) => {
+        ScalarAssertion::AtMost(max, message) => {
+            apply_at_most(doc, current, max, message, attribution, findings);
+        }
+        ScalarAssertion::Range(min, max, message) => {
+            apply_range(doc, current, min, max, message, attribution, findings);
+        }
+        ScalarAssertion::OneOf(allowed, message) => {
             apply_one_of(current, allowed, message, attribution, findings);
         }
-        MsrvAssertion::Present(message) => apply_present(current, message, attribution, findings),
-        MsrvAssertion::Absent(message) => {
+        ScalarAssertion::Present(message) => apply_present(current, message, attribution, findings),
+        ScalarAssertion::Absent(message) => {
             apply_absent(doc, current, message, attribution, findings);
         }
     }
@@ -121,36 +136,98 @@ fn apply_equals(
 fn apply_at_least(
     doc: &mut DocumentMut,
     current: Option<&str>,
-    min: &str,
+    min: &DottedVersion,
     message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if current.is_some_and(|c| ge_version(c, min)) {
+    if current.is_some_and(|c| DottedVersion::new(c) >= min.clone()) {
         return;
     }
     findings.push(Finding::Mismatch {
         key: "msrv".into(),
         current: current.map(ToOwned::to_owned),
-        expected: format!("at least {min}"),
+        expected: format!("at least {}", min.as_str()),
         message: message.to_owned(),
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
-    doc["msrv"] = value(min.to_owned());
+    doc["msrv"] = value(min.as_str().to_owned());
+}
+
+fn apply_at_most(
+    doc: &mut DocumentMut,
+    current: Option<&str>,
+    max: &DottedVersion,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    if current.is_some_and(|c| DottedVersion::new(c) <= max.clone()) {
+        return;
+    }
+    findings.push(Finding::Mismatch {
+        key: "msrv".into(),
+        current: current.map(ToOwned::to_owned),
+        expected: format!("at most {}", max.as_str()),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+    doc["msrv"] = value(max.as_str().to_owned());
+}
+
+fn apply_range(
+    doc: &mut DocumentMut,
+    current: Option<&str>,
+    min: &DottedVersion,
+    max: &DottedVersion,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    let replacement = current.map_or_else(
+        || min.as_str(),
+        |value| {
+            let version = DottedVersion::new(value);
+            if version < min.clone() {
+                min.as_str()
+            } else if version > max.clone() {
+                max.as_str()
+            } else {
+                value
+            }
+        },
+    );
+    if current == Some(replacement) {
+        return;
+    }
+    findings.push(Finding::Mismatch {
+        key: "msrv".into(),
+        current: current.map(ToOwned::to_owned),
+        expected: format!("between {} and {}", min.as_str(), max.as_str()),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+    doc["msrv"] = value(replacement.to_owned());
 }
 
 /// `msrv ∈ allowed`.
 fn apply_one_of(
     current: Option<&str>,
-    allowed: &BTreeSet<String>,
+    allowed: &BTreeSet<DottedVersion>,
     message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if current.is_some_and(|c| allowed.iter().any(|a| a == c)) {
+    if current.is_some_and(|c| allowed.contains(&DottedVersion::new(c))) {
         return;
     }
+    let allowed = allowed
+        .iter()
+        .map(DottedVersion::as_str)
+        .collect::<Vec<_>>();
     findings.push(Finding::Mismatch {
         key: "msrv".into(),
         current: current.map(ToOwned::to_owned),
@@ -201,9 +278,4 @@ fn apply_absent(
         attribution: attribution.to_vec(),
     });
     let _ = doc.as_table_mut().remove("msrv");
-}
-
-/// Compare semver-ish dotted version strings.
-fn ge_version(a: &str, b: &str) -> bool {
-    parse_version_tuple(a) >= parse_version_tuple(b)
 }

@@ -1,33 +1,31 @@
 //! Scalar setting reconciliation.
 
-use std::collections::BTreeSet;
-
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, Severity};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ScalarAssertion, Severity};
 use toml_edit::{DocumentMut, Item, value as toml_value};
 
 use super::toml_io::render_item;
-use crate::requirement::ResolvedRustfmtScalarAssertion;
-
 /// Applies one resolved scalar assertion.
 pub(super) fn apply_scalar(
     doc: &mut DocumentMut,
     key: &str,
-    assertion: &ResolvedRustfmtScalarAssertion,
+    assertion: &ScalarAssertion<ConfigScalar>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ResolvedRustfmtScalarAssertion::Equals(want, message) => {
+        ScalarAssertion::Equals(want, message) => {
             apply_scalar_equals(doc, key, want, message, attribution, findings);
         }
-        ResolvedRustfmtScalarAssertion::OneOf(allowed, message) => {
+        ScalarAssertion::OneOf(allowed, message) => {
             apply_scalar_one_of(doc, key, allowed, message, attribution, findings);
         }
-        ResolvedRustfmtScalarAssertion::Present(message) => {
+        ScalarAssertion::Present(message) => {
             apply_scalar_present(doc, key, message, attribution, findings);
         }
-        ResolvedRustfmtScalarAssertion::Absent(message) => {
+        ScalarAssertion::Absent(message) => {
             apply_scalar_absent(doc, key, message, attribution, findings);
+        }
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
         }
     }
 }
@@ -59,18 +57,18 @@ fn apply_scalar_equals(
 fn apply_scalar_one_of(
     doc: &DocumentMut,
     key: &str,
-    allowed: &BTreeSet<String>,
+    allowed: &std::collections::BTreeSet<ConfigScalar>,
     message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     if doc
         .get(key)
-        .and_then(Item::as_str)
-        .is_some_and(|value| allowed.contains(value))
+        .is_some_and(|item| allowed.iter().any(|want| scalar_matches(item, want)))
     {
         return;
     }
+    let allowed = allowed.iter().map(render_scalar).collect::<Vec<_>>();
     findings.push(Finding::Mismatch {
         key: key.to_owned(),
         current: doc.get(key).and_then(render_item),

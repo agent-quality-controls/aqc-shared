@@ -18,7 +18,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};
+use aqc_file_engine_core::{
+    ConfigScalar, DottedVersion, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
+};
 use toml_edit::{DocumentMut, Item, Table};
 
 use crate::reconcile::util;
@@ -114,27 +116,53 @@ fn assertion_fails(
     assertion: &PackageFieldAssertion,
 ) -> bool {
     match assertion {
-        PackageFieldAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| util::scalar_matches(item, want))
+        PackageFieldAssertion::Scalar(assertion) => config_scalar_fails(current, assertion),
+        PackageFieldAssertion::OrderedVersion(assertion) => {
+            dotted_version_fails(current.and_then(Item::as_str), assertion)
         }
-        PackageFieldAssertion::AtLeastVersion(min, _) => !current
-            .and_then(Item::as_str)
-            .is_some_and(|value| util::ge_version(value, min)),
-        PackageFieldAssertion::OneOf(allowed, _) => !current
-            .and_then(Item::as_str)
-            .is_some_and(|value| allowed.contains(value)),
         PackageFieldAssertion::List(_) => false,
         PackageFieldAssertion::InheritsWorkspace(_) => {
             scope.is_workspace_source() || !current.is_some_and(util::is_workspace_inherit)
         }
-        PackageFieldAssertion::Present(_) => current.is_none(),
-        PackageFieldAssertion::Absent(_) => current.is_some(),
     }
 }
 
 /// Read the on-disk item for `field` at this scope, if present.
 fn current_item<'a>(doc: &'a DocumentMut, scope: PackageScope, field: &str) -> Option<&'a Item> {
     target_ref(doc, scope).and_then(|t| t.get(field))
+}
+
+fn config_scalar_fails(current: Option<&Item>, assertion: &ScalarAssertion<ConfigScalar>) -> bool {
+    match assertion {
+        ScalarAssertion::Equals(want, _) => {
+            !current.is_some_and(|item| util::scalar_matches(item, want))
+        }
+        ScalarAssertion::OneOf(allowed, _) => !current.is_some_and(|item| {
+            allowed
+                .iter()
+                .any(|allowed| util::scalar_matches(item, allowed))
+        }),
+        ScalarAssertion::Present(_) => current.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            true
+        }
+    }
+}
+
+fn dotted_version_fails(current: Option<&str>, assertion: &ScalarAssertion<DottedVersion>) -> bool {
+    match assertion {
+        ScalarAssertion::Equals(want, _) => current != Some(want.as_str()),
+        ScalarAssertion::AtLeast(min, _) => {
+            !current.is_some_and(|value| util::ge_version(value, min.as_str()))
+        }
+        ScalarAssertion::OneOf(allowed, _) => {
+            !current.is_some_and(|value| allowed.iter().any(|allowed| allowed.as_str() == value))
+        }
+        ScalarAssertion::Present(_) => current.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => true,
+    }
 }
 
 /// Apply a single resolved package field assertion.
@@ -147,14 +175,11 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ResolvedPackageFieldAssertion::Equals(want, msg) => {
-            apply_equals(doc, scope, field, want, msg, attribution, findings);
+        ResolvedPackageFieldAssertion::Scalar(assertion) => {
+            apply_config_scalar(doc, scope, field, assertion, attribution, findings);
         }
-        ResolvedPackageFieldAssertion::AtLeastVersion(min, msg) => {
-            apply_at_least(doc, scope, field, min, msg, attribution, findings);
-        }
-        ResolvedPackageFieldAssertion::OneOf(allowed, msg) => {
-            apply_one_of(doc, scope, field, allowed, msg, attribution, findings);
+        ResolvedPackageFieldAssertion::OrderedVersion(assertion) => {
+            apply_dotted_version(doc, scope, field, assertion, attribution, findings);
         }
         ResolvedPackageFieldAssertion::List(list) => {
             for (item, entry) in &list.contains {
@@ -213,87 +238,121 @@ fn apply_one(
         ResolvedPackageFieldAssertion::InheritsWorkspace(msg) => {
             apply_inherits(doc, scope, field, msg, attribution, findings);
         }
-        ResolvedPackageFieldAssertion::Present(msg) => {
-            apply_present(doc, scope, field, msg, attribution, findings);
-        }
-        ResolvedPackageFieldAssertion::Absent(msg) => {
-            apply_absent(doc, scope, field, msg, attribution, findings);
-        }
     }
 }
 
 /// `field == want` (string/int/bool form).
-fn apply_equals(
+fn apply_config_scalar(
     doc: &mut DocumentMut,
     scope: PackageScope,
     field: &str,
-    want: &ConfigScalar,
-    msg: &str,
+    assertion: &ScalarAssertion<ConfigScalar>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if current_item(doc, scope, field).is_some_and(|it| util::scalar_matches(it, want)) {
-        return;
+    match assertion {
+        ScalarAssertion::Equals(want, msg) => {
+            if current_item(doc, scope, field).is_some_and(|it| util::scalar_matches(it, want)) {
+                return;
+            }
+            let current = current_item(doc, scope, field).and_then(util::render_item);
+            util::push_mismatch(
+                findings,
+                format!("[{}].{field}", scope.prefix()),
+                current,
+                util::render_scalar(want),
+                msg.to_owned(),
+                attribution,
+            );
+            ensure_target(doc, scope)[field] = util::scalar_item(want);
+        }
+        ScalarAssertion::OneOf(allowed, msg) => {
+            let current = current_item(doc, scope, field);
+            if current.is_some_and(|item| {
+                allowed
+                    .iter()
+                    .any(|value| util::scalar_matches(item, value))
+            }) {
+                return;
+            }
+            let allowed = allowed.iter().map(util::render_scalar).collect::<Vec<_>>();
+            util::push_mismatch(
+                findings,
+                format!("[{}].{field}", scope.prefix()),
+                current.and_then(util::render_item),
+                format!("one of {allowed:?}"),
+                msg.to_owned(),
+                attribution,
+            );
+        }
+        ScalarAssertion::Present(msg) => {
+            apply_present(doc, scope, field, msg, attribution, findings)
+        }
+        ScalarAssertion::Absent(msg) => apply_absent(doc, scope, field, msg, attribution, findings),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+        }
     }
-    let current = current_item(doc, scope, field).and_then(util::render_item);
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        current,
-        util::render_scalar(want),
-        msg.to_owned(),
-        attribution,
-    );
-    ensure_target(doc, scope)[field] = util::scalar_item(want);
 }
 
-/// `field >= min` (version ordering; works for editions).
-fn apply_at_least(
+fn apply_dotted_version(
     doc: &mut DocumentMut,
     scope: PackageScope,
     field: &str,
-    min: &str,
-    msg: &str,
+    assertion: &ScalarAssertion<DottedVersion>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = current_item(doc, scope, field).and_then(Item::as_str);
-    if current.is_some_and(|c| util::ge_version(c, min)) {
-        return;
+    match assertion {
+        ScalarAssertion::Equals(want, msg) => {
+            apply_config_scalar(
+                doc,
+                scope,
+                field,
+                &ScalarAssertion::Equals(ConfigScalar::Str(want.as_str().to_owned()), msg.clone()),
+                attribution,
+                findings,
+            );
+        }
+        ScalarAssertion::AtLeast(min, msg) => {
+            let current = current_item(doc, scope, field).and_then(Item::as_str);
+            if current.is_some_and(|c| util::ge_version(c, min.as_str())) {
+                return;
+            }
+            util::push_mismatch(
+                findings,
+                format!("[{}].{field}", scope.prefix()),
+                current.map(ToOwned::to_owned),
+                format!("at least {}", min.as_str()),
+                msg.to_owned(),
+                attribution,
+            );
+            ensure_target(doc, scope)[field] =
+                util::scalar_item(&ConfigScalar::Str(min.as_str().to_owned()));
+        }
+        ScalarAssertion::OneOf(allowed, msg) => {
+            let current = current_item(doc, scope, field).and_then(Item::as_str);
+            if current.is_some_and(|c| allowed.iter().any(|value| value.as_str() == c)) {
+                return;
+            }
+            let allowed = allowed
+                .iter()
+                .map(|value| value.as_str().to_owned())
+                .collect::<BTreeSet<_>>();
+            util::push_mismatch(
+                findings,
+                format!("[{}].{field}", scope.prefix()),
+                current.map(ToOwned::to_owned),
+                format!("one of {allowed:?}"),
+                msg.to_owned(),
+                attribution,
+            );
+        }
+        ScalarAssertion::Present(msg) => {
+            apply_present(doc, scope, field, msg, attribution, findings)
+        }
+        ScalarAssertion::Absent(msg) => apply_absent(doc, scope, field, msg, attribution, findings),
+        ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {}
     }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        current.map(ToOwned::to_owned),
-        format!("at least {min}"),
-        msg.to_owned(),
-        attribution,
-    );
-    ensure_target(doc, scope)[field] = util::scalar_item(&ConfigScalar::Str(min.to_owned()));
-}
-
-/// `field` is one of `allowed` (check-only).
-fn apply_one_of(
-    doc: &DocumentMut,
-    scope: PackageScope,
-    field: &str,
-    allowed: &BTreeSet<String>,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = current_item(doc, scope, field).and_then(Item::as_str);
-    if current.is_some_and(|c| allowed.contains(c)) {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        current.map(ToOwned::to_owned),
-        format!("one of {allowed:?}"),
-        msg.to_owned(),
-        attribution,
-    );
 }
 
 /// The on-disk list contains every requested element.

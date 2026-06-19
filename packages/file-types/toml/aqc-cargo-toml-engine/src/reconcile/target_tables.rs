@@ -21,7 +21,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, OnEmpty, OnEmptyClass, Provenance, ResolvedRequirement};
+use aqc_file_engine_core::{
+    ConfigScalar, Finding, OnEmpty, OnEmptyClass, Provenance, ResolvedRequirement, ScalarAssertion,
+};
 use toml_edit::{DocumentMut, Item, Table, value};
 
 use crate::reconcile::util;
@@ -194,15 +196,8 @@ fn field_attribution_for(
 
 fn field_assertion_fails(current: Option<&Item>, assertion: &TargetFieldAssertion) -> bool {
     match assertion {
-        TargetFieldAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| util::scalar_matches(item, want))
-        }
-        TargetFieldAssertion::OneOf(allowed, _) => !current
-            .and_then(Item::as_str)
-            .is_some_and(|value| allowed.contains(value)),
+        TargetFieldAssertion::Scalar(assertion) => scalar_assertion_fails(current, assertion),
         TargetFieldAssertion::List(_) => false,
-        TargetFieldAssertion::Present(_) => current.is_none(),
-        TargetFieldAssertion::Absent(_) => current.is_some(),
     }
 }
 
@@ -217,35 +212,8 @@ fn apply_field(
 ) {
     let path = format!("{}.{field}", loc.prefix());
     match assertion {
-        ResolvedTargetFieldAssertion::Equals(want, msg) => {
-            if read_field(doc, loc, field).is_some_and(|i| util::scalar_matches(i, want)) {
-                return;
-            }
-            let current = read_field(doc, loc, field).and_then(util::render_item);
-            util::push_mismatch(
-                findings,
-                path,
-                current,
-                util::render_scalar(want),
-                msg.clone(),
-                attribution,
-            );
-            ensure_loc(doc, loc)[field] = util::scalar_item(want);
-        }
-        ResolvedTargetFieldAssertion::OneOf(allowed, msg) => {
-            let current = read_field(doc, loc, field).and_then(Item::as_str);
-            if current.is_some_and(|c| allowed.contains(c)) {
-                return;
-            }
-            let rendered = current.map(ToOwned::to_owned);
-            util::push_mismatch(
-                findings,
-                path,
-                rendered,
-                format!("one of {allowed:?}"),
-                msg.clone(),
-                attribution,
-            );
+        ResolvedTargetFieldAssertion::Scalar(assertion) => {
+            apply_scalar_field(doc, loc, field, path, assertion, attribution, findings);
         }
         ResolvedTargetFieldAssertion::List(list) => {
             for (item, entry) in &list.contains {
@@ -315,7 +283,76 @@ fn apply_field(
                 }
             }
         }
-        ResolvedTargetFieldAssertion::Present(msg) => {
+    }
+}
+
+fn scalar_assertion_fails(
+    current: Option<&Item>,
+    assertion: &ScalarAssertion<ConfigScalar>,
+) -> bool {
+    match assertion {
+        ScalarAssertion::Equals(want, _) => {
+            !current.is_some_and(|item| util::scalar_matches(item, want))
+        }
+        ScalarAssertion::OneOf(allowed, _) => !current.is_some_and(|item| {
+            allowed
+                .iter()
+                .any(|allowed| util::scalar_matches(item, allowed))
+        }),
+        ScalarAssertion::Present(_) => current.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            true
+        }
+    }
+}
+
+fn apply_scalar_field(
+    doc: &mut DocumentMut,
+    loc: &FieldLoc<'_>,
+    field: &str,
+    path: String,
+    assertion: &ScalarAssertion<ConfigScalar>,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    match assertion {
+        ScalarAssertion::Equals(want, msg) => {
+            if read_field(doc, loc, field).is_some_and(|i| util::scalar_matches(i, want)) {
+                return;
+            }
+            let current = read_field(doc, loc, field).and_then(util::render_item);
+            util::push_mismatch(
+                findings,
+                path,
+                current,
+                util::render_scalar(want),
+                msg.clone(),
+                attribution,
+            );
+            ensure_loc(doc, loc)[field] = util::scalar_item(want);
+        }
+        ScalarAssertion::OneOf(allowed, msg) => {
+            let current = read_field(doc, loc, field);
+            if current.is_some_and(|item| {
+                allowed
+                    .iter()
+                    .any(|allowed| util::scalar_matches(item, allowed))
+            }) {
+                return;
+            }
+            let rendered = current.and_then(util::render_item);
+            let allowed = allowed.iter().map(util::render_scalar).collect::<Vec<_>>();
+            util::push_mismatch(
+                findings,
+                path,
+                rendered,
+                format!("one of {allowed:?}"),
+                msg.clone(),
+                attribution,
+            );
+        }
+        ScalarAssertion::Present(msg) => {
             if read_field(doc, loc, field).is_some() {
                 return;
             }
@@ -328,7 +365,7 @@ fn apply_field(
                 attribution,
             );
         }
-        ResolvedTargetFieldAssertion::Absent(msg) => {
+        ScalarAssertion::Absent(msg) => {
             let Some(current) = read_field(doc, loc, field).and_then(util::render_item) else {
                 return;
             };
@@ -341,6 +378,8 @@ fn apply_field(
                 attribution,
             );
             let _ = ensure_loc(doc, loc).remove(field);
+        }
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
         }
     }
 }

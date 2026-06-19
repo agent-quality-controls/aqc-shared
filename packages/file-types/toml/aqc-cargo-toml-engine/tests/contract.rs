@@ -58,10 +58,10 @@ fn package_scalar_equals_writes_on_empty() {
     let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.package_fields.insert(
         "edition".to_owned(),
-        cargo::PackageFieldAssertion::Equals(
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
             engine_core::ConfigScalar::Str("2024".to_owned()),
             "edition".to_owned(),
-        ),
+        )),
     );
     let out = output(req, None);
     let text =
@@ -73,16 +73,164 @@ fn package_scalar_equals_writes_on_empty() {
 #[test]
 fn package_one_of_is_check_only_on_empty() {
     let mut allowed = BTreeSet::new();
-    let _ = allowed.insert("MIT".to_owned());
+    let _ = allowed.insert(engine_core::ConfigScalar::Str("MIT".to_owned()));
     let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.package_fields.insert(
         "license".to_owned(),
-        cargo::PackageFieldAssertion::OneOf(allowed, "license".to_owned()),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+            allowed,
+            "license".to_owned(),
+        )),
     );
     let out = output(req, None);
     assert!(out.findings.iter().any(
         |f| matches!(f, engine_core::Finding::Mismatch { key, .. } if key == "[package].license")
     ));
+}
+
+#[test]
+fn cargo_field_wrappers_reject_invalid_scalar_operations() {
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "edition".to_owned(),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::AtLeast(
+            engine_core::ConfigScalar::Str("2024".to_owned()),
+            "edition".to_owned(),
+        )),
+    );
+
+    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.reason == "scalar-operation-unsupported")
+    );
+
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "rust-version".to_owned(),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
+            engine_core::ConfigScalar::Str("1.85".to_owned()),
+            "rust version".to_owned(),
+        )),
+    );
+    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.reason == "scalar-operation-unsupported")
+    );
+
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.workspace_fields.insert(
+        "members".to_owned(),
+        cargo::WorkspaceFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
+            engine_core::ConfigScalar::Str("crate".to_owned()),
+            "members".to_owned(),
+        )),
+    );
+    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.reason == "scalar-operation-unsupported")
+    );
+
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.targets.lib_fields.insert(
+        "path".to_owned(),
+        cargo::TargetFieldAssertion::List(engine_core::ListRequirements::default()),
+    );
+    let _ = req.targets.lib_fields.insert(
+        "required-features".to_owned(),
+        cargo::TargetFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
+            engine_core::ConfigScalar::Str("feature".to_owned()),
+            "feature".to_owned(),
+        )),
+    );
+    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    assert_eq!(
+        conflicts
+            .iter()
+            .filter(|conflict| conflict.reason == "scalar-operation-unsupported")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn cargo_field_wrappers_reject_more_invalid_domain_shapes() {
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "rust-version".to_owned(),
+        cargo::PackageFieldAssertion::OrderedVersion(engine_core::ScalarAssertion::AtMost(
+            engine_core::DottedVersion::new("1.85"),
+            "ceiling".to_owned(),
+        )),
+    );
+    let _ = req.package_fields.insert(
+        "version".to_owned(),
+        cargo::PackageFieldAssertion::OrderedVersion(engine_core::ScalarAssertion::Range(
+            engine_core::DottedVersion::new("1.0"),
+            engine_core::DottedVersion::new("2.0"),
+            "range".to_owned(),
+        )),
+    );
+    let _ = req.package_fields.insert(
+        "license".to_owned(),
+        cargo::PackageFieldAssertion::OrderedVersion(engine_core::ScalarAssertion::AtLeast(
+            engine_core::DottedVersion::new("1.0"),
+            "not a version".to_owned(),
+        )),
+    );
+    let _ = req.workspace_package_fields.insert(
+        "license".to_owned(),
+        cargo::PackageFieldAssertion::InheritsWorkspace("nested inherit".to_owned()),
+    );
+    let _ = req.workspace_fields.insert(
+        "members".to_owned(),
+        cargo::WorkspaceFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+            BTreeSet::from([engine_core::ConfigScalar::Str("crate".to_owned())]),
+            "members oneof".to_owned(),
+        )),
+    );
+    let _ = req.workspace_fields.insert(
+        "resolver".to_owned(),
+        cargo::WorkspaceFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+            BTreeSet::from([engine_core::ConfigScalar::Int(2)]),
+            "wrong type".to_owned(),
+        )),
+    );
+    let _ = req.targets.lib_fields.insert(
+        "required-features".to_owned(),
+        cargo::TargetFieldAssertion::Scalar(engine_core::ScalarAssertion::OneOf(
+            BTreeSet::from([engine_core::ConfigScalar::Str("feature".to_owned())]),
+            "features oneof".to_owned(),
+        )),
+    );
+
+    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    assert_eq!(
+        conflicts
+            .iter()
+            .filter(|conflict| conflict.reason == "scalar-operation-unsupported")
+            .count(),
+        7
+    );
+}
+
+#[test]
+fn cargo_package_workspace_inheritance_is_allowed_for_named_fields() {
+    let mut req = cargo::CargoTomlRequirements::default();
+    for field in ["license", "keywords", "categories"] {
+        let _ = req.package_fields.insert(
+            field.to_owned(),
+            cargo::PackageFieldAssertion::InheritsWorkspace("workspace".to_owned()),
+        );
+    }
+
+    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    assert!(conflicts.is_empty());
 }
 
 #[test]

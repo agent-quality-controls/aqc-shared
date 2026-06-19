@@ -25,7 +25,7 @@ pub use model::{
     Provenanced, RequiredItemResolution, Resolve, ResolvedAssertion, ResolvedAssertionOption,
     ResolvedExactList, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
     ResolvedListRequirements, ResolvedMap, ResolvedRequirement, ResolvedSame, ResolvedSameOption,
-    ResolvedStringMembers, VersionFloor,
+    ResolvedStringMembers, ScalarAssertion, ScalarOperation, ScalarValue, VersionFloor,
 };
 pub use scalar::{
     compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,

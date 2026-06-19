@@ -1,6 +1,10 @@
 //! Framework data types: `Provenance`, `MergedAssertion`, `EngineOutput`, and `Severity`.
 
+use core::cmp::Ordering;
+
 use crate::finding::Finding;
+use crate::merge::ScalarValue;
+use crate::toml_helpers::parse_version_tuple;
 
 /// Identifies which policy contributed a requirement.
 ///
@@ -25,11 +29,116 @@ pub enum Severity {
 /// once; the per-engine "identical shapes are defined separately" rule governs
 /// assertion enums, not primitives. No `Float`: no controllable key needs one,
 /// and float equality is a comparison hazard.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConfigScalar {
     Str(String),
     Int(i64),
     Bool(bool),
+}
+
+/// Dotted numeric version value for fields that explicitly choose
+/// `(major, minor, patch)` ordering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DottedVersion(String);
+
+impl DottedVersion {
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for DottedVersion {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for DottedVersion {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl PartialOrd for DottedVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DottedVersion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        parse_version_tuple(&self.0).cmp(&parse_version_tuple(&other.0))
+    }
+}
+
+impl ScalarValue for DottedVersion {
+    fn render(&self) -> String {
+        self.0.clone()
+    }
+
+    fn compare_for_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl ScalarValue for ConfigScalar {
+    fn render(&self) -> String {
+        match self {
+            Self::Str(value) => value.clone(),
+            Self::Int(value) => value.to_string(),
+            Self::Bool(value) => value.to_string(),
+        }
+    }
+
+    fn compare_for_order(&self, _other: &Self) -> Option<Ordering> {
+        None
+    }
+}
+
+impl ScalarValue for String {
+    fn render(&self) -> String {
+        self.clone()
+    }
+
+    fn compare_for_order(&self, _other: &Self) -> Option<Ordering> {
+        None
+    }
+}
+
+impl ScalarValue for bool {
+    fn render(&self) -> String {
+        self.to_string()
+    }
+
+    fn compare_for_order(&self, _other: &Self) -> Option<Ordering> {
+        None
+    }
+}
+
+impl ScalarValue for i64 {
+    fn render(&self) -> String {
+        self.to_string()
+    }
+
+    fn compare_for_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl ScalarValue for u64 {
+    fn render(&self) -> String {
+        self.to_string()
+    }
+
+    fn compare_for_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 /// Policy-authored explanation carried by every assertion.

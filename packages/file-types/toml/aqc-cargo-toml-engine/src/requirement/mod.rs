@@ -28,7 +28,7 @@ pub use dependencies::DependencySpec;
 pub use features::FeatureMembers;
 pub use lints::{LintSetting, PackageLintsAssertion, ResolvedPackageLintsAssertion};
 pub use package::{PackageFieldAssertion, ResolvedPackageFieldAssertion};
-pub use profiles::{ProfileFieldAssertion, ProfileRequirements, ResolvedProfileRequirements};
+pub use profiles::{ProfileRequirements, ResolvedProfileRequirements};
 pub use sections::ManifestSection;
 pub use sections::SectionPresenceAssertion;
 pub use targets::{

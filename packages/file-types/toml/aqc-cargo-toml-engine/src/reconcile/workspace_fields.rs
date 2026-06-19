@@ -76,15 +76,22 @@ fn attribution_for(
 
 fn assertion_fails(current: Option<&toml::Item>, assertion: &req::WorkspaceFieldAssertion) -> bool {
     match assertion {
-        req::WorkspaceFieldAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| util::scalar_matches(item, want))
-        }
-        req::WorkspaceFieldAssertion::OneOf(allowed, _) => !current
-            .and_then(toml::Item::as_str)
-            .is_some_and(|value| allowed.contains(value)),
+        req::WorkspaceFieldAssertion::Scalar(assertion) => match assertion {
+            core_types::ScalarAssertion::Equals(want, _) => {
+                !current.is_some_and(|item| util::scalar_matches(item, want))
+            }
+            core_types::ScalarAssertion::OneOf(allowed, _) => !current.is_some_and(|item| {
+                allowed
+                    .iter()
+                    .any(|allowed| util::scalar_matches(item, allowed))
+            }),
+            core_types::ScalarAssertion::Present(_) => current.is_none(),
+            core_types::ScalarAssertion::Absent(_) => current.is_some(),
+            core_types::ScalarAssertion::AtLeast(..)
+            | core_types::ScalarAssertion::AtMost(..)
+            | core_types::ScalarAssertion::Range(..) => true,
+        },
         req::WorkspaceFieldAssertion::List(_) => false,
-        req::WorkspaceFieldAssertion::Present(_) => current.is_none(),
-        req::WorkspaceFieldAssertion::Absent(_) => current.is_some(),
     }
 }
 
@@ -97,11 +104,8 @@ fn apply_one(
     findings: &mut Vec<core_types::Finding>,
 ) {
     match assertion {
-        req::ResolvedWorkspaceFieldAssertion::Equals(want, msg) => {
-            apply_equals(doc, key, want, msg, attribution, findings);
-        }
-        req::ResolvedWorkspaceFieldAssertion::OneOf(allowed, msg) => {
-            apply_one_of(doc, key, allowed, msg, attribution, findings);
+        req::ResolvedWorkspaceFieldAssertion::Scalar(assertion) => {
+            apply_scalar(doc, key, assertion, attribution, findings);
         }
         req::ResolvedWorkspaceFieldAssertion::List(list) => {
             for (item, entry) in &list.contains {
@@ -140,60 +144,62 @@ fn apply_one(
                 apply_list_is_exactly(doc, key, &exact.merged, msg, &exact_attribution, findings);
             }
         }
-        req::ResolvedWorkspaceFieldAssertion::Present(msg) => {
-            apply_present(doc, key, msg, attribution, findings);
-        }
-        req::ResolvedWorkspaceFieldAssertion::Absent(msg) => {
-            apply_absent(doc, key, msg, attribution, findings);
-        }
     }
 }
 
 /// `key == want`.
-fn apply_equals(
+fn apply_scalar(
     doc: &mut toml::DocumentMut,
     key: &str,
-    want: &core_types::ConfigScalar,
-    msg: &str,
+    assertion: &core_types::ScalarAssertion<core_types::ConfigScalar>,
     attribution: &[core_types::Provenance],
     findings: &mut Vec<core_types::Finding>,
 ) {
-    if current_item(doc, key).is_some_and(|it| util::scalar_matches(it, want)) {
-        return;
+    match assertion {
+        core_types::ScalarAssertion::Equals(want, msg) => {
+            if current_item(doc, key).is_some_and(|it| util::scalar_matches(it, want)) {
+                return;
+            }
+            let current = current_item(doc, key).and_then(util::render_item);
+            util::push_mismatch(
+                findings,
+                format!("[{PREFIX}].{key}"),
+                current,
+                util::render_scalar(want),
+                msg.to_owned(),
+                attribution,
+            );
+            util::ensure_table(doc, PREFIX)[key] = util::scalar_item(want);
+        }
+        core_types::ScalarAssertion::OneOf(allowed, msg) => {
+            let current = current_item(doc, key);
+            if current.is_some_and(|item| {
+                allowed
+                    .iter()
+                    .any(|allowed| util::scalar_matches(item, allowed))
+            }) {
+                return;
+            }
+            let allowed = allowed.iter().map(util::render_scalar).collect::<Vec<_>>();
+            util::push_mismatch(
+                findings,
+                format!("[{PREFIX}].{key}"),
+                current.and_then(util::render_item),
+                format!("one of {allowed:?}"),
+                msg.to_owned(),
+                attribution,
+            );
+        }
+        core_types::ScalarAssertion::Present(msg) => {
+            apply_present(doc, key, msg, attribution, findings);
+        }
+        core_types::ScalarAssertion::Absent(msg) => {
+            apply_absent(doc, key, msg, attribution, findings);
+        }
+        core_types::ScalarAssertion::AtLeast(..)
+        | core_types::ScalarAssertion::AtMost(..)
+        | core_types::ScalarAssertion::Range(..) => {}
     }
-    let current = current_item(doc, key).and_then(util::render_item);
-    util::push_mismatch(
-        findings,
-        format!("[{PREFIX}].{key}"),
-        current,
-        util::render_scalar(want),
-        msg.to_owned(),
-        attribution,
-    );
-    util::ensure_table(doc, PREFIX)[key] = util::scalar_item(want);
-}
-
-/// `key` is one of `allowed` (check-only).
-fn apply_one_of(
-    doc: &toml::DocumentMut,
-    key: &str,
-    allowed: &BTreeSet<String>,
-    msg: &str,
-    attribution: &[core_types::Provenance],
-    findings: &mut Vec<core_types::Finding>,
-) {
-    let current = current_item(doc, key).and_then(toml::Item::as_str);
-    if current.is_some_and(|c| allowed.contains(c)) {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{PREFIX}].{key}"),
-        current.map(ToOwned::to_owned),
-        format!("one of {allowed:?}"),
-        msg.to_owned(),
-        attribution,
-    );
 }
 
 /// The on-disk list contains every requested element.

@@ -14,14 +14,16 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ResolvedRequirement};
+use aqc_file_engine_core::{
+    ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
+};
 use toml_edit::{DocumentMut, Item};
 
 use crate::reconcile::util::{
     attribution as resolved_attribution, ensure_table_at, push_mismatch, render_item,
     render_scalar, scalar_item, scalar_matches, table_at, table_at_mut,
 };
-use crate::requirement::{ProfileFieldAssertion, ResolvedProfileRequirements};
+use crate::requirement::ResolvedProfileRequirements;
 
 /// Apply every `[profile.<name>]` requirement.
 pub(crate) fn apply(
@@ -76,7 +78,7 @@ fn apply_resolved_field(
     path: &[String],
     display: &str,
     field: &str,
-    resolved: &ResolvedRequirement<ProfileFieldAssertion, ProfileFieldAssertion>,
+    resolved: &ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = profile_field_attribution_for(doc, path, field, resolved);
@@ -95,7 +97,7 @@ fn profile_field_attribution_for(
     doc: &DocumentMut,
     path: &[String],
     field: &str,
-    resolved: &ResolvedRequirement<ProfileFieldAssertion, ProfileFieldAssertion>,
+    resolved: &ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
 ) -> Vec<Provenance> {
     let current = field_item(doc, path, field);
     let filtered = resolved
@@ -111,34 +113,38 @@ fn profile_field_attribution_for(
     }
 }
 
-fn profile_assertion_fails(current: Option<&Item>, assertion: &ProfileFieldAssertion) -> bool {
+fn profile_assertion_fails(
+    current: Option<&Item>,
+    assertion: &ScalarAssertion<ConfigScalar>,
+) -> bool {
     match assertion {
-        ProfileFieldAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| scalar_matches(item, want))
-        }
-        ProfileFieldAssertion::OneOf(allowed, _) => {
+        ScalarAssertion::Equals(want, _) => !current.is_some_and(|item| scalar_matches(item, want)),
+        ScalarAssertion::OneOf(allowed, _) => {
             !current.is_some_and(|item| allowed.iter().any(|allowed| scalar_matches(item, allowed)))
         }
-        ProfileFieldAssertion::Present(_) => current.is_none(),
-        ProfileFieldAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::Present(_) => current.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            true
+        }
     }
 }
 
-/// Apply one `ProfileFieldAssertion` to `field` in the table at `path`.
+/// Apply one scalar assertion to `field` in the table at `path`.
 fn apply_field(
     doc: &mut DocumentMut,
     path: &[String],
     display: &str,
     field: &str,
-    assertion: &ProfileFieldAssertion,
+    assertion: &ScalarAssertion<ConfigScalar>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ProfileFieldAssertion::Equals(want, msg) => {
+        ScalarAssertion::Equals(want, msg) => {
             apply_equals(doc, path, display, field, want, msg, attribution, findings);
         }
-        ProfileFieldAssertion::OneOf(allowed, msg) => {
+        ScalarAssertion::OneOf(allowed, msg) => {
             apply_one_of(
                 doc,
                 path,
@@ -150,11 +156,13 @@ fn apply_field(
                 findings,
             );
         }
-        ProfileFieldAssertion::Present(msg) => {
+        ScalarAssertion::Present(msg) => {
             apply_present(doc, path, display, field, msg, attribution, findings);
         }
-        ProfileFieldAssertion::Absent(msg) => {
+        ScalarAssertion::Absent(msg) => {
             apply_absent(doc, path, display, field, msg, attribution, findings);
+        }
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
         }
     }
 }
@@ -200,7 +208,7 @@ fn apply_one_of(
     path: &[String],
     display: &str,
     field: &str,
-    allowed: &[ConfigScalar],
+    allowed: &std::collections::BTreeSet<ConfigScalar>,
     msg: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,

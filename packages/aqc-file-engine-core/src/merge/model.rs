@@ -1,5 +1,6 @@
 //! Merge data model and public aliases.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::types::Provenance;
@@ -49,6 +50,83 @@ pub type ResolvedSameOption<T> = Option<ResolvedSame<T>>;
 pub type OptionalInput<T> = Provenanced<Option<T>>;
 pub type VersionFloor = MessagePair<String>;
 pub type KeyedValueMap<S, M> = BTreeMap<String, (S, M)>;
+
+/// Generic scalar assertion verbs shared by file engines.
+#[derive(Debug, Clone)]
+pub enum ScalarAssertion<T> {
+    Equals(T, String),
+    AtLeast(T, String),
+    AtMost(T, String),
+    Range(T, T, String),
+    OneOf(BTreeSet<T>, String),
+    Present(String),
+    Absent(String),
+}
+
+/// Scalar assertion operation without its value payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ScalarOperation {
+    Equals,
+    AtLeast,
+    AtMost,
+    Range,
+    OneOf,
+    Present,
+    Absent,
+}
+
+/// Value behavior needed by generic scalar assertion composition.
+pub trait ScalarValue: Clone + Eq + Ord {
+    fn render(&self) -> String;
+
+    fn compare_for_order(&self, other: &Self) -> Option<Ordering>;
+}
+
+impl<T> ScalarAssertion<T> {
+    #[must_use]
+    pub const fn operation(&self) -> ScalarOperation {
+        match self {
+            Self::Equals(..) => ScalarOperation::Equals,
+            Self::AtLeast(..) => ScalarOperation::AtLeast,
+            Self::AtMost(..) => ScalarOperation::AtMost,
+            Self::Range(..) => ScalarOperation::Range,
+            Self::OneOf(..) => ScalarOperation::OneOf,
+            Self::Present(_) => ScalarOperation::Present,
+            Self::Absent(_) => ScalarOperation::Absent,
+        }
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        match self {
+            Self::Equals(_, msg)
+            | Self::AtLeast(_, msg)
+            | Self::AtMost(_, msg)
+            | Self::Range(_, _, msg)
+            | Self::OneOf(_, msg)
+            | Self::Present(msg)
+            | Self::Absent(msg) => msg,
+        }
+    }
+}
+
+impl<T: PartialEq> PartialEq for ScalarAssertion<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Equals(a, _), Self::Equals(b, _))
+            | (Self::AtLeast(a, _), Self::AtLeast(b, _))
+            | (Self::AtMost(a, _), Self::AtMost(b, _)) => a == b,
+            (Self::Range(a_min, a_max, _), Self::Range(b_min, b_max, _)) => {
+                a_min == b_min && a_max == b_max
+            }
+            (Self::OneOf(a, _), Self::OneOf(b, _)) => a == b,
+            (Self::Present(_), Self::Present(_)) | (Self::Absent(_), Self::Absent(_)) => true,
+            _ => false,
+        }
+    }
+}
+
+impl<T: Eq> Eq for ScalarAssertion<T> {}
 
 /// One key on which policies irreconcilably disagree, with each value.
 #[derive(Debug, Clone)]

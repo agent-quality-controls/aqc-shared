@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, FileEngine, Finding, ForbiddenGlobRequirements, ListRequirements, Provenance,
+    ScalarAssertion,
 };
 use aqc_rustfmt_toml_engine::{
     ResolvedRustfmtTomlRequirements, RustfmtIgnorePathGlob, RustfmtListSetting,
-    RustfmtScalarAssertion, RustfmtScalarSetting, RustfmtTomlEngine, RustfmtTomlRequirements,
+    RustfmtScalarSetting, RustfmtTomlEngine, RustfmtTomlRequirements,
 };
 use globset as _;
 use toml_edit as _;
@@ -115,7 +116,7 @@ fn closed_settings_remove_unlisted_keys() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::MaxWidth,
-                RustfmtScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
+                ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
             )]),
             closed_settings: Some("closed".to_owned()),
             ..RustfmtTomlRequirements::default()
@@ -167,7 +168,7 @@ fn unrelated_settings_are_preserved_when_not_closed() {
         RustfmtTomlRequirements {
             scalar_settings: BTreeMap::from([(
                 RustfmtScalarSetting::MaxWidth,
-                RustfmtScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
+                ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
             )]),
             ..RustfmtTomlRequirements::default()
         },

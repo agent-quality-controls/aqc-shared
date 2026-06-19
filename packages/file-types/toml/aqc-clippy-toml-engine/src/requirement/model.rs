@@ -10,33 +10,33 @@ use core::any::Any;
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
-    EngineRequirement, ForbiddenGlobRequirements, ItemRequirements,
+    DottedVersion, EngineRequirement, ForbiddenGlobRequirements, ItemRequirements,
     ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedRequirement,
+    ScalarAssertion,
 };
 
-use super::{
-    BanEntry, BoolAssertion, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, MsrvAssertion,
-    NumericAssertion, StringAssertion,
-};
+use super::{BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob};
 
 #[derive(Debug, Clone, Default)]
 pub struct ClippyTomlRequirements {
-    pub msrv: Option<MsrvAssertion>,
-    pub thresholds: BTreeMap<String, NumericAssertion>,
+    pub msrv: Option<ScalarAssertion<DottedVersion>>,
+    pub thresholds: BTreeMap<String, ScalarAssertion<u64>>,
     pub disallowed_methods: ItemRequirements<BanEntry>,
     pub forbidden_disallowed_method_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_types: ItemRequirements<BanEntry>,
     pub forbidden_disallowed_type_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_macros: ItemRequirements<BanEntry>,
     pub forbidden_disallowed_macro_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
-    pub bools: BTreeMap<String, BoolAssertion>,
-    pub enums: BTreeMap<String, StringAssertion>,
+    pub bools: BTreeMap<String, ScalarAssertion<bool>>,
+    pub enums: BTreeMap<String, ScalarAssertion<String>>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedClippyTomlRequirements {
-    pub msrv: Option<ResolvedRequirement<MsrvAssertion, MsrvAssertion>>,
-    pub thresholds: BTreeMap<String, ResolvedRequirement<NumericAssertion, NumericAssertion>>,
+    pub msrv:
+        Option<ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>>,
+    pub thresholds:
+        BTreeMap<String, ResolvedRequirement<ScalarAssertion<u64>, ScalarAssertion<u64>>>,
     pub disallowed_methods: ResolvedItemRequirements<BanEntry>,
     pub forbidden_disallowed_method_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_method_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
@@ -46,8 +46,9 @@ pub struct ResolvedClippyTomlRequirements {
     pub disallowed_macros: ResolvedItemRequirements<BanEntry>,
     pub forbidden_disallowed_macro_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_macro_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
-    pub bools: BTreeMap<String, ResolvedRequirement<BoolAssertion, BoolAssertion>>,
-    pub enums: BTreeMap<String, ResolvedRequirement<StringAssertion, StringAssertion>>,
+    pub bools: BTreeMap<String, ResolvedRequirement<ScalarAssertion<bool>, ScalarAssertion<bool>>>,
+    pub enums:
+        BTreeMap<String, ResolvedRequirement<ScalarAssertion<String>, ScalarAssertion<String>>>,
 }
 
 impl EngineRequirement for ClippyTomlRequirements {

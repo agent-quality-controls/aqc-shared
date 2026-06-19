@@ -236,7 +236,7 @@ fn profile_nested_fields_are_addressable() {
     let mut profile = cargo::ProfileRequirements::default();
     let _ = profile.fields.insert(
         "opt-level".to_owned(),
-        cargo::ProfileFieldAssertion::Equals(engine_core::ConfigScalar::Int(3), "opt".to_owned()),
+        engine_core::ScalarAssertion::Equals(engine_core::ConfigScalar::Int(3), "opt".to_owned()),
     );
     let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.profiles.insert("release".to_owned(), profile);
@@ -254,10 +254,10 @@ fn named_target_fields_are_addressable() {
         "cli".to_owned(),
         cargo::TargetTableAssertion::Fields(BTreeMap::from([(
             "path".to_owned(),
-            cargo::TargetFieldAssertion::Equals(
+            cargo::TargetFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
                 engine_core::ConfigScalar::Str("src/bin/cli.rs".to_owned()),
                 "path".to_owned(),
-            ),
+            )),
         )])),
     );
     let mut req = cargo::CargoTomlRequirements::default();

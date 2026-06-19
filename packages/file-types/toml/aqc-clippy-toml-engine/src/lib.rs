@@ -12,12 +12,13 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
+pub use aqc_file_engine_core::{DottedVersion, ScalarAssertion};
+#[cfg(feature = "api")]
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    BanEntry, BoolAssertion, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob,
-    ClippyTomlRequirements, MsrvAssertion, NumericAssertion, ResolvedClippyTomlRequirements,
-    StringAssertion,
+    BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, ClippyTomlRequirements,
+    ResolvedClippyTomlRequirements,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value

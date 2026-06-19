@@ -14,15 +14,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity};
 use toml_edit::{DocumentMut, Item, value};
-
-use crate::requirement::StringAssertion;
 
 /// Apply every string-setting requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_key: &BTreeMap<String, ResolvedRequirement<StringAssertion, StringAssertion>>,
+    merged_by_key: &BTreeMap<
+        String,
+        ResolvedRequirement<ScalarAssertion<String>, ScalarAssertion<String>>,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (key, merged) in merged_by_key {
@@ -34,7 +35,7 @@ pub(crate) fn apply(
 fn attribution_for(
     doc: &DocumentMut,
     key: &str,
-    resolved: &ResolvedRequirement<StringAssertion, StringAssertion>,
+    resolved: &ResolvedRequirement<ScalarAssertion<String>, ScalarAssertion<String>>,
 ) -> Vec<Provenance> {
     let current = doc.get(key);
     let filtered = resolved
@@ -54,37 +55,42 @@ fn attribution_for(
     }
 }
 
-fn assertion_fails(current: Option<&Item>, assertion: &StringAssertion) -> bool {
+fn assertion_fails(current: Option<&Item>, assertion: &ScalarAssertion<String>) -> bool {
     let current_str = current.and_then(Item::as_str);
     match assertion {
-        StringAssertion::Equals(want, _) => current_str != Some(want.as_str()),
-        StringAssertion::OneOf(allowed, _) => {
+        ScalarAssertion::Equals(want, _) => current_str != Some(want.as_str()),
+        ScalarAssertion::OneOf(allowed, _) => {
             !current_str.is_some_and(|value| allowed.contains(value))
         }
-        StringAssertion::Present(_) => current_str.is_none(),
-        StringAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::Present(_) => current_str.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            true
+        }
     }
 }
 
-/// Apply a single `StringAssertion` against a setting.
+/// Apply a single scalar assertion against a string setting.
 fn apply_one(
     doc: &mut DocumentMut,
     key: &str,
-    assertion: &StringAssertion,
+    assertion: &ScalarAssertion<String>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        StringAssertion::Equals(want, message) => {
+        ScalarAssertion::Equals(want, message) => {
             apply_equals(doc, key, want, message, attribution, findings);
         }
-        StringAssertion::OneOf(allowed, message) => {
+        ScalarAssertion::OneOf(allowed, message) => {
             apply_one_of(doc, key, allowed, message, attribution, findings);
         }
-        StringAssertion::Present(message) => {
+        ScalarAssertion::Present(message) => {
             apply_present(doc, key, message, attribution, findings);
         }
-        StringAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
+        ScalarAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+        }
     }
 }
 

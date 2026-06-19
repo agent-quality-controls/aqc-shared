@@ -12,16 +12,17 @@
     reason = "Private threshold reconciliation helpers carry repeated resolved requirement shapes."
 )]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity};
 use toml_edit::{DocumentMut, Item, value};
-
-use crate::requirement::NumericAssertion;
 
 pub(crate) fn apply(
     doc: &mut DocumentMut,
-    merged_by_key: &BTreeMap<String, ResolvedRequirement<NumericAssertion, NumericAssertion>>,
+    merged_by_key: &BTreeMap<
+        String,
+        ResolvedRequirement<ScalarAssertion<u64>, ScalarAssertion<u64>>,
+    >,
     findings: &mut Vec<Finding>,
 ) {
     for (key, merged) in merged_by_key {
@@ -33,7 +34,7 @@ pub(crate) fn apply(
 fn attribution_for(
     doc: &DocumentMut,
     key: &str,
-    resolved: &ResolvedRequirement<NumericAssertion, NumericAssertion>,
+    resolved: &ResolvedRequirement<ScalarAssertion<u64>, ScalarAssertion<u64>>,
 ) -> Vec<Provenance> {
     let current = doc.get(key);
     let filtered = resolved
@@ -53,52 +54,57 @@ fn attribution_for(
     }
 }
 
-fn assertion_fails(current: Option<&Item>, assertion: &NumericAssertion) -> bool {
+fn assertion_fails(current: Option<&Item>, assertion: &ScalarAssertion<u64>) -> bool {
     let current_int = current.and_then(Item::as_integer);
     match assertion {
-        NumericAssertion::Equals(want, _) => current_int != i64::try_from(*want).ok(),
-        NumericAssertion::AtMost(want, _) => {
+        ScalarAssertion::Equals(want, _) => current_int != i64::try_from(*want).ok(),
+        ScalarAssertion::AtMost(want, _) => {
             let ceiling = i64::try_from(*want).unwrap_or(i64::MAX);
             current_int.is_none_or(|value| value > ceiling)
         }
-        NumericAssertion::AtLeast(want, _) => {
+        ScalarAssertion::AtLeast(want, _) => {
             let floor = i64::try_from(*want).unwrap_or(0);
             current_int.is_none_or(|value| value < floor)
         }
-        NumericAssertion::Range(min, max, _) => {
+        ScalarAssertion::Range(min, max, _) => {
             let floor = i64::try_from(*min).unwrap_or(0);
             let ceiling = i64::try_from(*max).unwrap_or(i64::MAX);
             !current_int.is_some_and(|value| value >= floor && value <= ceiling)
         }
-        NumericAssertion::Present(_) => current_int.is_none(),
-        NumericAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::OneOf(allowed, _) => !current_int
+            .is_some_and(|value| u64::try_from(value).is_ok_and(|value| allowed.contains(&value))),
+        ScalarAssertion::Present(_) => current_int.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
     }
 }
 
 fn apply_one(
     doc: &mut DocumentMut,
     key: &str,
-    assertion: &NumericAssertion,
+    assertion: &ScalarAssertion<u64>,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        NumericAssertion::Equals(want, message) => {
+        ScalarAssertion::Equals(want, message) => {
             apply_equals(doc, key, *want, message, attribution, findings);
         }
-        NumericAssertion::AtMost(want, message) => {
+        ScalarAssertion::AtMost(want, message) => {
             apply_at_most(doc, key, *want, message, attribution, findings);
         }
-        NumericAssertion::AtLeast(want, message) => {
+        ScalarAssertion::AtLeast(want, message) => {
             apply_at_least(doc, key, *want, message, attribution, findings);
         }
-        NumericAssertion::Range(min, max, message) => {
+        ScalarAssertion::Range(min, max, message) => {
             apply_range(doc, key, *min, *max, message, attribution, findings);
         }
-        NumericAssertion::Present(message) => {
+        ScalarAssertion::OneOf(allowed, message) => {
+            apply_one_of(doc, key, allowed, message, attribution, findings);
+        }
+        ScalarAssertion::Present(message) => {
             apply_present(doc, key, message, attribution, findings);
         }
-        NumericAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
+        ScalarAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
     }
 }
 
@@ -170,6 +176,28 @@ fn apply_equals(
     if let Some(n) = want_i64 {
         doc[key] = value(n);
     }
+}
+
+fn apply_one_of(
+    doc: &DocumentMut,
+    key: &str,
+    allowed: &BTreeSet<u64>,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    let current = doc.get(key).and_then(Item::as_integer);
+    if current.is_some_and(|n| u64::try_from(n).is_ok_and(|n| allowed.contains(&n))) {
+        return;
+    }
+    findings.push(Finding::Mismatch {
+        key: key.to_owned(),
+        current: current.map(|n| n.to_string()),
+        expected: format!("one of {allowed:?}"),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
 }
 
 fn apply_at_most(

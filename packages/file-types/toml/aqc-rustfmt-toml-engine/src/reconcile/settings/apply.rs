@@ -1,6 +1,8 @@
 //! Settings reconciliation dispatch.
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement};
+use aqc_file_engine_core::{
+    ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
+};
 use toml_edit::{DocumentMut, Item};
 
 use super::closed::apply_closed;
@@ -8,9 +10,7 @@ use super::ignore::apply_forbidden_ignore_path_globs;
 use super::list::apply_list;
 use super::scalar::{apply_scalar, scalar_matches};
 use super::toml_io::attribution;
-use crate::requirement::{
-    ResolvedRustfmtScalarAssertion, ResolvedRustfmtTomlRequirements, RustfmtScalarAssertion,
-};
+use crate::requirement::ResolvedRustfmtTomlRequirements;
 
 /// Applies every resolved rustfmt setting group.
 pub(crate) fn apply(
@@ -39,7 +39,7 @@ pub(crate) fn apply(
 fn scalar_attribution_for(
     doc: &DocumentMut,
     key: &str,
-    resolved: &ResolvedRequirement<ResolvedRustfmtScalarAssertion, RustfmtScalarAssertion>,
+    resolved: &ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
 ) -> Vec<Provenance> {
     let current = doc.get(key);
     let filtered = resolved
@@ -56,15 +56,19 @@ fn scalar_attribution_for(
 }
 
 /// Returns whether a raw scalar assertion is unsatisfied by the current TOML item.
-fn scalar_assertion_fails(current: Option<&Item>, assertion: &RustfmtScalarAssertion) -> bool {
+fn scalar_assertion_fails(
+    current: Option<&Item>,
+    assertion: &ScalarAssertion<ConfigScalar>,
+) -> bool {
     match assertion {
-        RustfmtScalarAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| scalar_matches(item, want))
+        ScalarAssertion::Equals(want, _) => !current.is_some_and(|item| scalar_matches(item, want)),
+        ScalarAssertion::OneOf(allowed, _) => {
+            !current.is_some_and(|item| allowed.iter().any(|want| scalar_matches(item, want)))
         }
-        RustfmtScalarAssertion::OneOf(allowed, _) => !current
-            .and_then(Item::as_str)
-            .is_some_and(|value| allowed.contains(value)),
-        RustfmtScalarAssertion::Present(_) => current.is_none(),
-        RustfmtScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::Present(_) => current.is_none(),
+        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            true
+        }
     }
 }
