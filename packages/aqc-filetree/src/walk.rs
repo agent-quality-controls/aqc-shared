@@ -32,10 +32,7 @@ pub fn build_file_tree(
     if let Some(rules) = &options.recovery {
         walk_phase(&root, options, false, &mut entries, Some(rules))?;
     }
-    Ok(FileTree {
-        root,
-        entries: entries.into_values().collect(),
-    })
+    Ok(FileTree::new(root, entries.into_values().collect()))
 }
 
 /// One walk pass. With `rules = None` this is phase 1 (`origin = Primary`);
@@ -117,11 +114,20 @@ fn record_entry(
         return;
     };
     let rel_path = rel.to_string_lossy().replace('\\', "/");
-    let kind = if entry.path_is_symlink() && options.symlink_policy != SymlinkPolicy::Follow {
+    let kind = if entry.path_is_symlink() {
         match options.symlink_policy {
             SymlinkPolicy::Skip => return,
             SymlinkPolicy::Record => FileKind::Symlink,
-            SymlinkPolicy::Follow => unreachable!("guarded above"),
+            SymlinkPolicy::Follow => {
+                if entry
+                    .file_type()
+                    .is_some_and(|file_type| file_type.is_dir())
+                {
+                    FileKind::Directory
+                } else {
+                    FileKind::File
+                }
+            }
         }
     } else if entry.file_type().is_some_and(|t| t.is_dir()) {
         FileKind::Directory
@@ -135,7 +141,7 @@ fn record_entry(
     let (origin, keep) = rules.map_or((EntryOrigin::Primary, true), |rules| {
         (
             EntryOrigin::Recovered,
-            rules.matches(&rel_path, &name, kind),
+            recovery_rules_match(rules, &rel_path, &name, kind),
         )
     });
     if !keep {
@@ -150,4 +156,22 @@ fn record_entry(
             origin,
         },
     );
+}
+
+/// Return whether a phase-2 walk entry should be recovered.
+fn recovery_rules_match(rules: &RecoveryRules, rel_path: &str, name: &str, kind: FileKind) -> bool {
+    match kind {
+        FileKind::Directory => rules.directory_names.iter().any(|dir| dir == name),
+        FileKind::File | FileKind::Symlink => {
+            rules.exact_file_names.iter().any(|file| file == name)
+                || rules
+                    .file_name_prefixes
+                    .iter()
+                    .any(|prefix| name.starts_with(prefix))
+                || rules
+                    .rel_path_suffixes
+                    .iter()
+                    .any(|suffix| rel_path.ends_with(suffix))
+        }
+    }
 }

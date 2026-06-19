@@ -41,13 +41,32 @@ pub struct FileEntry {
 /// The result of a walk: the root plus entries sorted by `rel_path`.
 #[derive(Debug, Clone)]
 pub struct FileTree {
-    /// Walk root (canonicalized when possible).
-    pub root: PathBuf,
+    /// Walk root, canonicalized when possible.
+    root: PathBuf,
     /// Entries sorted by `rel_path`.
-    pub entries: Vec<FileEntry>,
+    entries: Vec<FileEntry>,
 }
 
 impl FileTree {
+    /// Create a tree and normalize its entry ordering.
+    #[must_use]
+    pub(crate) fn new(root: PathBuf, mut entries: Vec<FileEntry>) -> Self {
+        entries.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
+        Self { root, entries }
+    }
+
+    /// Walk root (canonicalized when possible).
+    #[must_use]
+    pub const fn root(&self) -> &PathBuf {
+        &self.root
+    }
+
+    /// Entries sorted by `rel_path`.
+    #[must_use]
+    pub fn entries(&self) -> &[FileEntry] {
+        &self.entries
+    }
+
     /// The entry at exactly this `rel_path`, if present.
     #[must_use]
     pub fn entry(&self, rel_path: &str) -> Option<&FileEntry> {

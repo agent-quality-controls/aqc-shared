@@ -2,8 +2,6 @@
 
 use std::path::PathBuf;
 
-use crate::tree::FileKind;
-
 /// The only symlink control: traverse, record, or skip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SymlinkPolicy {
@@ -76,23 +74,6 @@ pub struct RecoveryRules {
     pub directory_names: Vec<String>,
     /// Match a full `rel_path` suffix.
     pub rel_path_suffixes: Vec<String>,
-}
-
-impl RecoveryRules {
-    /// True when the (`rel_path`, base name, kind) matches any rule.
-    pub(crate) fn matches(&self, rel_path: &str, name: &str, kind: FileKind) -> bool {
-        match kind {
-            FileKind::Directory => self.directory_names.iter().any(|d| d == name),
-            FileKind::File | FileKind::Symlink => {
-                self.exact_file_names.iter().any(|f| f == name)
-                    || self.file_name_prefixes.iter().any(|p| name.starts_with(p))
-                    || self
-                        .rel_path_suffixes
-                        .iter()
-                        .any(|sfx| rel_path.ends_with(sfx))
-            }
-        }
-    }
 }
 
 /// Walk configuration; defaults per `plan.md`.

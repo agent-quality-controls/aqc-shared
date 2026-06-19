@@ -46,7 +46,7 @@ mod walk {
     }
 
     fn rel_paths(tree: &aqc_filetree::FileTree) -> Vec<&str> {
-        tree.entries.iter().map(|e| e.rel_path.as_str()).collect()
+        tree.entries().iter().map(|e| e.rel_path.as_str()).collect()
     }
 
     #[test]
@@ -69,14 +69,14 @@ mod walk {
             "skip_dir_names prunes target/: {paths:?}"
         );
         assert!(
-            tree.entries.windows(2).all(|w| match w {
+            tree.entries().windows(2).all(|w| match w {
                 [a, b] => a.rel_path < b.rel_path,
                 _ => true,
             }),
             "entries sorted by rel_path"
         );
         assert!(
-            tree.entries
+            tree.entries()
                 .iter()
                 .all(|e| e.origin == EntryOrigin::Primary),
             "phase 1 only"
@@ -137,7 +137,7 @@ mod walk {
         let tree = build_file_tree(dir.path(), &options)
             .expect("the walk must succeed on the fixture tree");
         assert!(
-            tree.entries.iter().all(|e| !e.rel_path.contains('/')),
+            tree.entries().iter().all(|e| !e.rel_path.contains('/')),
             "depth 1 lists only top-level entries: {:?}",
             rel_paths(&tree)
         );
