@@ -19,7 +19,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "aqc-cargo-toml-engine"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aqc-file-engine-core",
  "globset",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-clippy-toml-engine"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aqc-file-engine-core",
  "globset",
@@ -37,14 +37,14 @@ dependencies = [
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "toml_edit",
 ]
 
 [[package]]
 name = "aqc-filetree"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "globset",
  "ignore",
@@ -53,21 +53,21 @@ dependencies = [
 
 [[package]]
 name = "aqc-fs-utils"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "tempfile",
 ]
 
 [[package]]
 name = "aqc-git-helpers"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "tempfile",
 ]
 
 [[package]]
 name = "aqc-rust-syntax"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "proc-macro2",
  "syn",
@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-rustfmt-toml-engine"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aqc-file-engine-core",
  "globset",
