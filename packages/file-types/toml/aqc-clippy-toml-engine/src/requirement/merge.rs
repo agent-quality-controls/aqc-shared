@@ -16,7 +16,8 @@ use aqc_file_engine_core::{
 };
 
 use super::{
-    ClippyTomlRequirements, ResolvedClippyTomlRequirements, bans::push_clippy_path_glob_conflicts,
+    ClippyTomlRequirements, ResolvedClippyTomlRequirements,
+    disallowed::push_clippy_path_glob_conflicts,
 };
 
 impl ClippyTomlRequirements {
@@ -153,6 +154,7 @@ impl ClippyTomlRequirements {
     }
 }
 
+/// Resolves an optional scalar assertion after checking engine-specific legality.
 fn resolve_validated_optional<A>(
     key: &str,
     input: Vec<(Provenance, Option<A>)>,
@@ -176,6 +178,7 @@ where
     A::resolve(key, items, conflicts)
 }
 
+/// Resolves a map of scalar assertions after checking engine-specific legality.
 fn resolve_validated_map<K, A>(
     input: Vec<(Provenance, BTreeMap<K, A>)>,
     key_path: impl Fn(&K) -> String,
@@ -210,7 +213,8 @@ where
     out
 }
 
-fn clippy_msrv_assertion_is_legal(assertion: &ScalarAssertion<DottedVersion>) -> bool {
+/// Returns whether an `msrv` assertion can be represented in `clippy.toml`.
+const fn clippy_msrv_assertion_is_legal(assertion: &ScalarAssertion<DottedVersion>) -> bool {
     matches!(
         assertion,
         ScalarAssertion::Equals(..)
@@ -221,7 +225,8 @@ fn clippy_msrv_assertion_is_legal(assertion: &ScalarAssertion<DottedVersion>) ->
     )
 }
 
-fn clippy_threshold_assertion_is_legal(assertion: &ScalarAssertion<u64>) -> bool {
+/// Returns whether a numeric threshold assertion can be represented in `clippy.toml`.
+const fn clippy_threshold_assertion_is_legal(assertion: &ScalarAssertion<u64>) -> bool {
     matches!(
         assertion,
         ScalarAssertion::Equals(..)
@@ -233,14 +238,16 @@ fn clippy_threshold_assertion_is_legal(assertion: &ScalarAssertion<u64>) -> bool
     )
 }
 
-fn clippy_bool_assertion_is_legal(assertion: &ScalarAssertion<bool>) -> bool {
+/// Returns whether a boolean assertion can be represented in `clippy.toml`.
+const fn clippy_bool_assertion_is_legal(assertion: &ScalarAssertion<bool>) -> bool {
     matches!(
         assertion,
         ScalarAssertion::Equals(..) | ScalarAssertion::Present(_) | ScalarAssertion::Absent(_)
     )
 }
 
-fn clippy_enum_assertion_is_legal(assertion: &ScalarAssertion<String>) -> bool {
+/// Returns whether an enum-like string assertion can be represented in `clippy.toml`.
+const fn clippy_enum_assertion_is_legal(assertion: &ScalarAssertion<String>) -> bool {
     matches!(
         assertion,
         ScalarAssertion::Equals(..)
@@ -250,6 +257,7 @@ fn clippy_enum_assertion_is_legal(assertion: &ScalarAssertion<String>) -> bool {
     )
 }
 
+/// Records a scalar operation that the Clippy config file cannot represent.
 fn push_unsupported_conflict<A: core::fmt::Debug>(
     key: &str,
     items: &[(Provenance, A)],

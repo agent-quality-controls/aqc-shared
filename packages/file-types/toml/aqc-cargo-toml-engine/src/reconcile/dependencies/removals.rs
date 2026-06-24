@@ -57,7 +57,7 @@ fn queue_removal(
 }
 
 /// Each named entry must be absent (vacuous when the table is missing).
-pub(super) fn queue_banned_matches(
+pub(super) fn queue_forbidden_matches(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
     table: Option<&Table>,
     requirement: &DependencyRequirement,
@@ -65,14 +65,14 @@ pub(super) fn queue_banned_matches(
     attribution: &[Provenance],
 ) {
     let matches = table
-        .map(|table| read_banned_matches(table, requirement))
+        .map(|table| read_forbidden_matches(table, requirement))
         .unwrap_or_default();
     for (name, current) in matches {
         queue_removal(removals, name, current, "absent", msg, attribution);
     }
 }
 
-fn read_banned_matches(
+fn read_forbidden_matches(
     table: &Table,
     requirement: &DependencyRequirement,
 ) -> Vec<(String, DependencySpec)> {

@@ -13,21 +13,21 @@ mod common;
 use common::*;
 
 #[test]
-fn cargo_lints_required_and_banned_different_keys_compose() {
+fn cargo_lints_required_and_forbidden_different_keys_compose() {
     let mut required = BTreeMap::new();
     let entry = cargo::LintSetting {
         level: "deny".to_owned(),
         priority: None,
     };
     let _ = required.insert("unwrap_used".to_owned(), (entry, "unwrap".to_owned()));
-    let mut banned = BTreeMap::new();
-    let _ = banned.insert("dbg_macro".to_owned(), "no dbg".to_owned());
+    let mut forbidden = BTreeMap::new();
+    let _ = forbidden.insert("dbg_macro".to_owned(), "no dbg".to_owned());
     let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.workspace_lints.insert(
         "clippy".to_owned(),
         keyed_items(KeyedFixture {
             required,
-            banned,
+            forbidden,
             closed: None,
         }),
     );
@@ -36,13 +36,13 @@ fn cargo_lints_required_and_banned_different_keys_compose() {
 }
 
 #[test]
-fn banned_cargo_lint_removes_malformed_existing_key() {
+fn forbidden_cargo_lint_removes_malformed_existing_key() {
     let mut req = cargo::CargoTomlRequirements::default();
     let _ = req.workspace_lints.insert(
         "clippy".to_owned(),
         keyed_items(KeyedFixture::<cargo::LintSetting> {
             required: BTreeMap::new(),
-            banned: BTreeMap::from([("unwrap_used".to_owned(), "no unwrap".to_owned())]),
+            forbidden: BTreeMap::from([("unwrap_used".to_owned(), "no unwrap".to_owned())]),
             closed: None,
         }),
     );
@@ -65,7 +65,7 @@ fn cargo_features_use_table_composition_rules() {
     let _ = required.insert("default".to_owned(), (entry, "default".to_owned()));
     let table: KeyedFixture<cargo::FeatureMembers> = KeyedFixture {
         required,
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: None,
     };
     let mut req = cargo::CargoTomlRequirements::default();
@@ -88,12 +88,12 @@ fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
             "serde".to_owned(),
             (dep_spec(Some("1")), "serde".to_owned()),
         )]),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: Some("only serde".to_owned()),
     };
     let outside = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: None,
     };
     let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
@@ -109,10 +109,10 @@ fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
 }
 
 #[test]
-fn table_closed_allows_outside_banned_entry() {
+fn table_closed_allows_outside_forbidden_entry() {
     let table = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::new(),
-        banned: BTreeMap::from([("openssl".to_owned(), "ban".to_owned())]),
+        forbidden: BTreeMap::from([("openssl".to_owned(), "forbid".to_owned())]),
         closed: Some("closed".to_owned()),
     };
     let (_, conflicts) =
@@ -128,12 +128,12 @@ fn table_two_closed_tables_with_different_required_keys_conflict() {
             "serde".to_owned(),
             (dep_spec(Some("1")), "serde".to_owned()),
         )]),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: closed.clone(),
     };
     let right = KeyedFixture {
         required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed,
     };
     let findings = cargo_findings(vec![
@@ -172,7 +172,7 @@ fn table_same_required_key_compatible_entries_compose() {
             prov("p1"),
             dep_req(KeyedFixture {
                 required: left,
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -180,7 +180,7 @@ fn table_same_required_key_compatible_entries_compose() {
             prov("p2"),
             dep_req(KeyedFixture {
                 required: right,
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -198,7 +198,7 @@ fn table_same_required_key_incompatible_entries_conflict() {
                     "serde".to_owned(),
                     (dep_spec(Some("1")), "one".to_owned()),
                 )]),
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -209,7 +209,7 @@ fn table_same_required_key_incompatible_entries_conflict() {
                     "serde".to_owned(),
                     (dep_spec(Some("2")), "two".to_owned()),
                 )]),
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -241,7 +241,7 @@ fn list_contains_and_excludes_different_items_compose() {
 fn list_contains_and_excludes_same_item_conflicts() {
     let list = engine_core::ListRequirements {
         contains: BTreeMap::from([("derive".to_owned(), "need".to_owned())]),
-        excludes: BTreeMap::from([("derive".to_owned(), "ban".to_owned())]),
+        excludes: BTreeMap::from([("derive".to_owned(), "forbid".to_owned())]),
         exact: None,
     };
     let mut req = cargo::CargoTomlRequirements::default();

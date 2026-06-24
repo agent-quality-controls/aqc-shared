@@ -12,7 +12,7 @@ use aqc_file_engine_core::{Finding, ResolvedForbiddenGlobRequirements, ResolvedI
 use toml_edit::DocumentMut;
 
 use super::removals::{
-    apply_package_glob_forbids, queue_banned_matches, queue_exact_extras,
+    apply_package_glob_forbids, queue_exact_extras, queue_forbidden_matches,
     remove_dependency_entries_once,
 };
 use super::required::{apply_required, required_file_keys};
@@ -126,7 +126,7 @@ pub(crate) fn apply_set(
     }
 
     let mut removals = BTreeMap::new();
-    for entry in merged.banned.values() {
+    for entry in merged.forbidden.values() {
         let attribution = entry
             .collected
             .iter()
@@ -137,7 +137,7 @@ pub(crate) fn apply_set(
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
-        queue_banned_matches(
+        queue_forbidden_matches(
             &mut removals,
             table_at(doc, path),
             &entry.merged,

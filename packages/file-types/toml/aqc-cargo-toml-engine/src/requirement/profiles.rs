@@ -1,19 +1,8 @@
 //! `[profile.<name>]` requirements.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        clippy::missing_docs_in_private_items,
-        reason = "Private profile composition helpers are internal requirement steps."
-    )
-)]
 #![expect(
-    clippy::indexing_slicing,
-    clippy::manual_retain,
     clippy::type_complexity,
-    clippy::unnecessary_find_map,
     clippy::use_self,
-    clippy::wildcard_enum_match_arm,
     reason = "Profile requirement composition uses core scalar assertions and collected provenance tuples."
 )]
 

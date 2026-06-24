@@ -1,4 +1,4 @@
-//! `FileEngine` for `clippy.toml`. Writes msrv, thresholds, bans, and
+//! `FileEngine` for `clippy.toml`. Writes msrv, thresholds, disallowed, and
 //! configuration flags via `toml_edit`.
 //!
 //! See plan refs in the architecture and vertical-slice plans inside
@@ -12,12 +12,10 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
-pub use aqc_file_engine_core::{DottedVersion, ScalarAssertion};
-#[cfg(feature = "api")]
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, ClippyTomlRequirements,
+    ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, ClippyTomlRequirements, DisallowedEntry,
     ResolvedClippyTomlRequirements,
 };
 

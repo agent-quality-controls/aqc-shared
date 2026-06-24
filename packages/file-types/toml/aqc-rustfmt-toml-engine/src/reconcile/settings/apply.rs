@@ -12,6 +12,10 @@ use super::scalar::{apply_scalar, scalar_matches};
 use super::toml_io::attribution;
 use crate::requirement::ResolvedRustfmtTomlRequirements;
 
+/// Resolved rustfmt scalar-setting assertion.
+type ResolvedRustfmtScalarSetting =
+    ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>;
+
 /// Applies every resolved rustfmt setting group.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
@@ -39,7 +43,7 @@ pub(crate) fn apply(
 fn scalar_attribution_for(
     doc: &DocumentMut,
     key: &str,
-    resolved: &ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
+    resolved: &ResolvedRustfmtScalarSetting,
 ) -> Vec<Provenance> {
     let current = doc.get(key);
     let filtered = resolved

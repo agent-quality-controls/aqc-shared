@@ -9,10 +9,8 @@
     )
 )]
 #![expect(
-    clippy::indexing_slicing,
     clippy::option_option,
     clippy::type_complexity,
-    clippy::wildcard_enum_match_arm,
     reason = "Target-table composition uses three-state resolution and core scalar assertions."
 )]
 
@@ -48,7 +46,7 @@ impl PartialEq for TargetFieldAssertion {
         match (self, other) {
             (Self::Scalar(a), Self::Scalar(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
-            _ => false,
+            (Self::Scalar(_), Self::List(_)) | (Self::List(_), Self::Scalar(_)) => false,
         }
     }
 }
@@ -129,7 +127,9 @@ impl PartialEq for TargetTableAssertion {
         match (self, other) {
             (Self::Present(_), Self::Present(_)) | (Self::Absent(_), Self::Absent(_)) => true,
             (Self::Fields(a), Self::Fields(b)) => a == b,
-            _ => false,
+            (Self::Present(_) | Self::Fields(_), Self::Absent(_))
+            | (Self::Present(_) | Self::Absent(_), Self::Fields(_))
+            | (Self::Absent(_) | Self::Fields(_), Self::Present(_)) => false,
         }
     }
 }
@@ -293,7 +293,7 @@ fn resolve_list_or_present(
         .iter()
         .filter_map(|(prov, assertion)| match assertion {
             TargetFieldAssertion::List(list) => Some((prov.clone(), list.clone())),
-            _ => None,
+            TargetFieldAssertion::Scalar(_) => None,
         })
         .collect();
     Some(Some(ResolvedTargetFieldAssertion::List(resolve_list(
@@ -354,8 +354,9 @@ fn target_field_assertion_is_legal(key: &str, assertion: &TargetFieldAssertion) 
         "crate-type" | "required-features" => matches!(
             assertion,
             TargetFieldAssertion::List(_)
-                | TargetFieldAssertion::Scalar(ScalarAssertion::Present(_))
-                | TargetFieldAssertion::Scalar(ScalarAssertion::Absent(_))
+                | TargetFieldAssertion::Scalar(
+                    ScalarAssertion::Present(_) | ScalarAssertion::Absent(_)
+                )
         ),
         _ => matches!(assertion, TargetFieldAssertion::Scalar(_)),
     }

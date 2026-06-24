@@ -86,7 +86,7 @@ fn apply_one(
             apply_one_of(doc, key, allowed, message, attribution, findings);
         }
         ScalarAssertion::Present(message) => {
-            apply_present(doc, key, message, attribution, findings)
+            apply_present(doc, key, message, attribution, findings);
         }
         ScalarAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
         ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {

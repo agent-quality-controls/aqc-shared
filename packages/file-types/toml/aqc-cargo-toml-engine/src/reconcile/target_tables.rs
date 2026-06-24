@@ -14,7 +14,6 @@
     )
 )]
 #![expect(
-    clippy::too_many_lines,
     clippy::type_complexity,
     reason = "Target table reconciliation keeps nested Cargo target fields in one traversal."
 )]

@@ -3,11 +3,10 @@
 use std::collections::BTreeSet;
 
 use super::{
-    BannedItemMap, ClosedInput, ConflictEntry, Contributor, FileItemRequirement,
-    ForbiddenGlobRequirement, GlobAssertionGroups, GlobInput, GlobResolutionMap,
-    ItemAssertionGroups, ItemAssertionInput, ItemInput, ItemRequirementMap, KeyedItem,
-    RequiredItemResolution, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedRequirement,
+    ClosedInput, ConflictEntry, Contributor, FileItemRequirement, ForbiddenGlobRequirement,
+    ForbiddenItemMap, GlobAssertionGroups, GlobInput, GlobResolutionMap, ItemAssertionGroups,
+    ItemAssertionInput, ItemInput, ItemRequirementMap, KeyedItem, RequiredItemResolution,
+    ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedRequirement,
 };
 use crate::types::Provenance;
 
@@ -24,14 +23,14 @@ where
     collect_item_groups(input, &mut grouped);
 
     let resolved_required = resolve_required_items(key, grouped.required, conflicts);
-    let resolved_banned = resolve_banned_items(grouped.banned);
+    let resolved_forbidden = resolve_forbidden_items(grouped.forbidden);
 
-    report_required_banned_conflicts(key, &resolved_required, &resolved_banned, conflicts);
+    report_required_forbidden_conflicts(key, &resolved_required, &resolved_forbidden, conflicts);
     report_closed_collection_conflicts(key, &grouped.closed_inputs, &resolved_required, conflicts);
 
     ResolvedItemRequirements {
         required: resolved_required,
-        banned: resolved_banned,
+        forbidden: resolved_forbidden,
         closed_by: grouped.closed_by,
     }
 }
@@ -130,15 +129,15 @@ where
     }
 }
 
-/// Required, banned, and closed inputs grouped by merge identity.
+/// Required, forbidden, and closed inputs grouped by merge identity.
 struct ItemGroups<Item>
 where
     Item: FileItemRequirement,
 {
     /// Required item assertions by item identity.
     required: ItemAssertionGroups<Item>,
-    /// Banned item assertions by item identity.
-    banned: ItemAssertionGroups<Item>,
+    /// Forbidden item assertions by item identity.
+    forbidden: ItemAssertionGroups<Item>,
     /// Policies that closed the collection.
     closed_by: Vec<Contributor>,
     /// Closed collection inputs with the allowed required identities.
@@ -152,7 +151,7 @@ where
     fn default() -> Self {
         Self {
             required: ItemAssertionGroups::<Item>::new(),
-            banned: ItemAssertionGroups::<Item>::new(),
+            forbidden: ItemAssertionGroups::<Item>::new(),
             closed_by: Vec::new(),
             closed_inputs: Vec::new(),
         }
@@ -177,9 +176,9 @@ where
                 .or_default()
                 .push((prov.clone(), (item, msg)));
         }
-        for (item, msg) in items.banned {
+        for (item, msg) in items.forbidden {
             grouped
-                .banned
+                .forbidden
                 .entry(item.merge_identity())
                 .or_default()
                 .push((prov.clone(), (item, msg)));
@@ -213,17 +212,17 @@ where
     resolved_required
 }
 
-/// Resolve banned item assertions for each item identity.
-fn resolve_banned_items<Item>(banned: ItemAssertionGroups<Item>) -> BannedItemMap<Item>
+/// Resolve forbidden item assertions for each item identity.
+fn resolve_forbidden_items<Item>(forbidden: ItemAssertionGroups<Item>) -> ForbiddenItemMap<Item>
 where
     Item: FileItemRequirement,
 {
-    let mut resolved_banned = BannedItemMap::<Item>::new();
-    for (identity, items) in banned {
+    let mut resolved_forbidden = ForbiddenItemMap::<Item>::new();
+    for (identity, items) in forbidden {
         let Some((_, (first, _))) = items.first() else {
             continue;
         };
-        let _ = resolved_banned.insert(
+        let _ = resolved_forbidden.insert(
             identity,
             ResolvedRequirement {
                 merged: first.clone(),
@@ -234,21 +233,21 @@ where
             },
         );
     }
-    resolved_banned
+    resolved_forbidden
 }
 
-/// Report identities that are both required and banned.
-fn report_required_banned_conflicts<Item>(
+/// Report identities that are both required and forbidden.
+fn report_required_forbidden_conflicts<Item>(
     key: &str,
     resolved_required: &ItemRequirementMap<Item>,
-    resolved_banned: &BannedItemMap<Item>,
+    resolved_forbidden: &ForbiddenItemMap<Item>,
     conflicts: &mut Vec<ConflictEntry>,
 ) where
     Item: FileItemRequirement,
     Item::Identity: ToString,
 {
     for identity in resolved_required.keys() {
-        if let Some(ban) = resolved_banned.get(identity) {
+        if let Some(forbidden) = resolved_forbidden.get(identity) {
             let mut contributors = Vec::new();
             if let Some(req) = resolved_required.get(identity) {
                 contributors.extend(
@@ -258,13 +257,14 @@ fn report_required_banned_conflicts<Item>(
                 );
             }
             contributors.extend(
-                ban.collected
+                forbidden
+                    .collected
                     .iter()
-                    .map(|(prov, _)| banned_contributor(prov)),
+                    .map(|(prov, _)| forbidden_contributor(prov)),
             );
             conflicts.push(ConflictEntry {
                 key: format!("{}.{}", key, identity.to_string()),
-                reason: "item-required-and-banned".to_owned(),
+                reason: "item-required-and-forbidden".to_owned(),
                 contributors,
             });
         }
@@ -306,7 +306,7 @@ fn required_contributor(prov: &Provenance) -> Contributor {
     (prov.clone(), "required".to_owned())
 }
 
-/// Render a banned-item contributor.
-fn banned_contributor(prov: &Provenance) -> Contributor {
-    (prov.clone(), "banned".to_owned())
+/// Render a forbidden-item contributor.
+fn forbidden_contributor(prov: &Provenance) -> Contributor {
+    (prov.clone(), "forbidden".to_owned())
 }

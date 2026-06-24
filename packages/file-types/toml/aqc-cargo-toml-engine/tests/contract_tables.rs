@@ -37,7 +37,7 @@ fn normal_scope() -> cargo::DependencyScope {
 
 fn dep_items(
     required: BTreeMap<String, (cargo::DependencySpec, String)>,
-    banned: BTreeMap<String, String>,
+    forbidden: BTreeMap<String, String>,
     closed: Option<String>,
 ) -> engine_core::ItemRequirements<cargo::DependencyRequirement> {
     engine_core::ItemRequirements {
@@ -53,7 +53,7 @@ fn dep_items(
                 )
             })
             .collect(),
-        banned: banned
+        forbidden: forbidden
             .into_iter()
             .map(|(file_key, msg)| {
                 (
@@ -71,7 +71,7 @@ fn dep_items(
 
 fn keyed_items<Entry: Default>(
     required: BTreeMap<String, (Entry, String)>,
-    banned: BTreeMap<String, String>,
+    forbidden: BTreeMap<String, String>,
     closed: Option<String>,
 ) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
     engine_core::ItemRequirements {
@@ -79,7 +79,7 @@ fn keyed_items<Entry: Default>(
             .into_iter()
             .map(|(file_key, (value, msg))| (engine_core::KeyedItem { file_key, value }, msg))
             .collect(),
-        banned: banned
+        forbidden: forbidden
             .into_iter()
             .map(|(file_key, msg)| {
                 (
@@ -121,7 +121,7 @@ fn dependency_table_required_entry_writes_version() {
 }
 
 #[test]
-fn dependency_table_banned_entry_removes_key() {
+fn dependency_table_forbidden_entry_removes_key() {
     let table = dep_items(
         BTreeMap::new(),
         BTreeMap::from([("serde".to_owned(), "no serde".to_owned())]),

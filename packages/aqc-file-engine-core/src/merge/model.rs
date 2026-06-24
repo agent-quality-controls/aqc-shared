@@ -16,11 +16,11 @@ pub type ItemInput<Item> = Provenanced<ItemRequirements<Item>>;
 pub type ItemAssertionGroups<Item> =
     BTreeMap<<Item as FileItemRequirement>::Identity, Vec<ItemAssertionInput<Item>>>;
 pub type RequiredItemResolution<Item> = ResolvedRequirement<Item, ItemAssertion<Item>>;
-pub type BannedItemResolution<Item> = ResolvedRequirement<Item, String>;
+pub type ForbiddenItemResolution<Item> = ResolvedRequirement<Item, String>;
 pub type ItemRequirementMap<Item> =
     BTreeMap<<Item as FileItemRequirement>::Identity, RequiredItemResolution<Item>>;
-pub type BannedItemMap<Item> =
-    BTreeMap<<Item as FileItemRequirement>::Identity, BannedItemResolution<Item>>;
+pub type ForbiddenItemMap<Item> =
+    BTreeMap<<Item as FileItemRequirement>::Identity, ForbiddenItemResolution<Item>>;
 pub type GlobAssertion<Glob> = MessagePair<Glob>;
 pub type GlobAssertionInput<Glob> = Provenanced<GlobAssertion<Glob>>;
 pub type GlobInput<Glob> = Provenanced<ForbiddenGlobRequirements<Glob>>;
@@ -150,7 +150,7 @@ pub struct ResolvedRequirement<Merged, A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemRequirements<Item> {
     pub required: Vec<ItemAssertion<Item>>,
-    pub banned: Vec<ItemAssertion<Item>>,
+    pub forbidden: Vec<ItemAssertion<Item>>,
     pub closed: Option<String>,
 }
 
@@ -158,7 +158,7 @@ impl<Item> Default for ItemRequirements<Item> {
     fn default() -> Self {
         Self {
             required: Vec::new(),
-            banned: Vec::new(),
+            forbidden: Vec::new(),
             closed: None,
         }
     }
@@ -171,7 +171,7 @@ where
     Item: FileItemRequirement,
 {
     pub required: ItemRequirementMap<Item>,
-    pub banned: BannedItemMap<Item>,
+    pub forbidden: ForbiddenItemMap<Item>,
     pub closed_by: Contributors,
 }
 
@@ -182,7 +182,7 @@ where
     fn default() -> Self {
         Self {
             required: BTreeMap::new(),
-            banned: BTreeMap::new(),
+            forbidden: BTreeMap::new(),
             closed_by: Vec::new(),
         }
     }

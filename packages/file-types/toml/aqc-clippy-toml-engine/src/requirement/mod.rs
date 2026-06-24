@@ -1,8 +1,8 @@
 //! Declarative requirement and assertion types accepted by `ClippyTomlEngine`.
 
-mod bans;
+mod disallowed;
 mod merge;
 mod model;
 
-pub use bans::{BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob};
+pub use disallowed::{ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, DisallowedEntry};
 pub use model::{ClippyTomlRequirements, ResolvedClippyTomlRequirements};

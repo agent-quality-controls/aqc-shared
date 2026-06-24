@@ -19,6 +19,11 @@ use aqc_file_engine_core::{
 
 use super::helpers::push_debug_conflict;
 
+/// One provenance-tagged workspace assertion.
+type WorkspaceFieldInput = (Provenance, WorkspaceFieldAssertion);
+/// Borrowed workspace assertions for one key.
+type WorkspaceFieldInputSlice<'a> = &'a [WorkspaceFieldInput];
+
 /// What must hold about a direct `[workspace]` key.
 #[derive(Debug, Clone)]
 pub enum WorkspaceFieldAssertion {
@@ -38,7 +43,7 @@ impl PartialEq for WorkspaceFieldAssertion {
         match (self, other) {
             (Self::Scalar(a), Self::Scalar(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
-            _ => false,
+            (Self::Scalar(_), Self::List(_)) | (Self::List(_), Self::Scalar(_)) => false,
         }
     }
 }
@@ -106,7 +111,7 @@ impl OnEmptyClass for ResolvedWorkspaceFieldAssertion {
 
 fn resolve_list_product(
     key: &str,
-    items: &[(Provenance, WorkspaceFieldAssertion)],
+    items: WorkspaceFieldInputSlice<'_>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> Option<Option<ResolvedWorkspaceFieldAssertion>> {
     if !items
@@ -139,7 +144,7 @@ fn resolve_list_product(
 
 fn push_conflict(
     key: &str,
-    items: &[(Provenance, WorkspaceFieldAssertion)],
+    items: WorkspaceFieldInputSlice<'_>,
     conflicts: &mut Vec<ConflictEntry>,
 ) {
     push_debug_conflict(key, "scalar-disagree", items, conflicts);
@@ -151,13 +156,16 @@ fn workspace_field_assertion_is_legal(key: &str, assertion: &WorkspaceFieldAsser
         "members" | "exclude" | "default-members" => matches!(
             assertion,
             WorkspaceFieldAssertion::List(_)
-                | WorkspaceFieldAssertion::Scalar(ScalarAssertion::Present(_))
-                | WorkspaceFieldAssertion::Scalar(ScalarAssertion::Absent(_))
+                | WorkspaceFieldAssertion::Scalar(
+                    ScalarAssertion::Present(_) | ScalarAssertion::Absent(_)
+                )
         ),
         "resolver" => match assertion {
-            WorkspaceFieldAssertion::Scalar(ScalarAssertion::Equals(ConfigScalar::Str(_), _))
-            | WorkspaceFieldAssertion::Scalar(ScalarAssertion::Present(_))
-            | WorkspaceFieldAssertion::Scalar(ScalarAssertion::Absent(_)) => true,
+            WorkspaceFieldAssertion::Scalar(
+                ScalarAssertion::Equals(ConfigScalar::Str(_), _)
+                | ScalarAssertion::Present(_)
+                | ScalarAssertion::Absent(_),
+            ) => true,
             WorkspaceFieldAssertion::Scalar(ScalarAssertion::OneOf(values, _)) => values
                 .iter()
                 .all(|value| matches!(value, ConfigScalar::Str(_))),
@@ -169,7 +177,7 @@ fn workspace_field_assertion_is_legal(key: &str, assertion: &WorkspaceFieldAsser
 
 fn push_unsupported_conflict(
     key: &str,
-    items: &[(Provenance, WorkspaceFieldAssertion)],
+    items: WorkspaceFieldInputSlice<'_>,
     conflicts: &mut Vec<ConflictEntry>,
 ) {
     push_debug_conflict(key, "scalar-operation-unsupported", items, conflicts);

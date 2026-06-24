@@ -12,7 +12,7 @@
     reason = "Feature reconciliation consumes resolved item requirement shapes."
 )]
 //!
-//! Lazy: a ban-only requirement against a missing `[features]` table
+//! Lazy: a forbid-only requirement against a missing `[features]` table
 //! writes nothing. The table is fetched mutably only on a write.
 
 use std::collections::BTreeSet;
@@ -51,7 +51,7 @@ pub(crate) fn apply(
             findings,
         );
     }
-    for entry in merged.banned.values() {
+    for entry in merged.forbidden.values() {
         let feature = &entry.merged.file_key;
         let attribution = entry
             .collected
@@ -63,7 +63,7 @@ pub(crate) fn apply(
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
-        apply_banned(doc, feature, &msg, &attribution, findings);
+        apply_forbidden(doc, feature, &msg, &attribution, findings);
     }
     if !merged.closed_by.is_empty() {
         let attribution = merged
@@ -118,7 +118,7 @@ fn read_feature_entry(table: &Table, feature: &str) -> Option<Vec<String>> {
 }
 
 /// Each named feature must be absent (vacuous when the table is missing).
-fn apply_banned(
+fn apply_forbidden(
     doc: &mut DocumentMut,
     feature: &str,
     msg: &str,

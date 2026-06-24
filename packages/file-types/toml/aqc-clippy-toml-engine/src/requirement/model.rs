@@ -15,17 +15,17 @@ use aqc_file_engine_core::{
     ScalarAssertion,
 };
 
-use super::{BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob};
+use super::{ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, DisallowedEntry};
 
 #[derive(Debug, Clone, Default)]
 pub struct ClippyTomlRequirements {
     pub msrv: Option<ScalarAssertion<DottedVersion>>,
     pub thresholds: BTreeMap<String, ScalarAssertion<u64>>,
-    pub disallowed_methods: ItemRequirements<BanEntry>,
+    pub disallowed_methods: ItemRequirements<DisallowedEntry>,
     pub forbidden_disallowed_method_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
-    pub disallowed_types: ItemRequirements<BanEntry>,
+    pub disallowed_types: ItemRequirements<DisallowedEntry>,
     pub forbidden_disallowed_type_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
-    pub disallowed_macros: ItemRequirements<BanEntry>,
+    pub disallowed_macros: ItemRequirements<DisallowedEntry>,
     pub forbidden_disallowed_macro_path_globs: ForbiddenGlobRequirements<ClippyPathGlob>,
     pub bools: BTreeMap<String, ScalarAssertion<bool>>,
     pub enums: BTreeMap<String, ScalarAssertion<String>>,
@@ -37,13 +37,13 @@ pub struct ResolvedClippyTomlRequirements {
         Option<ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>>,
     pub thresholds:
         BTreeMap<String, ResolvedRequirement<ScalarAssertion<u64>, ScalarAssertion<u64>>>,
-    pub disallowed_methods: ResolvedItemRequirements<BanEntry>,
+    pub disallowed_methods: ResolvedItemRequirements<DisallowedEntry>,
     pub forbidden_disallowed_method_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_method_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
-    pub disallowed_types: ResolvedItemRequirements<BanEntry>,
+    pub disallowed_types: ResolvedItemRequirements<DisallowedEntry>,
     pub forbidden_disallowed_type_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_type_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
-    pub disallowed_macros: ResolvedItemRequirements<BanEntry>,
+    pub disallowed_macros: ResolvedItemRequirements<DisallowedEntry>,
     pub forbidden_disallowed_macro_path_globs: ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     pub disallowed_macro_glob_conflicts: ClippyForbiddenGlobConflictBlocks,
     pub bools: BTreeMap<String, ResolvedRequirement<ScalarAssertion<bool>, ScalarAssertion<bool>>>,

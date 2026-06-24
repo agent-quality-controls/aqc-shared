@@ -16,7 +16,7 @@ use toml_edit as _;
 #[derive(Debug, Clone)]
 pub(crate) struct KeyedFixture<Entry> {
     pub(crate) required: BTreeMap<String, (Entry, String)>,
-    pub(crate) banned: BTreeMap<String, String>,
+    pub(crate) forbidden: BTreeMap<String, String>,
     pub(crate) closed: Option<String>,
 }
 
@@ -132,8 +132,8 @@ pub(crate) fn dep_items(
                 )
             })
             .collect(),
-        banned: table
-            .banned
+        forbidden: table
+            .forbidden
             .into_iter()
             .map(|(file_key, msg)| {
                 (
@@ -158,8 +158,8 @@ pub(crate) fn keyed_items<Entry: Default>(
             .into_iter()
             .map(|(file_key, (value, msg))| (engine_core::KeyedItem { file_key, value }, msg))
             .collect(),
-        banned: table
-            .banned
+        forbidden: table
+            .forbidden
             .into_iter()
             .map(|(file_key, msg)| {
                 (
@@ -225,12 +225,12 @@ fn common_helpers_compile() {
     let _ = dep_spec(Some("1"));
     let _ = dep_req(KeyedFixture {
         required: BTreeMap::new(),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: None,
     });
     let _ = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
-        banned: Vec::new(),
+        forbidden: Vec::new(),
         closed: None,
     });
     let _ = dependency_package_glob("*");
@@ -240,12 +240,12 @@ fn common_helpers_compile() {
     let _ = local_dependency_requirement("serde", None, None);
     let _ = dep_items(KeyedFixture {
         required: BTreeMap::new(),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: None,
     });
     let _ = keyed_items::<cargo::DependencySpec>(KeyedFixture {
         required: BTreeMap::new(),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: None,
     });
     let _ = cargo_findings(Vec::new());

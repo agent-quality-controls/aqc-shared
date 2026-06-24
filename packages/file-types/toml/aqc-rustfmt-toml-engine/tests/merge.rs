@@ -142,6 +142,10 @@ fn rustfmt_rejects_scalar_operations_outside_setting_type() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Exhaustive rustfmt scalar-kind test covers bool, int, text, and unsupported operations."
+)]
 fn rustfmt_scalar_setting_kind_validation_covers_all_kinds() {
     let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![(
         Provenance {

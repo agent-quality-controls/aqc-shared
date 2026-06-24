@@ -18,7 +18,7 @@ use aqc_file_engine_core::{
 use globset::GlobBuilder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BanEntry {
+pub struct DisallowedEntry {
     pub path: String,
     pub message: String,
 }
@@ -46,7 +46,7 @@ pub struct ClippyForbiddenGlobConflictBlocks {
     pub path_globs: BTreeSet<String>,
 }
 
-impl FileItemRequirement for BanEntry {
+impl FileItemRequirement for DisallowedEntry {
     type Identity = String;
 
     fn merge_identity(&self) -> Self::Identity {
@@ -65,7 +65,7 @@ impl FileItemRequirement for BanEntry {
 pub(crate) fn push_clippy_path_glob_conflicts(
     key: &str,
     reason: &str,
-    merged: &ResolvedItemRequirements<BanEntry>,
+    merged: &ResolvedItemRequirements<DisallowedEntry>,
     globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ClippyForbiddenGlobConflictBlocks {

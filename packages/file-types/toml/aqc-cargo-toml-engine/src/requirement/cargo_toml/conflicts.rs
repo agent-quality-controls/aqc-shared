@@ -44,7 +44,7 @@ pub(super) fn push_dependency_identity_overlaps(
             });
         }
     }
-    for (identity, requirement) in &merged.banned {
+    for (identity, requirement) in &merged.forbidden {
         if matches!(identity, DependencyIdentity::Invalid) {
             conflicts.push(ConflictEntry {
                 key: format!("{key}.<invalid>"),

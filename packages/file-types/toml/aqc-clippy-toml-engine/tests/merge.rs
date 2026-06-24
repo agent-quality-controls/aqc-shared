@@ -1,7 +1,9 @@
 use globset as _;
 use toml_edit as _;
 
-use aqc_clippy_toml_engine::{BanEntry, ClippyPathGlob, ClippyTomlEngine, ClippyTomlRequirements};
+use aqc_clippy_toml_engine::{
+    ClippyPathGlob, ClippyTomlEngine, ClippyTomlRequirements, DisallowedEntry,
+};
 use aqc_file_engine_core::{
     Engine, EngineOutput, EngineRequirement, Finding, ForbiddenGlobRequirements, ItemRequirements,
     Provenance,
@@ -9,7 +11,7 @@ use aqc_file_engine_core::{
 
 type ClippyRequirementInput = (Provenance, ClippyTomlRequirements);
 type PathGlobInput<'a> = (&'a str, &'a str);
-type BanRequirementInput = (BanEntry, String);
+type DisallowedRequirementInput = (DisallowedEntry, String);
 
 fn prov(policy: &str) -> Provenance {
     Provenance {
@@ -32,10 +34,10 @@ fn clippy_output(bytes: Option<&[u8]>, reqs: Vec<ClippyRequirementInput>) -> Eng
     ClippyTomlEngine.reconcile(bytes, &reqs)
 }
 
-fn ban(path: &str) -> BanEntry {
-    BanEntry {
+fn forbid(path: &str) -> DisallowedEntry {
+    DisallowedEntry {
         path: path.to_owned(),
-        message: "ban".to_owned(),
+        message: "forbid".to_owned(),
     }
 }
 
@@ -54,14 +56,14 @@ fn path_globs(globs: Vec<PathGlobInput<'_>>) -> ForbiddenGlobRequirements<Clippy
     }
 }
 
-const fn ban_items(
-    required: Vec<BanRequirementInput>,
-    banned: Vec<BanRequirementInput>,
+const fn disallowed_items(
+    required: Vec<DisallowedRequirementInput>,
+    forbidden: Vec<DisallowedRequirementInput>,
     closed: Option<String>,
-) -> ItemRequirements<BanEntry> {
+) -> ItemRequirements<DisallowedEntry> {
     ItemRequirements {
         required,
-        banned,
+        forbidden,
         closed,
     }
 }
@@ -97,8 +99,8 @@ disallowed-macros = ["std::println", "tracing::info"]
 #[test]
 fn forbidden_disallowed_path_glob_conflict_does_not_remove_required_entry() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
-            vec![(ban("std::env::set_var"), "keep env".to_owned())],
+        disallowed_methods: disallowed_items(
+            vec![(forbid("std::env::set_var"), "keep env".to_owned())],
             Vec::new(),
             None,
         ),
@@ -141,10 +143,10 @@ fn invalid_forbidden_disallowed_path_glob_reports_invalid_requirements() {
 }
 
 #[test]
-fn clippy_bans_required_and_banned_different_keys_compose() {
-    let table = ban_items(
-        vec![(ban("std::mem::forget"), "ban".to_owned())],
-        vec![(ban("std::mem::transmute"), "no ban".to_owned())],
+fn clippy_disallowed_required_and_forbidden_different_keys_compose() {
+    let table = disallowed_items(
+        vec![(forbid("std::mem::forget"), "forbid".to_owned())],
+        vec![(forbid("std::mem::transmute"), "no forbid".to_owned())],
         None,
     );
     let req = ClippyTomlRequirements {
@@ -156,10 +158,10 @@ fn clippy_bans_required_and_banned_different_keys_compose() {
 }
 
 #[test]
-fn clippy_bans_required_and_banned_same_key_conflict() {
-    let table = ban_items(
-        vec![(ban("std::mem::forget"), "ban".to_owned())],
-        vec![(ban("std::mem::forget"), "remove".to_owned())],
+fn clippy_disallowed_required_and_forbidden_same_key_conflict() {
+    let table = disallowed_items(
+        vec![(forbid("std::mem::forget"), "forbid".to_owned())],
+        vec![(forbid("std::mem::forget"), "remove".to_owned())],
         None,
     );
     let req = ClippyTomlRequirements {
@@ -176,11 +178,11 @@ fn clippy_bans_required_and_banned_same_key_conflict() {
 }
 
 #[test]
-fn clippy_ban_path_conflict_uses_item_identity() {
+fn clippy_disallowed_path_conflict_uses_item_identity() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
-            vec![(ban("std::env::set_var"), "ban".to_owned())],
-            vec![(ban("std::env::set_var"), "remove".to_owned())],
+        disallowed_methods: disallowed_items(
+            vec![(forbid("std::env::set_var"), "forbid".to_owned())],
+            vec![(forbid("std::env::set_var"), "remove".to_owned())],
             None,
         ),
         ..ClippyTomlRequirements::default()
@@ -196,10 +198,10 @@ fn clippy_ban_path_conflict_uses_item_identity() {
 }
 
 #[test]
-fn init_writes_clippy_ban_array_item() {
+fn init_writes_clippy_disallowed_array_item() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
-            vec![(ban("std::env::set_var"), "ban".to_owned())],
+        disallowed_methods: disallowed_items(
+            vec![(forbid("std::env::set_var"), "forbid".to_owned())],
             Vec::new(),
             None,
         ),
@@ -210,14 +212,14 @@ fn init_writes_clippy_ban_array_item() {
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("disallowed-methods"));
     assert!(text.contains("path = \"std::env::set_var\""));
-    assert!(text.contains("reason = \"ban\""));
+    assert!(text.contains("reason = \"forbid\""));
 }
 
 #[test]
-fn required_clippy_ban_updates_missing_reason() {
+fn required_clippy_disallowed_updates_missing_reason() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
-            vec![(ban("std::env::set_var"), "ban".to_owned())],
+        disallowed_methods: disallowed_items(
+            vec![(forbid("std::env::set_var"), "forbid".to_owned())],
             Vec::new(),
             None,
         ),
@@ -229,15 +231,15 @@ fn required_clippy_ban_updates_missing_reason() {
     );
     let text = String::from_utf8(output.expected_bytes)
         .expect("engine output should remain valid UTF-8 TOML text");
-    assert!(text.contains("reason = \"ban\""));
+    assert!(text.contains("reason = \"forbid\""));
     assert_eq!(output.findings.len(), 1);
 }
 
 #[test]
-fn required_clippy_ban_handles_non_array_without_panic() {
+fn required_clippy_disallowed_handles_non_array_without_panic() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
-            vec![(ban("std::env::set_var"), "ban".to_owned())],
+        disallowed_methods: disallowed_items(
+            vec![(forbid("std::env::set_var"), "forbid".to_owned())],
             Vec::new(),
             None,
         ),
@@ -254,11 +256,11 @@ fn required_clippy_ban_handles_non_array_without_panic() {
 }
 
 #[test]
-fn banned_clippy_ban_removes_duplicate_entries() {
+fn forbidden_clippy_disallowed_removes_duplicate_entries() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
+        disallowed_methods: disallowed_items(
             Vec::new(),
-            vec![(ban("std::env::set_var"), "remove".to_owned())],
+            vec![(forbid("std::env::set_var"), "remove".to_owned())],
             None,
         ),
         ..ClippyTomlRequirements::default()
@@ -276,11 +278,11 @@ fn banned_clippy_ban_removes_duplicate_entries() {
 }
 
 #[test]
-fn clippy_banned_absent_does_not_create_empty_array() {
+fn clippy_forbidden_absent_does_not_create_empty_array() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(
+        disallowed_methods: disallowed_items(
             Vec::new(),
-            vec![(ban("std::mem::forget"), "remove".to_owned())],
+            vec![(forbid("std::mem::forget"), "remove".to_owned())],
             None,
         ),
         ..ClippyTomlRequirements::default()
@@ -297,7 +299,7 @@ fn clippy_banned_absent_does_not_create_empty_array() {
 #[test]
 fn clippy_closed_absent_does_not_create_empty_array() {
     let req = ClippyTomlRequirements {
-        disallowed_methods: ban_items(Vec::new(), Vec::new(), Some("closed".to_owned())),
+        disallowed_methods: disallowed_items(Vec::new(), Vec::new(), Some("closed".to_owned())),
         ..ClippyTomlRequirements::default()
     };
     let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);

@@ -116,7 +116,7 @@ fn apply_tool(
             findings,
         );
     }
-    for entry in merged.banned.values() {
+    for entry in merged.forbidden.values() {
         let lint = &entry.merged.file_key;
         let attribution = entry
             .collected
@@ -128,7 +128,7 @@ fn apply_tool(
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
-        apply_banned(doc, root, tool, lint, &message, &attribution, findings);
+        apply_forbidden(doc, root, tool, lint, &message, &attribution, findings);
     }
     if !merged.closed_by.is_empty() {
         let allowed = merged
@@ -171,7 +171,7 @@ fn apply_required(
     tool_mut(doc, root, tool)[lint] = write_entry(level, priority);
 }
 
-fn apply_banned(
+fn apply_forbidden(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,

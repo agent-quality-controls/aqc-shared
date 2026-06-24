@@ -286,7 +286,7 @@ fn apply_config_scalar(
             );
         }
         ScalarAssertion::Present(msg) => {
-            apply_present(doc, scope, field, msg, attribution, findings)
+            apply_present(doc, scope, field, msg, attribution, findings);
         }
         ScalarAssertion::Absent(msg) => apply_absent(doc, scope, field, msg, attribution, findings),
         ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
@@ -348,7 +348,7 @@ fn apply_dotted_version(
             );
         }
         ScalarAssertion::Present(msg) => {
-            apply_present(doc, scope, field, msg, attribution, findings)
+            apply_present(doc, scope, field, msg, attribution, findings);
         }
         ScalarAssertion::Absent(msg) => apply_absent(doc, scope, field, msg, attribution, findings),
         ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {}

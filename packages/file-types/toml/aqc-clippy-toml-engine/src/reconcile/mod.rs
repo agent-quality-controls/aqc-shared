@@ -1,7 +1,7 @@
 //! Reconciliation entry points for `ClippyTomlEngine`.
 
-mod bans;
 mod bools;
+mod disallowed;
 mod dispatch;
 mod enums;
 mod msrv;

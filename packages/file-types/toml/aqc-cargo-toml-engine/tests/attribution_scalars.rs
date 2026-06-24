@@ -336,7 +336,7 @@ fn package_lints_inline_preserves_per_lint_attribution() {
                 "outer".to_owned(),
             ),
         )]),
-        banned: BTreeMap::new(),
+        forbidden: BTreeMap::new(),
         closed: None,
     };
     let mut req = cargo::CargoTomlRequirements::default();

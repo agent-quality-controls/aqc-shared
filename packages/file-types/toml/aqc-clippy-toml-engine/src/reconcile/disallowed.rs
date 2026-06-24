@@ -1,10 +1,10 @@
-//! Reconciliation for clippy.toml ban tables.
+//! Reconciliation for clippy.toml disallowed tables.
 
 #![cfg_attr(
     not(test),
     expect(
         clippy::missing_docs_in_private_items,
-        reason = "Private ban-table helpers are internal reconciliation steps."
+        reason = "Private disallowed-table helpers are internal reconciliation steps."
     )
 )]
 
@@ -16,18 +16,18 @@ use aqc_file_engine_core::{
 use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
 
-use crate::requirement::{BanEntry, ClippyForbiddenGlobConflictBlocks, ClippyPathGlob};
+use crate::requirement::{ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, DisallowedEntry};
 
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     table_key: &str,
-    merged: &ResolvedItemRequirements<BanEntry>,
+    merged: &ResolvedItemRequirements<DisallowedEntry>,
     globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     glob_conflicts: &ClippyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
     if merged.required.is_empty()
-        && merged.banned.is_empty()
+        && merged.forbidden.is_empty()
         && merged.closed_by.is_empty()
         && globs.globs.is_empty()
     {
@@ -80,7 +80,7 @@ pub(crate) fn apply(
         );
     }
 
-    for entry in merged.banned.values() {
+    for entry in merged.forbidden.values() {
         let path = &entry.merged.path;
         let attribution = entry
             .collected
@@ -92,7 +92,7 @@ pub(crate) fn apply(
             .first()
             .map(|(_, msg)| msg.clone())
             .unwrap_or_default();
-        apply_banned(table_key, array, path, &message, &attribution, findings);
+        apply_forbidden(table_key, array, path, &message, &attribution, findings);
     }
 
     apply_forbidden_path_globs(table_key, array, globs, glob_conflicts, findings);
@@ -172,7 +172,7 @@ fn apply_required(
     table_key: &str,
     array: &mut Array,
     current_paths: &mut BTreeSet<String>,
-    entry: &BanEntry,
+    entry: &DisallowedEntry,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -180,11 +180,11 @@ fn apply_required(
         let current = array.get(index).cloned();
         if current
             .as_ref()
-            .is_some_and(|value| ban_value_matches(value, entry))
+            .is_some_and(|value| disallowed_value_matches(value, entry))
         {
             return;
         }
-        let _ = array.replace(index, ban_value(entry));
+        let _ = array.replace(index, disallowed_value(entry));
         findings.push(Finding::Mismatch {
             key: format!("{table_key}[?path == \"{}\"]", entry.path),
             current: current.map(|value| value.to_string()),
@@ -195,7 +195,7 @@ fn apply_required(
         });
         return;
     }
-    array.push(ban_value(entry));
+    array.push(disallowed_value(entry));
     let _ = current_paths.insert(entry.path.clone());
     findings.push(Finding::Mismatch {
         key: format!("{table_key}[?path == \"{}\"]", entry.path),
@@ -210,7 +210,7 @@ fn apply_required(
 fn push_malformed_array_finding(
     table_key: &str,
     item: &Item,
-    merged: &ResolvedItemRequirements<BanEntry>,
+    merged: &ResolvedItemRequirements<DisallowedEntry>,
     findings: &mut Vec<Finding>,
 ) {
     let mut attribution = merged
@@ -220,7 +220,7 @@ fn push_malformed_array_finding(
         .collect::<Vec<_>>();
     attribution.extend(
         merged
-            .banned
+            .forbidden
             .values()
             .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone())),
     );
@@ -235,7 +235,7 @@ fn push_malformed_array_finding(
     });
 }
 
-fn apply_banned(
+fn apply_forbidden(
     table_key: &str,
     array: &mut Array,
     path_to_remove: &str,
@@ -331,14 +331,14 @@ fn read_entry_reason(item: &Value) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn ban_value_matches(item: &Value, required: &BanEntry) -> bool {
+fn disallowed_value_matches(item: &Value, required: &DisallowedEntry) -> bool {
     read_entry_path(item).as_deref() == Some(required.path.as_str())
         && (required.message.is_empty()
             || read_entry_reason(item).as_deref() == Some(required.message.as_str()))
 }
 
-fn ban_value(entry: &BanEntry) -> Value {
-    // Required ban entries are writable array items.
+fn disallowed_value(entry: &DisallowedEntry) -> Value {
+    // Required disallowed entries are writable array items.
     if entry.message.is_empty() {
         Value::from(entry.path.as_str())
     } else {
@@ -349,7 +349,7 @@ fn ban_value(entry: &BanEntry) -> Value {
     }
 }
 
-fn format_entry(entry: &BanEntry) -> String {
+fn format_entry(entry: &DisallowedEntry) -> String {
     if entry.message.is_empty() {
         format!("path={}", entry.path)
     } else {

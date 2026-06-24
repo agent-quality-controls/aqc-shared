@@ -87,43 +87,43 @@ reason = "Resolved aggregate returned by merge; fields mirror the requirement se
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/bans.rs"
-selector = "struct:BanEntry"
+subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/disallowed.rs"
+selector = "struct:DisallowedEntry"
 reason = "Plain data record mirroring clippy's disallowed-methods/types/macros entry shape."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/bans.rs"
+subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/disallowed.rs"
 selector = "struct:ClippyPathGlob"
-reason = "Plain data record for forbidden clippy ban path globs."
+reason = "Plain data record for forbidden clippy disallowed-entry path globs."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/bans.rs"
+subject = "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/disallowed.rs"
 selector = "struct:ClippyForbiddenGlobConflictBlocks"
 reason = "Resolved conflict aggregate returned by merge; fields name the blocked required entries and glob requirements."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs"
 selector = "struct:RustfmtTomlRequirements"
 reason = "Declarative requirement struct; field-per-requirement-section is the API."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs"
 selector = "struct:ResolvedRustfmtTomlRequirements"
 reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs"
 selector = "struct:RustfmtIgnorePathGlob"
 reason = "Plain data record for forbidden rustfmt ignore path globs."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
-subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs"
 selector = "struct:RustfmtForbiddenIgnoreGlobConflictBlocks"
 reason = "Resolved conflict aggregate returned by merge; fields name the blocked required ignore paths and glob requirements."
 
@@ -177,7 +177,7 @@ reason = "Resolved profile requirement aggregate; fields mirror the profile requ
 
 [[waivers]]
 rule = "g3rs-code/large-type-inventory"
-subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement.rs"
+subject = "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/settings.rs"
 selector = "enum:RustfmtScalarSetting"
 reason = "Schema enum for rustfmt scalar settings; splitting it would obscure the file-key model."
 

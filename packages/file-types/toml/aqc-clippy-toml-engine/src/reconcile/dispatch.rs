@@ -3,7 +3,7 @@
 use aqc_file_engine_core::Finding;
 use toml_edit::DocumentMut;
 
-use super::{bans, bools, enums, msrv, thresholds};
+use super::{bools, disallowed, enums, msrv, thresholds};
 use crate::requirement::ResolvedClippyTomlRequirements;
 
 /// Walk every non-empty section of `requirement`, applying its assertions
@@ -17,7 +17,7 @@ pub(crate) fn apply(
         msrv::apply(doc, m, findings);
     }
     thresholds::apply(doc, &requirement.thresholds, findings);
-    bans::apply(
+    disallowed::apply(
         doc,
         "disallowed-methods",
         &requirement.disallowed_methods,
@@ -25,7 +25,7 @@ pub(crate) fn apply(
         &requirement.disallowed_method_glob_conflicts,
         findings,
     );
-    bans::apply(
+    disallowed::apply(
         doc,
         "disallowed-types",
         &requirement.disallowed_types,
@@ -33,7 +33,7 @@ pub(crate) fn apply(
         &requirement.disallowed_type_glob_conflicts,
         findings,
     );
-    bans::apply(
+    disallowed::apply(
         doc,
         "disallowed-macros",
         &requirement.disallowed_macros,

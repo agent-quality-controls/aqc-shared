@@ -10,10 +10,13 @@
 
 use aqc_file_engine_core::{ConflictEntry, Provenance};
 
+/// Borrowed provenance-tagged values used for conflict rendering.
+type ProvenancedSlice<'a, T> = &'a [(Provenance, T)];
+
 pub(super) fn push_debug_conflict<T: core::fmt::Debug>(
     key: &str,
     reason: &str,
-    items: &[(Provenance, T)],
+    items: ProvenancedSlice<'_, T>,
     conflicts: &mut Vec<ConflictEntry>,
 ) {
     conflicts.push(ConflictEntry {

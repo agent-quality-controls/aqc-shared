@@ -47,7 +47,22 @@ impl PartialEq for PackageFieldAssertion {
             (Self::OrderedVersion(a), Self::OrderedVersion(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
             (Self::InheritsWorkspace(_), Self::InheritsWorkspace(_)) => true,
-            _ => false,
+            (
+                Self::Scalar(_) | Self::List(_) | Self::InheritsWorkspace(_),
+                Self::OrderedVersion(_),
+            )
+            | (
+                Self::Scalar(_) | Self::OrderedVersion(_) | Self::InheritsWorkspace(_),
+                Self::List(_),
+            )
+            | (
+                Self::Scalar(_) | Self::OrderedVersion(_) | Self::List(_),
+                Self::InheritsWorkspace(_),
+            )
+            | (
+                Self::OrderedVersion(_) | Self::List(_) | Self::InheritsWorkspace(_),
+                Self::Scalar(_),
+            ) => false,
         }
     }
 }
@@ -167,7 +182,9 @@ fn resolve_list_product(
         .iter()
         .filter_map(|(prov, assertion)| match assertion {
             PackageFieldAssertion::List(list) => Some((prov.clone(), list.clone())),
-            _ => None,
+            PackageFieldAssertion::Scalar(_)
+            | PackageFieldAssertion::OrderedVersion(_)
+            | PackageFieldAssertion::InheritsWorkspace(_) => None,
         })
         .collect();
     Some(Some(ResolvedPackageFieldAssertion::List(resolve_list(
@@ -197,7 +214,9 @@ fn resolve_inheritance(
             .iter()
             .find_map(|(_, assertion)| match assertion {
                 PackageFieldAssertion::InheritsWorkspace(msg) => Some(msg.clone()),
-                _ => None,
+                PackageFieldAssertion::Scalar(_)
+                | PackageFieldAssertion::OrderedVersion(_)
+                | PackageFieldAssertion::List(_) => None,
             })
             .unwrap_or_default(),
     )))
@@ -229,7 +248,9 @@ fn resolve_ordered_version(
             PackageFieldAssertion::Scalar(ScalarAssertion::Present(msg)) => {
                 Some((prov.clone(), ScalarAssertion::Present(msg.clone())))
             }
-            _ => None,
+            PackageFieldAssertion::Scalar(_)
+            | PackageFieldAssertion::List(_)
+            | PackageFieldAssertion::InheritsWorkspace(_) => None,
         })
         .collect::<Vec<_>>();
     let resolved = ScalarAssertion::<DottedVersion>::resolve(key, scalar_items, conflicts)?;
@@ -261,7 +282,9 @@ fn resolve_config_scalar(
         .iter()
         .filter_map(|(prov, assertion)| match assertion {
             PackageFieldAssertion::Scalar(assertion) => Some((prov.clone(), assertion.clone())),
-            _ => None,
+            PackageFieldAssertion::OrderedVersion(_)
+            | PackageFieldAssertion::List(_)
+            | PackageFieldAssertion::InheritsWorkspace(_) => None,
         })
         .collect::<Vec<_>>();
     let resolved = ScalarAssertion::<ConfigScalar>::resolve(key, scalar_items, conflicts)?;
@@ -271,7 +294,7 @@ fn resolve_config_scalar(
     })
 }
 
-fn is_present(assertion: &PackageFieldAssertion) -> bool {
+const fn is_present(assertion: &PackageFieldAssertion) -> bool {
     matches!(
         assertion,
         PackageFieldAssertion::Scalar(ScalarAssertion::Present(_))
@@ -292,23 +315,24 @@ fn package_field_assertion_is_legal(key: &str, assertion: &PackageFieldAssertion
     match field {
         "rust-version" | "version" => matches!(
             assertion,
-            PackageFieldAssertion::OrderedVersion(ScalarAssertion::Equals(..))
-                | PackageFieldAssertion::OrderedVersion(ScalarAssertion::AtLeast(..))
-                | PackageFieldAssertion::OrderedVersion(ScalarAssertion::Present(_))
-                | PackageFieldAssertion::OrderedVersion(ScalarAssertion::Absent(_))
-                | PackageFieldAssertion::Scalar(ScalarAssertion::Present(_))
-                | PackageFieldAssertion::Scalar(ScalarAssertion::Absent(_))
+            PackageFieldAssertion::OrderedVersion(
+                ScalarAssertion::Equals(..)
+                    | ScalarAssertion::AtLeast(..)
+                    | ScalarAssertion::Present(_)
+                    | ScalarAssertion::Absent(_)
+            ) | PackageFieldAssertion::Scalar(
+                ScalarAssertion::Present(_) | ScalarAssertion::Absent(_)
+            )
         ),
         "edition" => {
             matches!(
                 assertion,
                 PackageFieldAssertion::OrderedVersion(_)
-                    | PackageFieldAssertion::Scalar(ScalarAssertion::Equals(
-                        ConfigScalar::Str(_),
-                        _
-                    ))
-                    | PackageFieldAssertion::Scalar(ScalarAssertion::Present(_))
-                    | PackageFieldAssertion::Scalar(ScalarAssertion::Absent(_))
+                    | PackageFieldAssertion::Scalar(
+                        ScalarAssertion::Equals(ConfigScalar::Str(_), _)
+                            | ScalarAssertion::Present(_)
+                            | ScalarAssertion::Absent(_)
+                    )
             ) || matches!(
                 assertion,
                 PackageFieldAssertion::Scalar(ScalarAssertion::OneOf(values, _))
@@ -319,12 +343,13 @@ fn package_field_assertion_is_legal(key: &str, assertion: &PackageFieldAssertion
         "keywords" | "categories" => matches!(
             assertion,
             PackageFieldAssertion::List(_)
-                | PackageFieldAssertion::Scalar(ScalarAssertion::Present(_))
-                | PackageFieldAssertion::Scalar(ScalarAssertion::Absent(_))
+                | PackageFieldAssertion::Scalar(
+                    ScalarAssertion::Present(_) | ScalarAssertion::Absent(_)
+                )
         ),
         _ => match assertion {
-            PackageFieldAssertion::OrderedVersion(_) => false,
-            PackageFieldAssertion::InheritsWorkspace(_) => false,
+            PackageFieldAssertion::OrderedVersion(_)
+            | PackageFieldAssertion::InheritsWorkspace(_) => false,
             PackageFieldAssertion::Scalar(_) | PackageFieldAssertion::List(_) => true,
         },
     }
@@ -332,13 +357,18 @@ fn package_field_assertion_is_legal(key: &str, assertion: &PackageFieldAssertion
 
 fn scalar_string_assertion_is_legal(assertion: &PackageFieldAssertion) -> bool {
     match assertion {
-        PackageFieldAssertion::Scalar(ScalarAssertion::Equals(ConfigScalar::Str(_), _))
-        | PackageFieldAssertion::Scalar(ScalarAssertion::Present(_))
-        | PackageFieldAssertion::Scalar(ScalarAssertion::Absent(_)) => true,
+        PackageFieldAssertion::Scalar(
+            ScalarAssertion::Equals(ConfigScalar::Str(_), _)
+            | ScalarAssertion::Present(_)
+            | ScalarAssertion::Absent(_),
+        ) => true,
         PackageFieldAssertion::Scalar(ScalarAssertion::OneOf(values, _)) => values
             .iter()
             .all(|value| matches!(value, ConfigScalar::Str(_))),
-        _ => false,
+        PackageFieldAssertion::Scalar(_)
+        | PackageFieldAssertion::OrderedVersion(_)
+        | PackageFieldAssertion::List(_)
+        | PackageFieldAssertion::InheritsWorkspace(_) => false,
     }
 }
 

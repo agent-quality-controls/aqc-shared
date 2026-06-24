@@ -185,6 +185,7 @@ impl RustfmtScalarSetting {
         }
     }
 
+    /// Returns whether a scalar assertion matches this rustfmt setting's value kind.
     pub(super) fn scalar_assertion_is_legal(
         self,
         assertion: &ScalarAssertion<ConfigScalar>,
@@ -209,7 +210,10 @@ impl RustfmtScalarSetting {
                 ScalarAssertion::OneOf(values, _) => values
                     .iter()
                     .all(|value| matches!(value, ConfigScalar::Int(_))),
-                _ => false,
+                ScalarAssertion::Equals(..)
+                | ScalarAssertion::AtLeast(..)
+                | ScalarAssertion::AtMost(..)
+                | ScalarAssertion::Range(..) => false,
             },
             RustfmtScalarKind::Text => match assertion {
                 ScalarAssertion::Equals(ConfigScalar::Str(_), _)
@@ -218,12 +222,20 @@ impl RustfmtScalarSetting {
                 ScalarAssertion::OneOf(values, _) => values
                     .iter()
                     .all(|value| matches!(value, ConfigScalar::Str(_))),
-                _ => false,
+                ScalarAssertion::Equals(..)
+                | ScalarAssertion::AtLeast(..)
+                | ScalarAssertion::AtMost(..)
+                | ScalarAssertion::Range(..) => false,
             },
         }
     }
 
-    fn scalar_kind(self) -> RustfmtScalarKind {
+    /// Returns the TOML scalar kind rustfmt expects for this setting.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Exhaustive rustfmt setting-kind map is intentionally one match table."
+    )]
+    const fn scalar_kind(self) -> RustfmtScalarKind {
         match self {
             Self::MaxWidth
             | Self::TabSpaces
@@ -313,10 +325,14 @@ impl RustfmtScalarSetting {
     }
 }
 
+/// Rustfmt TOML scalar value kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RustfmtScalarKind {
+    /// Boolean rustfmt setting.
     Bool,
+    /// Integer rustfmt setting.
     Int,
+    /// String-like rustfmt setting.
     Text,
 }
 

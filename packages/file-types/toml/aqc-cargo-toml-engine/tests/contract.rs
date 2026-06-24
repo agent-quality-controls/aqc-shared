@@ -29,7 +29,7 @@ fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_c
 
 fn keyed_items<Entry: Default>(
     required: BTreeMap<String, (Entry, String)>,
-    banned: BTreeMap<String, String>,
+    forbidden: BTreeMap<String, String>,
     closed: Option<String>,
 ) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
     engine_core::ItemRequirements {
@@ -37,7 +37,7 @@ fn keyed_items<Entry: Default>(
             .into_iter()
             .map(|(file_key, (value, msg))| (engine_core::KeyedItem { file_key, value }, msg))
             .collect(),
-        banned: banned
+        forbidden: forbidden
             .into_iter()
             .map(|(file_key, msg)| {
                 (
@@ -90,8 +90,8 @@ fn package_one_of_is_check_only_on_empty() {
 
 #[test]
 fn cargo_field_wrappers_reject_invalid_scalar_operations() {
-    let mut req = cargo::CargoTomlRequirements::default();
-    let _ = req.package_fields.insert(
+    let mut edition_req = cargo::CargoTomlRequirements::default();
+    let _ = edition_req.package_fields.insert(
         "edition".to_owned(),
         cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::AtLeast(
             engine_core::ConfigScalar::Str("2024".to_owned()),
@@ -99,58 +99,62 @@ fn cargo_field_wrappers_reject_invalid_scalar_operations() {
         )),
     );
 
-    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    let (_edition_merged, edition_conflicts) =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), edition_req)]);
     assert!(
-        conflicts
+        edition_conflicts
             .iter()
             .any(|conflict| conflict.reason == "scalar-operation-unsupported")
     );
 
-    let mut req = cargo::CargoTomlRequirements::default();
-    let _ = req.package_fields.insert(
+    let mut rust_version_req = cargo::CargoTomlRequirements::default();
+    let _ = rust_version_req.package_fields.insert(
         "rust-version".to_owned(),
         cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
             engine_core::ConfigScalar::Str("1.85".to_owned()),
             "rust version".to_owned(),
         )),
     );
-    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    let (_rust_version_merged, rust_version_conflicts) =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), rust_version_req)]);
     assert!(
-        conflicts
+        rust_version_conflicts
             .iter()
             .any(|conflict| conflict.reason == "scalar-operation-unsupported")
     );
 
-    let mut req = cargo::CargoTomlRequirements::default();
-    let _ = req.workspace_fields.insert(
+    let mut workspace_members_req = cargo::CargoTomlRequirements::default();
+    let _ = workspace_members_req.workspace_fields.insert(
         "members".to_owned(),
         cargo::WorkspaceFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
             engine_core::ConfigScalar::Str("crate".to_owned()),
             "members".to_owned(),
         )),
     );
-    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    let (_workspace_members_merged, workspace_members_conflicts) =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), workspace_members_req)]);
     assert!(
-        conflicts
+        workspace_members_conflicts
             .iter()
             .any(|conflict| conflict.reason == "scalar-operation-unsupported")
     );
 
-    let mut req = cargo::CargoTomlRequirements::default();
-    let _ = req.targets.lib_fields.insert(
+    let mut target_fields_req = cargo::CargoTomlRequirements::default();
+    let _ = target_fields_req.targets.lib_fields.insert(
         "path".to_owned(),
         cargo::TargetFieldAssertion::List(engine_core::ListRequirements::default()),
     );
-    let _ = req.targets.lib_fields.insert(
+    let _ = target_fields_req.targets.lib_fields.insert(
         "required-features".to_owned(),
         cargo::TargetFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
             engine_core::ConfigScalar::Str("feature".to_owned()),
             "feature".to_owned(),
         )),
     );
-    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    let (_target_fields_merged, target_fields_conflicts) =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), target_fields_req)]);
     assert_eq!(
-        conflicts
+        target_fields_conflicts
             .iter()
             .filter(|conflict| conflict.reason == "scalar-operation-unsupported")
             .count(),

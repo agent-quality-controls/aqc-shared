@@ -15,12 +15,12 @@ use aqc_file_engine_core::{
 };
 use toml_edit::{DocumentMut, Item, value};
 
+/// Resolved clippy `msrv` scalar assertion.
+type ResolvedMsrv =
+    ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>;
+
 /// Apply the resolved `msrv` requirement to the document.
-pub(crate) fn apply(
-    doc: &mut DocumentMut,
-    merged: &ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>,
-    findings: &mut Vec<Finding>,
-) {
+pub(crate) fn apply(doc: &mut DocumentMut, merged: &ResolvedMsrv, findings: &mut Vec<Finding>) {
     let current = doc
         .get("msrv")
         .and_then(Item::as_str)
@@ -36,10 +36,7 @@ pub(crate) fn apply(
     );
 }
 
-fn attribution_for(
-    current: Option<&str>,
-    resolved: &ResolvedRequirement<ScalarAssertion<DottedVersion>, ScalarAssertion<DottedVersion>>,
-) -> Vec<Provenance> {
+fn attribution_for(current: Option<&str>, resolved: &ResolvedMsrv) -> Vec<Provenance> {
     let filtered = resolved
         .collected
         .iter()
@@ -61,10 +58,10 @@ fn assertion_fails(current: Option<&str>, assertion: &ScalarAssertion<DottedVers
     match assertion {
         ScalarAssertion::Equals(want, _) => current != Some(want.as_str()),
         ScalarAssertion::AtLeast(min, _) => {
-            !current.is_some_and(|value| DottedVersion::new(value) >= min.clone())
+            current.is_none_or(|value| DottedVersion::new(value) < min.clone())
         }
         ScalarAssertion::AtMost(max, _) => {
-            !current.is_some_and(|value| DottedVersion::new(value) <= max.clone())
+            current.is_none_or(|value| DottedVersion::new(value) > max.clone())
         }
         ScalarAssertion::Range(min, max, _) => !current.is_some_and(|value| {
             let value = DottedVersion::new(value);

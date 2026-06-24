@@ -9,13 +9,12 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
-pub use aqc_file_engine_core::ScalarAssertion;
-#[cfg(feature = "api")]
 pub use engine::RustfmtTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
     ResolvedRustfmtClosedSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
-    RustfmtIgnorePathGlob, RustfmtListSetting, RustfmtScalarSetting, RustfmtTomlRequirements,
+    RustfmtForbiddenIgnoreGlobConflictBlocks, RustfmtIgnorePathGlob, RustfmtListSetting,
+    RustfmtScalarRequirements, RustfmtScalarSetting, RustfmtTomlRequirements,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value

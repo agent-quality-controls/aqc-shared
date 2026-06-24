@@ -52,7 +52,10 @@ fn scalar_assertion_absent_conflicts_with_present() {
 
     assert!(resolved.is_none());
     assert_eq!(conflicts.len(), 1);
-    assert_eq!(conflicts[0].reason, "scalar-disagree");
+    assert_eq!(
+        conflicts.first().expect("one conflict").reason,
+        "scalar-disagree"
+    );
 }
 
 #[test]
@@ -237,7 +240,10 @@ fn scalar_assertion_ordered_operation_on_unordered_value_conflicts() {
 
     assert!(resolved.is_none());
     assert_eq!(conflicts.len(), 1);
-    assert_eq!(conflicts[0].reason, "scalar-order-unsupported");
+    assert_eq!(
+        conflicts.first().expect("one conflict").reason,
+        "scalar-order-unsupported"
+    );
 }
 
 #[test]
@@ -260,7 +266,10 @@ fn scalar_assertion_ordered_range_conflicts_when_empty() {
 
     assert!(resolved.is_none());
     assert_eq!(conflicts.len(), 1);
-    assert_eq!(conflicts[0].reason, "scalar-disagree");
+    assert_eq!(
+        conflicts.first().expect("one conflict").reason,
+        "scalar-disagree"
+    );
 }
 
 #[test]

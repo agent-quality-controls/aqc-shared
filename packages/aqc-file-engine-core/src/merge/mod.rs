@@ -12,13 +12,15 @@ mod lists;
 mod model;
 /// Scalar and map merge implementation.
 mod scalar;
+/// Generic scalar assertion merge implementation.
+mod scalar_assertion;
 
 pub use items::{compose_item_by, resolve_forbidden_globs, resolve_items};
 pub use lists::{resolve_exact_list, resolve_list};
 pub use model::{
-    BannedItemMap, BannedItemResolution, ClosedInput, Collected, ConflictEntry, Contributor,
-    Contributors, ExactInput, FileItemRequirement, ForbiddenGlobRequirement,
-    ForbiddenGlobRequirements, GlobAssertion, GlobAssertionGroups, GlobAssertionInput, GlobInput,
+    ClosedInput, Collected, ConflictEntry, Contributor, Contributors, ExactInput,
+    FileItemRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements, ForbiddenItemMap,
+    ForbiddenItemResolution, GlobAssertion, GlobAssertionGroups, GlobAssertionInput, GlobInput,
     GlobResolutionMap, GroupedAssertions, ItemAssertion, ItemAssertionGroups, ItemAssertionInput,
     ItemInput, ItemRequirementMap, ItemRequirements, KeyedItem, KeyedValueMap, ListExact,
     ListInput, ListRequirements, MapInput, MapInputs, MemberInputs, MessagePair, OptionalInput,

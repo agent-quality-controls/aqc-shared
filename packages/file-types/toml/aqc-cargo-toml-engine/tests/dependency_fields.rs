@@ -42,7 +42,7 @@ fn dependency_partial_specs_compose_fieldwise() {
             prov("p1"),
             dep_req(KeyedFixture {
                 required: left,
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -50,7 +50,7 @@ fn dependency_partial_specs_compose_fieldwise() {
             prov("p2"),
             dep_req(KeyedFixture {
                 required: right,
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -75,7 +75,7 @@ fn dependency_incompatible_same_field_specs_conflict() {
             prov("p1"),
             dep_req(KeyedFixture {
                 required: left,
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -83,7 +83,7 @@ fn dependency_incompatible_same_field_specs_conflict() {
             prov("p2"),
             dep_req(KeyedFixture {
                 required: right,
-                banned: BTreeMap::new(),
+                forbidden: BTreeMap::new(),
                 closed: None,
             }),
         ),
@@ -116,7 +116,7 @@ fn dependency_each_field_composes_independently() {
         prov("p1"),
         dep_req(KeyedFixture {
             required,
-            banned: BTreeMap::new(),
+            forbidden: BTreeMap::new(),
             closed: None,
         }),
     )]);

@@ -25,6 +25,10 @@ use crate::reconcile::util::{
 };
 use crate::requirement::ResolvedProfileRequirements;
 
+/// Resolved profile scalar-field assertion.
+type ResolvedProfileScalarField =
+    ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>;
+
 /// Apply every `[profile.<name>]` requirement.
 pub(crate) fn apply(
     doc: &mut DocumentMut,
@@ -78,7 +82,7 @@ fn apply_resolved_field(
     path: &[String],
     display: &str,
     field: &str,
-    resolved: &ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
+    resolved: &ResolvedProfileScalarField,
     findings: &mut Vec<Finding>,
 ) {
     let attribution = profile_field_attribution_for(doc, path, field, resolved);
@@ -97,7 +101,7 @@ fn profile_field_attribution_for(
     doc: &DocumentMut,
     path: &[String],
     field: &str,
-    resolved: &ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
+    resolved: &ResolvedProfileScalarField,
 ) -> Vec<Provenance> {
     let current = field_item(doc, path, field);
     let filtered = resolved
