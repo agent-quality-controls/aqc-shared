@@ -27,5 +27,5 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = { version = "0.3.2", path = "../../../aqc-file-engine-core" }
+aqc-file-engine-core = { version = "0.3.3", path = "../../../aqc-file-engine-core" }
 toml_edit = "0.25"
