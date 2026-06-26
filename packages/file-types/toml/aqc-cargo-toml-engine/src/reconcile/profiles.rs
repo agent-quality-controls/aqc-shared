@@ -17,12 +17,12 @@ use std::collections::BTreeMap;
 use aqc_file_engine_core::{
     ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
 };
+use aqc_toml_engine_core::{
+    ScalarFieldEdit, attribution as resolved_attribution, ensure_table_at, scalar_field_edit,
+    table_at, table_at_mut,
+};
 use toml_edit::{DocumentMut, Item};
 
-use crate::reconcile::util::{
-    attribution as resolved_attribution, ensure_table_at, push_mismatch, render_item,
-    render_scalar, scalar_item, scalar_matches, table_at, table_at_mut,
-};
 use crate::requirement::ResolvedProfileRequirements;
 
 /// Resolved profile scalar-field assertion.
@@ -107,30 +107,13 @@ fn profile_field_attribution_for(
     let filtered = resolved
         .collected
         .iter()
-        .filter(|(_, assertion)| profile_assertion_fails(current, assertion))
+        .filter(|(_, assertion)| aqc_toml_engine_core::scalar_assertion_fails(current, assertion))
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
         resolved_attribution(resolved)
     } else {
         filtered
-    }
-}
-
-fn profile_assertion_fails(
-    current: Option<&Item>,
-    assertion: &ScalarAssertion<ConfigScalar>,
-) -> bool {
-    match assertion {
-        ScalarAssertion::Equals(want, _) => !current.is_some_and(|item| scalar_matches(item, want)),
-        ScalarAssertion::OneOf(allowed, _) => {
-            !current.is_some_and(|item| allowed.iter().any(|allowed| scalar_matches(item, allowed)))
-        }
-        ScalarAssertion::Present(_) => current.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            true
-        }
     }
 }
 
@@ -144,142 +127,22 @@ fn apply_field(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    match assertion {
-        ScalarAssertion::Equals(want, msg) => {
-            apply_equals(doc, path, display, field, want, msg, attribution, findings);
-        }
-        ScalarAssertion::OneOf(allowed, msg) => {
-            apply_one_of(
-                doc,
-                path,
-                display,
-                field,
-                allowed,
-                msg,
-                attribution,
-                findings,
-            );
-        }
-        ScalarAssertion::Present(msg) => {
-            apply_present(doc, path, display, field, msg, attribution, findings);
-        }
-        ScalarAssertion::Absent(msg) => {
-            apply_absent(doc, path, display, field, msg, attribution, findings);
-        }
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-        }
-    }
-}
-
-/// `field == want`.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the path-addressed field appliers carry doc, path, display, field, value, msg, attribution, findings; each is a distinct input with no natural grouping."
-)]
-fn apply_equals(
-    doc: &mut DocumentMut,
-    path: &[String],
-    display: &str,
-    field: &str,
-    want: &ConfigScalar,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = field_item(doc, path, field);
-    if current.is_some_and(|it| scalar_matches(it, want)) {
-        return;
-    }
-    let rendered = field_item(doc, path, field).and_then(render_item);
-    push_mismatch(
-        findings,
+    match scalar_field_edit(
         format!("{display}.{field}"),
-        rendered,
-        render_scalar(want),
-        msg.to_owned(),
+        field_item(doc, path, field),
+        assertion,
         attribution,
-    );
-    ensure_table_at(doc, path)[field] = scalar_item(want);
-}
-
-/// `field ∈ allowed` (check-only).
-#[expect(
-    clippy::too_many_arguments,
-    reason = "see apply_equals: distinct path-addressed inputs, no natural grouping."
-)]
-fn apply_one_of(
-    doc: &DocumentMut,
-    path: &[String],
-    display: &str,
-    field: &str,
-    allowed: &std::collections::BTreeSet<ConfigScalar>,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = field_item(doc, path, field);
-    if current.is_some_and(|it| allowed.iter().any(|a| scalar_matches(it, a))) {
-        return;
-    }
-    let rendered = current.and_then(render_item);
-    let allowed_render: Vec<String> = allowed.iter().map(render_scalar).collect();
-    push_mismatch(
         findings,
-        format!("{display}.{field}"),
-        rendered,
-        format!("one of {allowed_render:?}"),
-        msg.to_owned(),
-        attribution,
-    );
-}
-
-/// `field` must be set (check-only).
-fn apply_present(
-    doc: &DocumentMut,
-    path: &[String],
-    display: &str,
-    field: &str,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if field_item(doc, path, field).is_some() {
-        return;
-    }
-    push_mismatch(
-        findings,
-        format!("{display}.{field}"),
-        None,
-        "any value (Present)".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
-}
-
-/// `field` must not be set (vacuous when already absent).
-fn apply_absent(
-    doc: &mut DocumentMut,
-    path: &[String],
-    display: &str,
-    field: &str,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let rendered = field_item(doc, path, field).and_then(render_item);
-    if field_item(doc, path, field).is_none() {
-        return;
-    }
-    push_mismatch(
-        findings,
-        format!("{display}.{field}"),
-        rendered,
-        "absent".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
-    if let Some(t) = table_at_mut(doc, path) {
-        let _ = t.remove(field);
+    ) {
+        Some(ScalarFieldEdit::Write(item)) => {
+            ensure_table_at(doc, path)[field] = item;
+        }
+        Some(ScalarFieldEdit::Remove) => {
+            if let Some(t) = table_at_mut(doc, path) {
+                let _ = t.remove(field);
+            }
+        }
+        None => {}
     }
 }
 

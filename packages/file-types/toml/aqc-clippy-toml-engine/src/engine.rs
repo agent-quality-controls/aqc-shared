@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use aqc_file_engine_core::{
     Engine, EngineOutput, EngineRequirement, FileEngine, Provenance, merged_reconcile,
-    parse_or_report,
 };
+use aqc_toml_engine_core::parse_or_report;
 
 use crate::reconcile;
 use crate::requirement::{ClippyTomlRequirements, ResolvedClippyTomlRequirements};

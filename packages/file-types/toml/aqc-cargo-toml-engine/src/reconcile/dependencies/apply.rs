@@ -17,11 +17,11 @@ use super::removals::{
 };
 use super::required::{apply_required, required_file_keys};
 
-use crate::reconcile::util::table_at;
 use crate::requirement::{
     DependencyForbiddenGlobConflictBlocks, DependencyPackageGlob, DependencyRequirement,
     DependencyScope,
 };
+use aqc_toml_engine_core::table_at;
 
 /// Extra generability rule for a dependency-shaped table.
 #[derive(Clone, Copy, PartialEq, Eq)]

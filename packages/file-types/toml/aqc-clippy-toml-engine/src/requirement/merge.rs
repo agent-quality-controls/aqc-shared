@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConflictEntry, DottedVersion, Provenance, Resolve, ResolvedRequirement, ScalarAssertion,
-    resolve_forbidden_globs, resolve_items,
+    push_conflict, render_scalar_assertion, resolve_forbidden_globs, resolve_items,
 };
 
 use super::{
@@ -114,6 +114,7 @@ impl ClippyTomlRequirements {
                     .map(|(prov, req)| (prov.clone(), req.msrv.clone()))
                     .collect(),
                 clippy_msrv_assertion_is_legal,
+                render_scalar_assertion,
                 &mut conflicts,
             ),
             thresholds: resolve_validated_map(
@@ -122,6 +123,7 @@ impl ClippyTomlRequirements {
                     .collect(),
                 Clone::clone,
                 clippy_threshold_assertion_is_legal,
+                render_scalar_assertion,
                 &mut conflicts,
             ),
             disallowed_methods,
@@ -139,6 +141,7 @@ impl ClippyTomlRequirements {
                     .collect(),
                 Clone::clone,
                 clippy_bool_assertion_is_legal,
+                render_scalar_assertion,
                 &mut conflicts,
             ),
             enums: resolve_validated_map(
@@ -147,6 +150,7 @@ impl ClippyTomlRequirements {
                     .collect(),
                 Clone::clone,
                 clippy_enum_assertion_is_legal,
+                render_scalar_assertion,
                 &mut conflicts,
             ),
         };
@@ -159,10 +163,11 @@ fn resolve_validated_optional<A>(
     key: &str,
     input: Vec<(Provenance, Option<A>)>,
     is_legal: impl Fn(&A) -> bool,
+    render: impl Fn(&A) -> String,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> Option<ResolvedRequirement<A::Merged, A>>
 where
-    A: Resolve + core::fmt::Debug,
+    A: Resolve,
 {
     let items = input
         .into_iter()
@@ -172,7 +177,13 @@ where
         return None;
     }
     if !items.iter().all(|(_, assertion)| is_legal(assertion)) {
-        push_unsupported_conflict(key, &items, conflicts);
+        push_conflict(
+            key,
+            "scalar-operation-unsupported",
+            &items,
+            render,
+            conflicts,
+        );
         return None;
     }
     A::resolve(key, items, conflicts)
@@ -183,11 +194,12 @@ fn resolve_validated_map<K, A>(
     input: Vec<(Provenance, BTreeMap<K, A>)>,
     key_path: impl Fn(&K) -> String,
     is_legal: impl Fn(&A) -> bool,
+    render: impl Fn(&A) -> String,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> BTreeMap<K, ResolvedRequirement<A::Merged, A>>
 where
     K: Ord + Clone,
-    A: Resolve + core::fmt::Debug,
+    A: Resolve,
 {
     let mut by_key: BTreeMap<K, Vec<(Provenance, A)>> = BTreeMap::new();
     for (prov, map) in input {
@@ -203,7 +215,13 @@ where
     for (key, items) in by_key {
         let key_text = key_path(&key);
         if !items.iter().all(|(_, assertion)| is_legal(assertion)) {
-            push_unsupported_conflict(&key_text, &items, conflicts);
+            push_conflict(
+                &key_text,
+                "scalar-operation-unsupported",
+                &items,
+                &render,
+                conflicts,
+            );
             continue;
         }
         if let Some(resolved) = A::resolve(&key_text, items, conflicts) {
@@ -255,20 +273,4 @@ const fn clippy_enum_assertion_is_legal(assertion: &ScalarAssertion<String>) -> 
             | ScalarAssertion::Present(_)
             | ScalarAssertion::Absent(_)
     )
-}
-
-/// Records a scalar operation that the Clippy config file cannot represent.
-fn push_unsupported_conflict<A: core::fmt::Debug>(
-    key: &str,
-    items: &[(Provenance, A)],
-    conflicts: &mut Vec<ConflictEntry>,
-) {
-    conflicts.push(ConflictEntry {
-        key: key.to_owned(),
-        reason: "scalar-operation-unsupported".to_owned(),
-        contributors: items
-            .iter()
-            .map(|(prov, assertion)| (prov.clone(), format!("{assertion:?}")))
-            .collect(),
-    });
 }

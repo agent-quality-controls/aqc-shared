@@ -1,15 +1,15 @@
 [package]
-name = "aqc-file-engine-core"
+name = "aqc-toml-engine-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-description = "Shared framework types and FileEngine trait for aqc-{domain}-engine crates."
+description = "Shared TOML IO and application helpers for AQC TOML file engines."
 publish = true
 readme = "README.md"
-keywords = ["aqc", "file-engine", "guardrails", "config"]
-categories = ["development-tools", "config"]
+keywords = ["aqc", "toml", "file-engine", "config"]
+categories = ["development-tools", "config", "parser-implementations"]
 include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
 
 [package.metadata.docs.rs]
@@ -27,3 +27,5 @@ all = ["api"]
 api = []
 
 [dependencies]
+aqc-file-engine-core = { version = "0.3.2", path = "../../../aqc-file-engine-core" }
+toml_edit = "0.25"

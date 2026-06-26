@@ -1,3 +1,4 @@
+use aqc_toml_engine_core as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{ConfigScalar, FileEngine, Finding, Provenance, ScalarAssertion};

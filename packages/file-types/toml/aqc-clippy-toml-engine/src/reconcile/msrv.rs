@@ -8,11 +8,11 @@
     )
 )]
 
-use std::collections::BTreeSet;
-
 use aqc_file_engine_core::{
-    DottedVersion, Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity,
+    ConfigScalar, DottedVersion, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
+    Severity,
 };
+use aqc_toml_engine_core::{apply_scalar_assertion, scalar_assertion_fails};
 use toml_edit::{DocumentMut, Item, value};
 
 /// Resolved clippy `msrv` scalar assertion.
@@ -21,11 +21,9 @@ type ResolvedMsrv =
 
 /// Apply the resolved `msrv` requirement to the document.
 pub(crate) fn apply(doc: &mut DocumentMut, merged: &ResolvedMsrv, findings: &mut Vec<Finding>) {
-    let current = doc
-        .get("msrv")
-        .and_then(Item::as_str)
-        .map(ToOwned::to_owned);
-    let attribution = attribution_for(current.as_deref(), merged);
+    let current_item = doc.get("msrv");
+    let current = current_item.and_then(Item::as_str).map(ToOwned::to_owned);
+    let attribution = attribution_for(current_item, merged);
 
     apply_one(
         doc,
@@ -36,7 +34,7 @@ pub(crate) fn apply(doc: &mut DocumentMut, merged: &ResolvedMsrv, findings: &mut
     );
 }
 
-fn attribution_for(current: Option<&str>, resolved: &ResolvedMsrv) -> Vec<Provenance> {
+fn attribution_for(current: Option<&Item>, resolved: &ResolvedMsrv) -> Vec<Provenance> {
     let filtered = resolved
         .collected
         .iter()
@@ -54,9 +52,12 @@ fn attribution_for(current: Option<&str>, resolved: &ResolvedMsrv) -> Vec<Proven
     }
 }
 
-fn assertion_fails(current: Option<&str>, assertion: &ScalarAssertion<DottedVersion>) -> bool {
+fn assertion_fails(current: Option<&Item>, assertion: &ScalarAssertion<DottedVersion>) -> bool {
+    if let Some(assertion) = msrv_assertion_to_config(assertion) {
+        return scalar_assertion_fails(current, &assertion);
+    }
+    let current = current.and_then(Item::as_str);
     match assertion {
-        ScalarAssertion::Equals(want, _) => current != Some(want.as_str()),
         ScalarAssertion::AtLeast(min, _) => {
             current.is_none_or(|value| DottedVersion::new(value) < min.clone())
         }
@@ -67,11 +68,10 @@ fn assertion_fails(current: Option<&str>, assertion: &ScalarAssertion<DottedVers
             let value = DottedVersion::new(value);
             value >= min.clone() && value <= max.clone()
         }),
-        ScalarAssertion::OneOf(allowed, _) => {
-            !current.is_some_and(|value| allowed.contains(&DottedVersion::new(value)))
-        }
-        ScalarAssertion::Present(_) => current.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
+        ScalarAssertion::Equals(..)
+        | ScalarAssertion::OneOf(..)
+        | ScalarAssertion::Present(_)
+        | ScalarAssertion::Absent(_) => false,
     }
 }
 
@@ -84,9 +84,6 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ScalarAssertion::Equals(want, message) => {
-            apply_equals(doc, current, want.as_str(), message, attribution, findings);
-        }
         ScalarAssertion::AtLeast(min, message) => {
             apply_at_least(doc, current, min, message, attribution, findings);
         }
@@ -96,37 +93,15 @@ fn apply_one(
         ScalarAssertion::Range(min, max, message) => {
             apply_range(doc, current, min, max, message, attribution, findings);
         }
-        ScalarAssertion::OneOf(allowed, message) => {
-            apply_one_of(current, allowed, message, attribution, findings);
-        }
-        ScalarAssertion::Present(message) => apply_present(current, message, attribution, findings),
-        ScalarAssertion::Absent(message) => {
-            apply_absent(doc, current, message, attribution, findings);
+        ScalarAssertion::Equals(..)
+        | ScalarAssertion::OneOf(..)
+        | ScalarAssertion::Present(_)
+        | ScalarAssertion::Absent(_) => {
+            if let Some(assertion) = msrv_assertion_to_config(assertion) {
+                apply_scalar_assertion(doc, "msrv", &assertion, attribution, findings);
+            }
         }
     }
-}
-
-/// `msrv == want`.
-fn apply_equals(
-    doc: &mut DocumentMut,
-    current: Option<&str>,
-    want: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if current == Some(want) {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: "msrv".into(),
-        current: current.map(ToOwned::to_owned),
-        expected: want.to_owned(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    doc["msrv"] = value(want.to_owned());
 }
 
 /// `msrv >= min`.
@@ -210,69 +185,25 @@ fn apply_range(
     doc["msrv"] = value(replacement.to_owned());
 }
 
-/// `msrv ∈ allowed`.
-fn apply_one_of(
-    current: Option<&str>,
-    allowed: &BTreeSet<DottedVersion>,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if current.is_some_and(|c| allowed.contains(&DottedVersion::new(c))) {
-        return;
+fn msrv_assertion_to_config(
+    assertion: &ScalarAssertion<DottedVersion>,
+) -> Option<ScalarAssertion<ConfigScalar>> {
+    match assertion {
+        ScalarAssertion::Equals(value, msg) => Some(ScalarAssertion::Equals(
+            ConfigScalar::Str(value.as_str().to_owned()),
+            msg.clone(),
+        )),
+        ScalarAssertion::OneOf(values, msg) => Some(ScalarAssertion::OneOf(
+            values
+                .iter()
+                .map(|value| ConfigScalar::Str(value.as_str().to_owned()))
+                .collect(),
+            msg.clone(),
+        )),
+        ScalarAssertion::Present(msg) => Some(ScalarAssertion::Present(msg.clone())),
+        ScalarAssertion::Absent(msg) => Some(ScalarAssertion::Absent(msg.clone())),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            None
+        }
     }
-    let allowed = allowed
-        .iter()
-        .map(DottedVersion::as_str)
-        .collect::<Vec<_>>();
-    findings.push(Finding::Mismatch {
-        key: "msrv".into(),
-        current: current.map(ToOwned::to_owned),
-        expected: format!("one of {allowed:?}"),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-}
-
-/// `msrv` is set (any value).
-fn apply_present(
-    current: Option<&str>,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if current.is_some() {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: "msrv".into(),
-        current: None,
-        expected: "any value (Present)".into(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-}
-
-/// `msrv` is not set.
-fn apply_absent(
-    doc: &mut DocumentMut,
-    current: Option<&str>,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if current.is_none() {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: "msrv".into(),
-        current: current.map(ToOwned::to_owned),
-        expected: "absent".into(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    let _ = doc.as_table_mut().remove("msrv");
 }

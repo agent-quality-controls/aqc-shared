@@ -4,6 +4,7 @@
     reason = "These tests keep compact Cargo requirement fixtures and index known conflict entries."
 )]
 
+use aqc_toml_engine_core as _;
 #[allow(
     dead_code,
     unused_imports,

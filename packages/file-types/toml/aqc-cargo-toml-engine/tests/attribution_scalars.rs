@@ -7,6 +7,7 @@
     reason = "Attribution tests keep compact fixtures and pattern assertions near expected findings."
 )]
 
+use aqc_toml_engine_core as _;
 #[allow(
     dead_code,
     unused_imports,

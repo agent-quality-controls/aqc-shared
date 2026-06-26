@@ -12,9 +12,12 @@
     reason = "Private threshold reconciliation helpers carry repeated resolved requirement shapes."
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity};
+use aqc_file_engine_core::{
+    ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity,
+};
+use aqc_toml_engine_core::{apply_scalar_assertion, scalar_assertion_fails};
 use toml_edit::{DocumentMut, Item, value};
 
 pub(crate) fn apply(
@@ -55,9 +58,11 @@ fn attribution_for(
 }
 
 fn assertion_fails(current: Option<&Item>, assertion: &ScalarAssertion<u64>) -> bool {
+    if let Some(assertion) = numeric_assertion_to_config(assertion) {
+        return scalar_assertion_fails(current, &assertion);
+    }
     let current_int = current.and_then(Item::as_integer);
     match assertion {
-        ScalarAssertion::Equals(want, _) => current_int != i64::try_from(*want).ok(),
         ScalarAssertion::AtMost(want, _) => {
             let ceiling = i64::try_from(*want).unwrap_or(i64::MAX);
             current_int.is_none_or(|value| value > ceiling)
@@ -71,6 +76,7 @@ fn assertion_fails(current: Option<&Item>, assertion: &ScalarAssertion<u64>) -> 
             let ceiling = i64::try_from(*max).unwrap_or(i64::MAX);
             !current_int.is_some_and(|value| value >= floor && value <= ceiling)
         }
+        ScalarAssertion::Equals(want, _) => current_int != i64::try_from(*want).ok(),
         ScalarAssertion::OneOf(allowed, _) => !current_int
             .is_some_and(|value| u64::try_from(value).is_ok_and(|value| allowed.contains(&value))),
         ScalarAssertion::Present(_) => current_int.is_none(),
@@ -86,9 +92,6 @@ fn apply_one(
     findings: &mut Vec<Finding>,
 ) {
     match assertion {
-        ScalarAssertion::Equals(want, message) => {
-            apply_equals(doc, key, *want, message, attribution, findings);
-        }
         ScalarAssertion::AtMost(want, message) => {
             apply_at_most(doc, key, *want, message, attribution, findings);
         }
@@ -98,106 +101,17 @@ fn apply_one(
         ScalarAssertion::Range(min, max, message) => {
             apply_range(doc, key, *min, *max, message, attribution, findings);
         }
-        ScalarAssertion::OneOf(allowed, message) => {
-            apply_one_of(doc, key, allowed, message, attribution, findings);
+        ScalarAssertion::Equals(..)
+        | ScalarAssertion::OneOf(..)
+        | ScalarAssertion::Present(_)
+        | ScalarAssertion::Absent(_) => {
+            if let Some(assertion) = numeric_assertion_to_config(assertion) {
+                apply_scalar_assertion(doc, key, &assertion, attribution, findings);
+            } else if let ScalarAssertion::Equals(want, message) = assertion {
+                apply_unrepresentable_equals(doc, key, *want, message, attribution, findings);
+            }
         }
-        ScalarAssertion::Present(message) => {
-            apply_present(doc, key, message, attribution, findings);
-        }
-        ScalarAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
     }
-}
-
-fn apply_present(
-    doc: &DocumentMut,
-    key: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if doc.get(key).and_then(Item::as_integer).is_some() {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.to_owned(),
-        current: None,
-        expected: "any integer (Present)".into(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-}
-
-fn apply_absent(
-    doc: &mut DocumentMut,
-    key: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if !doc.contains_key(key) {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.to_owned(),
-        current: doc
-            .get(key)
-            .and_then(Item::as_integer)
-            .map(|n| n.to_string()),
-        expected: "absent".into(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    let _ = doc.as_table_mut().remove(key);
-}
-
-fn apply_equals(
-    doc: &mut DocumentMut,
-    key: &str,
-    want: u64,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = doc.get(key).and_then(Item::as_integer);
-    let want_i64 = i64::try_from(want).ok();
-    if current == want_i64 {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.to_owned(),
-        current: current.map(|n| n.to_string()),
-        expected: want.to_string(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    if let Some(n) = want_i64 {
-        doc[key] = value(n);
-    }
-}
-
-fn apply_one_of(
-    doc: &DocumentMut,
-    key: &str,
-    allowed: &BTreeSet<u64>,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = doc.get(key).and_then(Item::as_integer);
-    if current.is_some_and(|n| u64::try_from(n).is_ok_and(|n| allowed.contains(&n))) {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.to_owned(),
-        current: current.map(|n| n.to_string()),
-        expected: format!("one of {allowed:?}"),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
 }
 
 fn apply_at_most(
@@ -273,4 +187,47 @@ fn apply_range(
     });
     let replacement = current.map_or(floor_i64, |c| c.clamp(floor_i64, ceiling_i64));
     doc[key] = value(replacement);
+}
+
+fn apply_unrepresentable_equals(
+    doc: &DocumentMut,
+    key: &str,
+    want: u64,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    let current = doc.get(key).and_then(Item::as_integer);
+    findings.push(Finding::Mismatch {
+        key: key.to_owned(),
+        current: current.map(|n| n.to_string()),
+        expected: want.to_string(),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+}
+
+fn numeric_assertion_to_config(
+    assertion: &ScalarAssertion<u64>,
+) -> Option<ScalarAssertion<ConfigScalar>> {
+    match assertion {
+        ScalarAssertion::Equals(value, msg) => Some(ScalarAssertion::Equals(
+            ConfigScalar::Int(i64::try_from(*value).ok()?),
+            msg.clone(),
+        )),
+        ScalarAssertion::OneOf(values, msg) => Some(ScalarAssertion::OneOf(
+            values
+                .iter()
+                .map(|value| i64::try_from(*value).map(ConfigScalar::Int))
+                .collect::<Result<_, _>>()
+                .ok()?,
+            msg.clone(),
+        )),
+        ScalarAssertion::Present(msg) => Some(ScalarAssertion::Present(msg.clone())),
+        ScalarAssertion::Absent(msg) => Some(ScalarAssertion::Absent(msg.clone())),
+        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
+            None
+        }
+    }
 }

@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{DottedVersion, Provenance, Resolve, ScalarAssertion};
-use toml_edit as _;
+use aqc_file_engine_core::{
+    DottedVersion, Provenance, Resolve, ScalarAssertion, merge::Contributor, push_conflict,
+    resolve_exact_list,
+};
 
 fn prov(policy: &str) -> Provenance {
     Provenance {
@@ -55,6 +57,13 @@ fn scalar_assertion_absent_conflicts_with_present() {
     assert_eq!(
         conflicts.first().expect("one conflict").reason,
         "scalar-disagree"
+    );
+    assert_eq!(
+        conflicts.first().expect("one conflict").contributors,
+        vec![
+            (prov("present"), "present".to_owned()),
+            (prov("absent"), "absent".to_owned())
+        ]
     );
 }
 
@@ -269,6 +278,44 @@ fn scalar_assertion_ordered_range_conflicts_when_empty() {
     assert_eq!(
         conflicts.first().expect("one conflict").reason,
         "scalar-disagree"
+    );
+}
+
+#[test]
+fn push_conflict_with_no_contributors_does_not_emit_conflict() {
+    let mut conflicts = Vec::new();
+    let items: Vec<Contributor> = Vec::new();
+
+    push_conflict(
+        "edition",
+        "scalar-disagree",
+        &items,
+        Clone::clone,
+        &mut conflicts,
+    );
+
+    assert!(conflicts.is_empty());
+}
+
+#[test]
+fn exact_list_conflict_uses_stable_contributor_text() {
+    let mut conflicts = Vec::new();
+    let resolved = resolve_exact_list(
+        "ignore",
+        vec![
+            (prov("left"), (vec!["target".to_owned()], "left".to_owned())),
+            (prov("right"), (vec!["dist".to_owned()], "right".to_owned())),
+        ],
+        &mut conflicts,
+    );
+
+    assert!(resolved.is_none());
+    assert_eq!(
+        conflicts.first().expect("one conflict").contributors,
+        vec![
+            (prov("left"), "exact [target]".to_owned()),
+            (prov("right"), "exact [dist]".to_owned())
+        ]
     );
 }
 

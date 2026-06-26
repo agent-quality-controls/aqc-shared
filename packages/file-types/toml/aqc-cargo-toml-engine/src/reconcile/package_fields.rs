@@ -20,8 +20,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
     ConfigScalar, DottedVersion, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
+    parse_version_tuple,
 };
-use toml_edit::{DocumentMut, Item, Table};
+use aqc_toml_engine_core::{ScalarFieldEdit, scalar_field_edit};
+use toml_edit::{DocumentMut, Item, Table, TableLike};
 
 use crate::reconcile::util;
 use crate::requirement::{PackageFieldAssertion, ResolvedPackageFieldAssertion};
@@ -73,20 +75,20 @@ pub(crate) fn apply(
 /// The mutable target table for the scope, creating it (and any parent) lazily.
 fn ensure_target(doc: &mut DocumentMut, scope: PackageScope) -> &mut Table {
     match scope {
-        PackageScope::Package => util::ensure_table(doc, "package"),
+        PackageScope::Package => aqc_toml_engine_core::ensure_table(doc, "package"),
         PackageScope::WorkspacePackage => {
-            let ws = util::ensure_table(doc, "workspace");
-            util::ensure_nested(ws, "package")
+            let ws = aqc_toml_engine_core::ensure_table(doc, "workspace");
+            aqc_toml_engine_core::ensure_nested(ws, "package")
         }
     }
 }
 
 /// The read-only target table for the scope, if it exists.
-fn target_ref(doc: &DocumentMut, scope: PackageScope) -> Option<&Table> {
+fn target_ref(doc: &DocumentMut, scope: PackageScope) -> Option<&dyn TableLike> {
     match scope {
-        PackageScope::Package => util::table_ref(doc, "package"),
-        PackageScope::WorkspacePackage => util::table_ref(doc, "workspace")
-            .and_then(|ws| ws.get("package").and_then(Item::as_table)),
+        PackageScope::Package => aqc_toml_engine_core::table_ref(doc, "package"),
+        PackageScope::WorkspacePackage => aqc_toml_engine_core::table_ref(doc, "workspace")
+            .and_then(|ws| ws.get("package").and_then(Item::as_table_like)),
     }
 }
 
@@ -104,7 +106,7 @@ fn attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        util::attribution(resolved)
+        aqc_toml_engine_core::attribution(resolved)
     } else {
         filtered
     }
@@ -116,7 +118,9 @@ fn assertion_fails(
     assertion: &PackageFieldAssertion,
 ) -> bool {
     match assertion {
-        PackageFieldAssertion::Scalar(assertion) => config_scalar_fails(current, assertion),
+        PackageFieldAssertion::Scalar(assertion) => {
+            aqc_toml_engine_core::scalar_assertion_fails(current, assertion)
+        }
         PackageFieldAssertion::OrderedVersion(assertion) => {
             dotted_version_fails(current.and_then(Item::as_str), assertion)
         }
@@ -132,30 +136,11 @@ fn current_item<'a>(doc: &'a DocumentMut, scope: PackageScope, field: &str) -> O
     target_ref(doc, scope).and_then(|t| t.get(field))
 }
 
-fn config_scalar_fails(current: Option<&Item>, assertion: &ScalarAssertion<ConfigScalar>) -> bool {
-    match assertion {
-        ScalarAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| util::scalar_matches(item, want))
-        }
-        ScalarAssertion::OneOf(allowed, _) => !current.is_some_and(|item| {
-            allowed
-                .iter()
-                .any(|allowed| util::scalar_matches(item, allowed))
-        }),
-        ScalarAssertion::Present(_) => current.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            true
-        }
-    }
-}
-
 fn dotted_version_fails(current: Option<&str>, assertion: &ScalarAssertion<DottedVersion>) -> bool {
     match assertion {
         ScalarAssertion::Equals(want, _) => current != Some(want.as_str()),
-        ScalarAssertion::AtLeast(min, _) => {
-            !current.is_some_and(|value| util::ge_version(value, min.as_str()))
-        }
+        ScalarAssertion::AtLeast(min, _) => current
+            .is_none_or(|value| parse_version_tuple(value) < parse_version_tuple(min.as_str())),
         ScalarAssertion::OneOf(allowed, _) => {
             !current.is_some_and(|value| allowed.iter().any(|allowed| allowed.as_str() == value))
         }
@@ -182,57 +167,16 @@ fn apply_one(
             apply_dotted_version(doc, scope, field, assertion, attribution, findings);
         }
         ResolvedPackageFieldAssertion::List(list) => {
-            for (item, entry) in &list.contains {
-                let item_attribution = util::attribution(entry);
-                let msg = entry
-                    .collected
-                    .first()
-                    .map(|(_, msg)| msg.as_str())
-                    .unwrap_or_default();
-                apply_list_contains(
-                    doc,
-                    scope,
-                    field,
-                    core::slice::from_ref(item),
-                    msg,
-                    &item_attribution,
-                    findings,
-                );
-            }
-            for (item, entry) in &list.excludes {
-                let item_attribution = util::attribution(entry);
-                let msg = entry
-                    .collected
-                    .first()
-                    .map(|(_, msg)| msg.as_str())
-                    .unwrap_or_default();
-                let excluded = BTreeSet::from([item.clone()]);
-                apply_list_excludes(
-                    doc,
-                    scope,
-                    field,
-                    &excluded,
-                    msg,
-                    &item_attribution,
-                    findings,
-                );
-            }
-            if let Some(exact) = &list.exact {
-                let exact_attribution = util::attribution(exact);
-                let msg = exact
-                    .collected
-                    .first()
-                    .map(|(_, (_, msg))| msg.as_str())
-                    .unwrap_or_default();
-                apply_list_is_exactly(
-                    doc,
-                    scope,
-                    field,
-                    &exact.merged,
-                    msg,
-                    &exact_attribution,
-                    findings,
-                );
+            let current = target_ref(doc, scope).map_or_else(Vec::new, |t| {
+                aqc_toml_engine_core::table_list_values(t, field)
+            });
+            if let Some(updated) = aqc_toml_engine_core::reconcile_table_list_field(
+                format!("[{}].{field}", scope.prefix()),
+                current,
+                list,
+                findings,
+            ) {
+                aqc_toml_engine_core::write_table_list(ensure_target(doc, scope), field, &updated);
             }
         }
         ResolvedPackageFieldAssertion::InheritsWorkspace(msg) => {
@@ -250,47 +194,22 @@ fn apply_config_scalar(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    match assertion {
-        ScalarAssertion::Equals(want, msg) => {
-            if current_item(doc, scope, field).is_some_and(|it| util::scalar_matches(it, want)) {
-                return;
+    match scalar_field_edit(
+        format!("[{}].{field}", scope.prefix()),
+        current_item(doc, scope, field),
+        assertion,
+        attribution,
+        findings,
+    ) {
+        Some(ScalarFieldEdit::Write(item)) => {
+            ensure_target(doc, scope)[field] = item;
+        }
+        Some(ScalarFieldEdit::Remove) => {
+            if let Some(t) = target_mut_existing(doc, scope) {
+                let _ = t.remove(field);
             }
-            let current = current_item(doc, scope, field).and_then(util::render_item);
-            util::push_mismatch(
-                findings,
-                format!("[{}].{field}", scope.prefix()),
-                current,
-                util::render_scalar(want),
-                msg.to_owned(),
-                attribution,
-            );
-            ensure_target(doc, scope)[field] = util::scalar_item(want);
         }
-        ScalarAssertion::OneOf(allowed, msg) => {
-            let current = current_item(doc, scope, field);
-            if current.is_some_and(|item| {
-                allowed
-                    .iter()
-                    .any(|value| util::scalar_matches(item, value))
-            }) {
-                return;
-            }
-            let allowed = allowed.iter().map(util::render_scalar).collect::<Vec<_>>();
-            util::push_mismatch(
-                findings,
-                format!("[{}].{field}", scope.prefix()),
-                current.and_then(util::render_item),
-                format!("one of {allowed:?}"),
-                msg.to_owned(),
-                attribution,
-            );
-        }
-        ScalarAssertion::Present(msg) => {
-            apply_present(doc, scope, field, msg, attribution, findings);
-        }
-        ScalarAssertion::Absent(msg) => apply_absent(doc, scope, field, msg, attribution, findings),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-        }
+        None => {}
     }
 }
 
@@ -315,10 +234,11 @@ fn apply_dotted_version(
         }
         ScalarAssertion::AtLeast(min, msg) => {
             let current = current_item(doc, scope, field).and_then(Item::as_str);
-            if current.is_some_and(|c| util::ge_version(c, min.as_str())) {
+            if current.is_some_and(|c| parse_version_tuple(c) >= parse_version_tuple(min.as_str()))
+            {
                 return;
             }
-            util::push_mismatch(
+            aqc_toml_engine_core::push_mismatch(
                 findings,
                 format!("[{}].{field}", scope.prefix()),
                 current.map(ToOwned::to_owned),
@@ -327,7 +247,7 @@ fn apply_dotted_version(
                 attribution,
             );
             ensure_target(doc, scope)[field] =
-                util::scalar_item(&ConfigScalar::Str(min.as_str().to_owned()));
+                aqc_toml_engine_core::scalar_item(&ConfigScalar::Str(min.as_str().to_owned()));
         }
         ScalarAssertion::OneOf(allowed, msg) => {
             let current = current_item(doc, scope, field).and_then(Item::as_str);
@@ -338,7 +258,7 @@ fn apply_dotted_version(
                 .iter()
                 .map(|value| value.as_str().to_owned())
                 .collect::<BTreeSet<_>>();
-            util::push_mismatch(
+            aqc_toml_engine_core::push_mismatch(
                 findings,
                 format!("[{}].{field}", scope.prefix()),
                 current.map(ToOwned::to_owned),
@@ -347,103 +267,24 @@ fn apply_dotted_version(
                 attribution,
             );
         }
-        ScalarAssertion::Present(msg) => {
-            apply_present(doc, scope, field, msg, attribution, findings);
-        }
-        ScalarAssertion::Absent(msg) => apply_absent(doc, scope, field, msg, attribution, findings),
+        ScalarAssertion::Present(msg) => apply_config_scalar(
+            doc,
+            scope,
+            field,
+            &ScalarAssertion::Present(msg.clone()),
+            attribution,
+            findings,
+        ),
+        ScalarAssertion::Absent(msg) => apply_config_scalar(
+            doc,
+            scope,
+            field,
+            &ScalarAssertion::Absent(msg.clone()),
+            attribution,
+            findings,
+        ),
         ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {}
     }
-}
-
-/// The on-disk list contains every requested element.
-fn apply_list_contains(
-    doc: &mut DocumentMut,
-    scope: PackageScope,
-    field: &str,
-    items: &[String],
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let on_disk =
-        target_ref(doc, scope).map_or_else(Vec::new, |t| util::read_string_array(t, field));
-    let on_disk_set: BTreeSet<&str> = on_disk.iter().map(String::as_str).collect();
-    let missing: Vec<&String> = items
-        .iter()
-        .filter(|w| !on_disk_set.contains(w.as_str()))
-        .collect();
-    if missing.is_empty() {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        Some(format!("{on_disk:?}")),
-        format!("contains {missing:?}"),
-        msg.to_owned(),
-        attribution,
-    );
-    let mut new_list = on_disk;
-    for w in items {
-        if !new_list.iter().any(|e| e == w) {
-            new_list.push(w.clone());
-        }
-    }
-    util::write_string_array(ensure_target(doc, scope), field, &new_list);
-}
-
-/// The on-disk list contains none of these elements (vacuous when absent).
-fn apply_list_excludes(
-    doc: &mut DocumentMut,
-    scope: PackageScope,
-    field: &str,
-    items: &BTreeSet<String>,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let on_disk =
-        target_ref(doc, scope).map_or_else(Vec::new, |t| util::read_string_array(t, field));
-    let present: Vec<&String> = items.iter().filter(|x| on_disk.contains(x)).collect();
-    if present.is_empty() {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        Some(format!("{on_disk:?}")),
-        format!("excludes {present:?}"),
-        msg.to_owned(),
-        attribution,
-    );
-    let new_list: Vec<String> = on_disk.into_iter().filter(|e| !items.contains(e)).collect();
-    util::write_string_array(ensure_target(doc, scope), field, &new_list);
-}
-
-/// The on-disk list equals exactly `items`.
-fn apply_list_is_exactly(
-    doc: &mut DocumentMut,
-    scope: PackageScope,
-    field: &str,
-    items: &[String],
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let on_disk =
-        target_ref(doc, scope).map_or_else(Vec::new, |t| util::read_string_array(t, field));
-    if on_disk == items {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        Some(format!("{on_disk:?}")),
-        format!("{items:?}"),
-        msg.to_owned(),
-        attribution,
-    );
-    util::write_string_array(ensure_target(doc, scope), field, items);
 }
 
 /// The field uses workspace inheritance: `<field> = { workspace = true }`.
@@ -472,8 +313,8 @@ fn apply_inherits(
     if current_item(doc, scope, field).is_some_and(util::is_workspace_inherit) {
         return;
     }
-    let current = current_item(doc, scope, field).and_then(util::render_item);
-    util::push_mismatch(
+    let current = current_item(doc, scope, field).and_then(aqc_toml_engine_core::render_item);
+    aqc_toml_engine_core::push_mismatch(
         findings,
         format!("[{}].{field}", scope.prefix()),
         current,
@@ -482,54 +323,6 @@ fn apply_inherits(
         attribution,
     );
     ensure_target(doc, scope)[field] = util::workspace_inline();
-}
-
-/// The field is set, to anything (check-only).
-fn apply_present(
-    doc: &DocumentMut,
-    scope: PackageScope,
-    field: &str,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if current_item(doc, scope, field).is_some() {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        None,
-        "any value (Present)".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
-}
-
-/// The field is not set (vacuous when already absent).
-fn apply_absent(
-    doc: &mut DocumentMut,
-    scope: PackageScope,
-    field: &str,
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = current_item(doc, scope, field).and_then(util::render_item);
-    if current_item(doc, scope, field).is_none() {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
-        current,
-        "absent".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
-    if let Some(t) = target_mut_existing(doc, scope) {
-        let _ = t.remove(field);
-    }
 }
 
 /// The mutable target table if it already exists (removals must not create it).

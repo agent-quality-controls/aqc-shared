@@ -16,10 +16,9 @@
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, DottedVersion, ListRequirements, OnEmpty, OnEmptyClass,
     Provenance, Resolve, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+    push_conflict as push_core_conflict, render_list_requirement, render_scalar_assertion,
     resolve_list,
 };
-
-use super::helpers::push_debug_conflict;
 
 /// What must hold about a single `[package].<field>` or
 /// `[workspace.package].<field>`.
@@ -157,7 +156,7 @@ fn resolve_absent(
             ScalarAssertion::Absent(first_msg(items)),
         )));
     }
-    push_conflict(key, items, conflicts);
+    push_scalar_disagree_conflict(key, items, conflicts);
     Some(None)
 }
 
@@ -175,7 +174,7 @@ fn resolve_list_product(
     if !items.iter().all(|(_, assertion)| {
         matches!(assertion, PackageFieldAssertion::List(_)) || is_present(assertion)
     }) {
-        push_conflict(key, items, conflicts);
+        push_scalar_disagree_conflict(key, items, conflicts);
         return Some(None);
     }
     let list_items = items
@@ -206,7 +205,7 @@ fn resolve_inheritance(
     if !items.iter().all(|(_, assertion)| {
         matches!(assertion, PackageFieldAssertion::InheritsWorkspace(_)) || is_present(assertion)
     }) {
-        push_conflict(key, items, conflicts);
+        push_scalar_disagree_conflict(key, items, conflicts);
         return Some(None);
     }
     Some(Some(ResolvedPackageFieldAssertion::InheritsWorkspace(
@@ -236,7 +235,7 @@ fn resolve_ordered_version(
     if !items.iter().all(|(_, assertion)| {
         matches!(assertion, PackageFieldAssertion::OrderedVersion(_)) || is_present(assertion)
     }) {
-        push_conflict(key, items, conflicts);
+        push_scalar_disagree_conflict(key, items, conflicts);
         return Some(None);
     }
     let scalar_items = items
@@ -258,7 +257,7 @@ fn resolve_ordered_version(
         resolved.merged,
         ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..)
     ) {
-        push_conflict(key, items, conflicts);
+        push_scalar_disagree_conflict(key, items, conflicts);
         return Some(None);
     }
     Some(Some(ResolvedPackageFieldAssertion::OrderedVersion(
@@ -275,7 +274,7 @@ fn resolve_config_scalar(
         .iter()
         .all(|(_, assertion)| matches!(assertion, PackageFieldAssertion::Scalar(_)))
     {
-        push_conflict(key, &items, conflicts);
+        push_scalar_disagree_conflict(key, &items, conflicts);
         return None;
     }
     let scalar_items = items
@@ -385,12 +384,18 @@ fn first_msg(items: &[(Provenance, PackageFieldAssertion)]) -> String {
         .unwrap_or_default()
 }
 
-fn push_conflict(
+fn push_scalar_disagree_conflict(
     key: &str,
     items: &[(Provenance, PackageFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-disagree", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-disagree",
+        items,
+        render_package_field_assertion,
+        conflicts,
+    );
 }
 
 fn push_unsupported_conflict(
@@ -398,5 +403,20 @@ fn push_unsupported_conflict(
     items: &[(Provenance, PackageFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-operation-unsupported", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-operation-unsupported",
+        items,
+        render_package_field_assertion,
+        conflicts,
+    );
+}
+
+fn render_package_field_assertion(assertion: &PackageFieldAssertion) -> String {
+    match assertion {
+        PackageFieldAssertion::Scalar(assertion) => render_scalar_assertion(assertion),
+        PackageFieldAssertion::OrderedVersion(assertion) => render_scalar_assertion(assertion),
+        PackageFieldAssertion::List(requirements) => render_list_requirement(requirements),
+        PackageFieldAssertion::InheritsWorkspace(_) => "inherits workspace".to_owned(),
+    }
 }

@@ -14,10 +14,10 @@
 
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
-    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion, resolve_list,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+    push_conflict as push_core_conflict, render_list_requirement, render_scalar_assertion,
+    resolve_list,
 };
-
-use super::helpers::push_debug_conflict;
 
 /// One provenance-tagged workspace assertion.
 type WorkspaceFieldInput = (Provenance, WorkspaceFieldAssertion);
@@ -73,7 +73,7 @@ impl Resolve for WorkspaceFieldAssertion {
             .iter()
             .all(|(_, assertion)| matches!(assertion, Self::Scalar(_)))
         {
-            push_conflict(key, &items, conflicts);
+            push_scalar_disagree_conflict(key, &items, conflicts);
             return None;
         }
         let scalar_items = items
@@ -127,7 +127,7 @@ fn resolve_list_product(
                 WorkspaceFieldAssertion::Scalar(ScalarAssertion::Present(_))
             )
     }) {
-        push_conflict(key, items, conflicts);
+        push_scalar_disagree_conflict(key, items, conflicts);
         return Some(None);
     }
     let list_items = items
@@ -142,12 +142,18 @@ fn resolve_list_product(
     ))))
 }
 
-fn push_conflict(
+fn push_scalar_disagree_conflict(
     key: &str,
     items: WorkspaceFieldInputSlice<'_>,
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-disagree", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-disagree",
+        items,
+        render_workspace_field_assertion,
+        conflicts,
+    );
 }
 
 fn workspace_field_assertion_is_legal(key: &str, assertion: &WorkspaceFieldAssertion) -> bool {
@@ -180,5 +186,18 @@ fn push_unsupported_conflict(
     items: WorkspaceFieldInputSlice<'_>,
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-operation-unsupported", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-operation-unsupported",
+        items,
+        render_workspace_field_assertion,
+        conflicts,
+    );
+}
+
+fn render_workspace_field_assertion(assertion: &WorkspaceFieldAssertion) -> String {
+    match assertion {
+        WorkspaceFieldAssertion::Scalar(assertion) => render_scalar_assertion(assertion),
+        WorkspaceFieldAssertion::List(requirements) => render_list_requirement(requirements),
+    }
 }

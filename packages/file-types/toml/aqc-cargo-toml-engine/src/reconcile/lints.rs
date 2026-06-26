@@ -16,9 +16,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
-use toml_edit::{DocumentMut, InlineTable, Item, Table, Value, value};
+use aqc_toml_engine_core::{ensure_nested, ensure_table, table_ref};
+use toml_edit::{DocumentMut, InlineTable, Item, Table, TableLike, Value, value};
 
-use crate::reconcile::util::{ensure_nested, ensure_table, table_ref};
 use crate::requirement::LintSetting as RequiredLintSetting;
 
 #[derive(Clone, Copy)]
@@ -47,14 +47,14 @@ pub(crate) fn apply(
     }
 }
 
-fn tool_ref<'a>(doc: &'a DocumentMut, root: LintRoot, tool: &str) -> Option<&'a Table> {
+fn tool_ref<'a>(doc: &'a DocumentMut, root: LintRoot, tool: &str) -> Option<&'a dyn TableLike> {
     let lints_root = match root {
         LintRoot::Package => table_ref(doc, "lints"),
         LintRoot::Workspace => {
-            table_ref(doc, "workspace").and_then(|ws| ws.get("lints").and_then(Item::as_table))
+            table_ref(doc, "workspace").and_then(|ws| ws.get("lints").and_then(Item::as_table_like))
         }
     }?;
-    lints_root.get(tool).and_then(Item::as_table)
+    lints_root.get(tool).and_then(Item::as_table_like)
 }
 
 fn tool_mut<'a>(doc: &'a mut DocumentMut, root: LintRoot, tool: &str) -> &'a mut Table {
@@ -242,7 +242,7 @@ struct DiskLintSetting {
     priority: Option<i64>,
 }
 
-fn read_entry(table: &Table, key: &str) -> Option<DiskLintSetting> {
+fn read_entry(table: &dyn TableLike, key: &str) -> Option<DiskLintSetting> {
     let item = table.get(key)?;
     if let Some(s) = item.as_str() {
         return Some(DiskLintSetting {

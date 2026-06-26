@@ -5,6 +5,7 @@ members = [
     "packages/aqc-fs-utils",
     "packages/aqc-git-helpers",
     "packages/source/rust/aqc-rust-syntax",
+    "packages/file-types/toml/aqc-toml-engine-core",
     "packages/file-types/toml/aqc-cargo-toml-engine",
     "packages/file-types/toml/aqc-clippy-toml-engine",
     "packages/file-types/toml/aqc-rustfmt-toml-engine",
@@ -13,7 +14,7 @@ resolver = "3"
 
 [workspace.package]
 edition = "2024"
-version = "0.3.1"
+version = "0.3.2"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 repository = "https://github.com/agent-quality-controls/aqc-shared"

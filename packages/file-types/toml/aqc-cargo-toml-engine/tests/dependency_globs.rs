@@ -4,6 +4,7 @@
     reason = "Dependency glob tests keep compact fixtures and index known merged keys."
 )]
 
+use aqc_toml_engine_core as _;
 #[allow(
     dead_code,
     unused_imports,

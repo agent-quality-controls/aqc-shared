@@ -80,7 +80,15 @@ impl Resolve for SectionPresenceAssertion {
         items: Vec<(Provenance, Self)>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self::Merged, Self>> {
-        resolve_scalar(key, items, |a| format!("{a:?}"), conflicts)
+        resolve_scalar(key, items, render_section_presence_assertion, conflicts)
+    }
+}
+
+/// Renders section-presence assertions for conflict contributor output.
+fn render_section_presence_assertion(assertion: &SectionPresenceAssertion) -> String {
+    match assertion {
+        SectionPresenceAssertion::Present(_) => "present".to_owned(),
+        SectionPresenceAssertion::Absent(_) => "absent".to_owned(),
     }
 }
 

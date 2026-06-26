@@ -7,7 +7,6 @@ This crate provides:
 - `FileEngine` and `EngineRequirement` contracts.
 - structured findings and engine output types.
 - shared merge helpers for item, list, scalar, and forbidden-glob requirements.
-- TOML helper functions used by AQC TOML engines.
 
 The crate performs no filesystem I/O. Concrete engines own file parsing,
 validation, and reconciliation.

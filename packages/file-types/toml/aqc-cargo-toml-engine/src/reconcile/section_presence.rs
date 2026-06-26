@@ -13,9 +13,9 @@
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement};
+use aqc_toml_engine_core::{attribution as resolved_attribution, push_mismatch};
 use toml_edit::{DocumentMut, Item, Table};
 
-use crate::reconcile::util::{attribution as resolved_attribution, push_mismatch};
 use crate::requirement::{ManifestSection, SectionPresenceAssertion};
 
 /// Apply every section-presence requirement.

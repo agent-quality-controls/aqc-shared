@@ -30,3 +30,6 @@ name = "aqc-rust-syntax"
 
 [[package]]
 name = "aqc-rustfmt-toml-engine"
+
+[[package]]
+name = "aqc-toml-engine-core"

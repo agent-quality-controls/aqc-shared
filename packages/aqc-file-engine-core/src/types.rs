@@ -1,10 +1,10 @@
-//! Framework data types: `Provenance`, `MergedAssertion`, `EngineOutput`, and `Severity`.
+//! Framework data types: `Provenance`, `ConfigScalar`, `DottedVersion`, and `Severity`.
 
 use core::cmp::Ordering;
 
 use crate::finding::Finding;
 use crate::merge::ScalarValue;
-use crate::toml_helpers::parse_version_tuple;
+use crate::version::parse_version_tuple;
 
 /// Identifies which policy contributed a requirement.
 ///

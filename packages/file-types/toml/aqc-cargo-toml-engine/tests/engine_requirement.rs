@@ -2,6 +2,7 @@
 
 use aqc_cargo_toml_engine::CargoTomlRequirements;
 use aqc_file_engine_core::EngineRequirement;
+use aqc_toml_engine_core as _;
 use globset as _;
 use toml_edit as _;
 

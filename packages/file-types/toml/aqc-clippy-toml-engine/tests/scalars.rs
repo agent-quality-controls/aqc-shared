@@ -1,3 +1,4 @@
+use aqc_toml_engine_core as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_clippy_toml_engine::{ClippyTomlEngine, ClippyTomlRequirements};

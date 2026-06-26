@@ -3,14 +3,14 @@
 use aqc_file_engine_core::{
     ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
 };
-use toml_edit::{DocumentMut, Item};
+use toml_edit::DocumentMut;
 
 use super::closed::apply_closed;
 use super::ignore::apply_forbidden_ignore_path_globs;
 use super::list::apply_list;
-use super::scalar::{apply_scalar, scalar_matches};
-use super::toml_io::attribution;
+use super::scalar::apply_scalar;
 use crate::requirement::ResolvedRustfmtTomlRequirements;
+use aqc_toml_engine_core::{attribution, scalar_assertion_fails};
 
 /// Resolved rustfmt scalar-setting assertion.
 type ResolvedRustfmtScalarSetting =
@@ -56,23 +56,5 @@ fn scalar_attribution_for(
         attribution(resolved)
     } else {
         filtered
-    }
-}
-
-/// Returns whether a raw scalar assertion is unsatisfied by the current TOML item.
-fn scalar_assertion_fails(
-    current: Option<&Item>,
-    assertion: &ScalarAssertion<ConfigScalar>,
-) -> bool {
-    match assertion {
-        ScalarAssertion::Equals(want, _) => !current.is_some_and(|item| scalar_matches(item, want)),
-        ScalarAssertion::OneOf(allowed, _) => {
-            !current.is_some_and(|item| allowed.iter().any(|want| scalar_matches(item, want)))
-        }
-        ScalarAssertion::Present(_) => current.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            true
-        }
     }
 }

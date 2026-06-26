@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConflictEntry, ItemRequirements, KeyedItem, Provenance, ResolvedItemRequirements,
-    ResolvedRequirement, resolve_items, resolve_scalar,
+    ResolvedRequirement, push_conflict, resolve_items, resolve_scalar,
 };
 
 /// Required lint level and optional priority for one lint key.
@@ -94,23 +94,19 @@ impl PackageLintsAssertion {
             return Some(ResolvedPackageLintsAssertion::Inline(resolved));
         }
 
-        conflicts.push(ConflictEntry {
-            key: key.to_owned(),
-            reason: "scalar-disagree".to_owned(),
-            contributors: items
-                .into_iter()
-                .map(|(prov, assertion)| {
-                    let value = match assertion {
-                        Self::Inherit(value, _) => format!("inherit workspace={value}"),
-                        Self::Inline(tables) => {
-                            let names = tables.keys().cloned().collect::<Vec<_>>().join(", ");
-                            format!("inline tables {names}")
-                        }
-                    };
-                    (prov, value)
-                })
-                .collect(),
-        });
+        push_conflict(
+            key,
+            "scalar-disagree",
+            &items,
+            |assertion| match assertion {
+                Self::Inherit(value, _) => format!("inherit workspace={value}"),
+                Self::Inline(tables) => {
+                    let names = tables.keys().cloned().collect::<Vec<_>>().join(", ");
+                    format!("inline tables {names}")
+                }
+            },
+            conflicts,
+        );
         None
     }
 }

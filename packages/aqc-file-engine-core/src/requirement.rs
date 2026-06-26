@@ -1,9 +1,9 @@
 //! Object-safe trait every concrete engine-requirement type implements.
 //!
-//! Adapters return `Vec<Box<dyn EngineRequirement>>`. The broker matches
-//! [`EngineRequirement::engine_id`] against a runtime registry to find the
-//! right reconciler, then downcasts via [`EngineRequirement::as_any`] to the
-//! concrete `Req` type before calling that engine's `reconcile`.
+//! Adapters return provenance-tagged boxed engine requirements. The broker
+//! matches [`EngineRequirement::engine_id`] against a runtime registry to find
+//! the right reconciler, then downcasts via [`EngineRequirement::as_any`] to
+//! the concrete `Req` type before calling that engine's `reconcile`.
 //!
 //! See the slice plan at
 //! `guardrail3/.plans/g3v2-architecture/2026-05-27-185042-clippy-policy-and-adapter-slice.md`.

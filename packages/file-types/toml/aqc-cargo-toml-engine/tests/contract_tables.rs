@@ -6,6 +6,7 @@
     reason = "Contract tests keep compact fixture construction close to each assertion."
 )]
 
+use aqc_toml_engine_core as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_cargo_toml_engine as cargo;

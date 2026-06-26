@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use aqc_file_engine_core::{Finding, Severity};
 use toml_edit::DocumentMut;
 
-use super::toml_io::render_item;
 use crate::requirement::ResolvedRustfmtTomlRequirements;
+use aqc_toml_engine_core::render_item;
 
 /// Removes settings not named by a closed requirement set.
 pub(super) fn apply_closed(

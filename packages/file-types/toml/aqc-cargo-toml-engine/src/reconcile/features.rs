@@ -1,12 +1,5 @@
 //! Reconcile `[features]`.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        clippy::missing_docs_in_private_items,
-        reason = "Private feature reconciliation helpers are internal steps."
-    )
-)]
 #![expect(
     clippy::type_complexity,
     reason = "Feature reconciliation consumes resolved item requirement shapes."
@@ -18,9 +11,11 @@
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
-use toml_edit::{Array, DocumentMut, Item, Table, Value};
+use aqc_toml_engine_core::{
+    ensure_table, table_list_values, table_list_values_optional, table_ref, write_table_list,
+};
+use toml_edit::{DocumentMut, Item};
 
-use crate::reconcile::util::{ensure_table, read_string_array, table_ref};
 use crate::requirement::FeatureMembers;
 
 /// Apply the `[features]` requirement.
@@ -89,7 +84,7 @@ fn apply_required(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let current = table_ref(doc, "features").and_then(|t| read_feature_entry(t, feature));
+    let current = table_ref(doc, "features").and_then(|t| table_list_values_optional(t, feature));
     if current
         .as_ref()
         .is_some_and(|items| items.iter().cloned().collect::<BTreeSet<_>>() == want.members)
@@ -104,17 +99,8 @@ fn apply_required(
         severity: Severity::Error,
         attribution: attribution.to_vec(),
     });
-    write_list(ensure_table(doc, "features"), feature, want);
-}
-
-fn read_feature_entry(table: &Table, feature: &str) -> Option<Vec<String>> {
-    let item = table.get(feature)?;
-    let arr = item.as_array()?;
-    Some(
-        arr.iter()
-            .filter_map(|value| value.as_str().map(ToOwned::to_owned))
-            .collect(),
-    )
+    let members = want.members.iter().cloned().collect::<Vec<_>>();
+    write_table_list(ensure_table(doc, "features"), feature, &members);
 }
 
 /// Each named feature must be absent (vacuous when the table is missing).
@@ -129,7 +115,7 @@ fn apply_forbidden(
         return;
     }
     let current =
-        table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, feature));
+        table_ref(doc, "features").map_or_else(Vec::new, |t| table_list_values(t, feature));
     findings.push(Finding::Mismatch {
         key: format!("[features].{feature}"),
         current: Some(format!("{current:?}")),
@@ -157,7 +143,7 @@ fn apply_exact_extras(
     let extras: Vec<String> = on_disk.difference(allowed).cloned().collect();
     for extra in &extras {
         let current =
-            table_ref(doc, "features").map_or_else(Vec::new, |t| read_string_array(t, extra));
+            table_ref(doc, "features").map_or_else(Vec::new, |t| table_list_values(t, extra));
         findings.push(Finding::Mismatch {
             key: format!("[features].{extra}"),
             current: Some(format!("{current:?}")),
@@ -170,13 +156,4 @@ fn apply_exact_extras(
             let _ = t.remove(extra);
         }
     }
-}
-
-/// Write `feature = ["a", "b", ...]`.
-fn write_list(table: &mut Table, feature: &str, value: &FeatureMembers) {
-    let mut arr = Array::new();
-    for i in &value.members {
-        arr.push(Value::from(i.as_str()));
-    }
-    table[feature] = Item::Value(Value::Array(arr));
 }

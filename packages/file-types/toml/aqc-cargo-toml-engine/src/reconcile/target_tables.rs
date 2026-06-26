@@ -18,14 +18,14 @@
     reason = "Target table reconciliation keeps nested Cargo target fields in one traversal."
 )]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, Finding, OnEmpty, OnEmptyClass, Provenance, ResolvedRequirement, ScalarAssertion,
 };
+use aqc_toml_engine_core::{ScalarFieldEdit, scalar_field_edit};
 use toml_edit::{DocumentMut, Item, Table, value};
 
-use crate::reconcile::util;
 use crate::requirement::{
     ResolvedTargetFieldAssertion, ResolvedTargetTableAssertion, TargetFieldAssertion,
 };
@@ -87,7 +87,7 @@ pub(crate) fn apply_named(
     findings: &mut Vec<Finding>,
 ) {
     for (name, merged) in merged_by_name {
-        let attribution = util::attribution(merged);
+        let attribution = aqc_toml_engine_core::attribution(merged);
         apply_named_one(doc, kind, name, &merged.merged, &attribution, findings);
     }
 }
@@ -107,7 +107,7 @@ fn apply_named_one(
             if exists {
                 return;
             }
-            util::push_mismatch(
+            aqc_toml_engine_core::push_mismatch(
                 findings,
                 format!("[[{kind}]].{name}"),
                 None,
@@ -121,7 +121,7 @@ fn apply_named_one(
             let Some(index) = entry_index(doc, kind, name) else {
                 return;
             };
-            util::push_mismatch(
+            aqc_toml_engine_core::push_mismatch(
                 findings,
                 format!("[[{kind}]].{name}"),
                 Some("present".to_owned()),
@@ -136,7 +136,7 @@ fn apply_named_one(
         ResolvedTargetTableAssertion::Fields(map) => {
             if !exists && assertion.on_empty() == OnEmpty::ChecksOnly {
                 // Cannot be satisfied by writing: report the missing entry only.
-                util::push_mismatch(
+                aqc_toml_engine_core::push_mismatch(
                     findings,
                     format!("[[{kind}]].{name}"),
                     None,
@@ -147,7 +147,7 @@ fn apply_named_one(
                 return;
             }
             if !exists {
-                util::push_mismatch(
+                aqc_toml_engine_core::push_mismatch(
                     findings,
                     format!("[[{kind}]].{name}"),
                     None,
@@ -187,7 +187,7 @@ fn field_attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        util::attribution(resolved)
+        aqc_toml_engine_core::attribution(resolved)
     } else {
         filtered
     }
@@ -195,7 +195,9 @@ fn field_attribution_for(
 
 fn field_assertion_fails(current: Option<&Item>, assertion: &TargetFieldAssertion) -> bool {
     match assertion {
-        TargetFieldAssertion::Scalar(assertion) => scalar_assertion_fails(current, assertion),
+        TargetFieldAssertion::Scalar(assertion) => {
+            aqc_toml_engine_core::scalar_assertion_fails(current, assertion)
+        }
         TargetFieldAssertion::List(_) => false,
     }
 }
@@ -215,93 +217,12 @@ fn apply_field(
             apply_scalar_field(doc, loc, field, path, assertion, attribution, findings);
         }
         ResolvedTargetFieldAssertion::List(list) => {
-            for (item, entry) in &list.contains {
-                let item_attribution = util::attribution(entry);
-                let msg = entry
-                    .collected
-                    .first()
-                    .map(|(_, msg)| msg.as_str())
-                    .unwrap_or_default();
-                apply_list_contains(
-                    doc,
-                    loc,
-                    field,
-                    path.clone(),
-                    core::slice::from_ref(item),
-                    msg,
-                    &item_attribution,
-                    findings,
-                );
+            let current = read_field_array(doc, loc, field);
+            if let Some(updated) =
+                aqc_toml_engine_core::reconcile_table_list_field(path, current, list, findings)
+            {
+                aqc_toml_engine_core::write_table_list(ensure_loc(doc, loc), field, &updated);
             }
-            if let Some(exact) = &list.exact {
-                let exact_attribution = util::attribution(exact);
-                let msg = exact
-                    .collected
-                    .first()
-                    .map(|(_, (_, msg))| msg.as_str())
-                    .unwrap_or_default();
-                apply_list_is_exactly(
-                    doc,
-                    loc,
-                    field,
-                    path.clone(),
-                    &exact.merged,
-                    msg,
-                    &exact_attribution,
-                    findings,
-                );
-            }
-            for (item, entry) in &list.excludes {
-                let on_disk = read_field_array(doc, loc, field);
-                let blocked = BTreeSet::from([item.clone()]);
-                let present = on_disk
-                    .iter()
-                    .filter(|value| blocked.contains(*value))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                if !present.is_empty() {
-                    let item_attribution = util::attribution(entry);
-                    let msg = entry
-                        .collected
-                        .first()
-                        .map(|(_, msg)| msg.as_str())
-                        .unwrap_or_default();
-                    util::push_mismatch(
-                        findings,
-                        path.clone(),
-                        Some(format!("{on_disk:?}")),
-                        format!("excludes {present:?}"),
-                        msg.to_owned(),
-                        &item_attribution,
-                    );
-                    let kept = on_disk
-                        .into_iter()
-                        .filter(|value| !blocked.contains(value))
-                        .collect::<Vec<_>>();
-                    util::write_string_array(ensure_loc(doc, loc), field, &kept);
-                }
-            }
-        }
-    }
-}
-
-fn scalar_assertion_fails(
-    current: Option<&Item>,
-    assertion: &ScalarAssertion<ConfigScalar>,
-) -> bool {
-    match assertion {
-        ScalarAssertion::Equals(want, _) => {
-            !current.is_some_and(|item| util::scalar_matches(item, want))
-        }
-        ScalarAssertion::OneOf(allowed, _) => !current.is_some_and(|item| {
-            allowed
-                .iter()
-                .any(|allowed| util::scalar_matches(item, allowed))
-        }),
-        ScalarAssertion::Present(_) => current.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            true
         }
     }
 }
@@ -315,78 +236,27 @@ fn apply_scalar_field(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    match assertion {
-        ScalarAssertion::Equals(want, msg) => {
-            if read_field(doc, loc, field).is_some_and(|i| util::scalar_matches(i, want)) {
-                return;
-            }
-            let current = read_field(doc, loc, field).and_then(util::render_item);
-            util::push_mismatch(
-                findings,
-                path,
-                current,
-                util::render_scalar(want),
-                msg.clone(),
-                attribution,
-            );
-            ensure_loc(doc, loc)[field] = util::scalar_item(want);
+    match scalar_field_edit(
+        path,
+        read_field(doc, loc, field),
+        assertion,
+        attribution,
+        findings,
+    ) {
+        Some(ScalarFieldEdit::Write(item)) => {
+            ensure_loc(doc, loc)[field] = item;
         }
-        ScalarAssertion::OneOf(allowed, msg) => {
-            let current = read_field(doc, loc, field);
-            if current.is_some_and(|item| {
-                allowed
-                    .iter()
-                    .any(|allowed| util::scalar_matches(item, allowed))
-            }) {
-                return;
-            }
-            let rendered = current.and_then(util::render_item);
-            let allowed = allowed.iter().map(util::render_scalar).collect::<Vec<_>>();
-            util::push_mismatch(
-                findings,
-                path,
-                rendered,
-                format!("one of {allowed:?}"),
-                msg.clone(),
-                attribution,
-            );
-        }
-        ScalarAssertion::Present(msg) => {
-            if read_field(doc, loc, field).is_some() {
-                return;
-            }
-            util::push_mismatch(
-                findings,
-                path,
-                None,
-                "any value (Present)".to_owned(),
-                msg.clone(),
-                attribution,
-            );
-        }
-        ScalarAssertion::Absent(msg) => {
-            let Some(current) = read_field(doc, loc, field).and_then(util::render_item) else {
-                return;
-            };
-            util::push_mismatch(
-                findings,
-                path,
-                Some(current),
-                "absent".to_owned(),
-                msg.clone(),
-                attribution,
-            );
+        Some(ScalarFieldEdit::Remove) => {
             let _ = ensure_loc(doc, loc).remove(field);
         }
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-        }
+        None => {}
     }
 }
 
 /// Read the current item for `field` at `loc`, if any.
 fn read_field<'a>(doc: &'a DocumentMut, loc: &FieldLoc<'_>, field: &str) -> Option<&'a Item> {
     match loc {
-        FieldLoc::Lib => util::table_ref(doc, "lib")?.get(field),
+        FieldLoc::Lib => aqc_toml_engine_core::table_ref(doc, "lib")?.get(field),
         FieldLoc::Entry { kind, name } => entry_ref(doc, kind, name)?.get(field),
     }
 }
@@ -394,19 +264,19 @@ fn read_field<'a>(doc: &'a DocumentMut, loc: &FieldLoc<'_>, field: &str) -> Opti
 /// Read the current string array for `field` at `loc` (empty when absent).
 fn read_field_array(doc: &DocumentMut, loc: &FieldLoc<'_>, field: &str) -> Vec<String> {
     match loc {
-        FieldLoc::Lib => {
-            util::table_ref(doc, "lib").map_or_else(Vec::new, |t| util::read_string_array(t, field))
-        }
-        FieldLoc::Entry { kind, name } => {
-            entry_ref(doc, kind, name).map_or_else(Vec::new, |t| util::read_string_array(t, field))
-        }
+        FieldLoc::Lib => aqc_toml_engine_core::table_ref(doc, "lib").map_or_else(Vec::new, |t| {
+            aqc_toml_engine_core::table_list_values(t, field)
+        }),
+        FieldLoc::Entry { kind, name } => entry_ref(doc, kind, name).map_or_else(Vec::new, |t| {
+            aqc_toml_engine_core::table_list_values(t, field)
+        }),
     }
 }
 
 /// The mutable table at `loc`, created lazily (only called on a write).
 fn ensure_loc<'a>(doc: &'a mut DocumentMut, loc: &FieldLoc<'_>) -> &'a mut Table {
     match loc {
-        FieldLoc::Lib => util::ensure_table(doc, "lib"),
+        FieldLoc::Lib => aqc_toml_engine_core::ensure_table(doc, "lib"),
         FieldLoc::Entry { kind, name } => ensure_entry(doc, kind, name),
     }
 }
@@ -435,7 +305,7 @@ fn entry_index(doc: &DocumentMut, kind: &str, name: &str) -> Option<usize> {
 )]
 fn ensure_entry<'a>(doc: &'a mut DocumentMut, kind: &str, name: &str) -> &'a mut Table {
     let index = entry_index(doc, kind, name);
-    let aot = util::ensure_array_of_tables(doc, kind);
+    let aot = aqc_toml_engine_core::ensure_array_of_tables(doc, kind);
     let index = index.unwrap_or_else(|| {
         let mut t = Table::new();
         let _ = t.insert("name", value(name.to_owned()));
@@ -444,71 +314,4 @@ fn ensure_entry<'a>(doc: &'a mut DocumentMut, kind: &str, name: &str) -> &'a mut
     });
     aot.get_mut(index)
         .expect("index points at an existing or just-pushed entry")
-}
-
-/// `list contains`: insert the missing elements (order kept).
-#[expect(
-    clippy::too_many_arguments,
-    reason = "thin extraction from `apply_field`'s match arm; the parameters are that arm's locals"
-)]
-fn apply_list_contains(
-    doc: &mut DocumentMut,
-    loc: &FieldLoc<'_>,
-    field: &str,
-    path: String,
-    items: &[String],
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let on_disk = read_field_array(doc, loc, field);
-    let missing: Vec<&String> = items.iter().filter(|i| !on_disk.contains(i)).collect();
-    if missing.is_empty() {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        path,
-        Some(format!("{on_disk:?}")),
-        format!("contains {missing:?}"),
-        msg.to_owned(),
-        attribution,
-    );
-    let mut merged = on_disk;
-    for item in items {
-        if !merged.contains(item) {
-            merged.push(item.clone());
-        }
-    }
-    util::write_string_array(ensure_loc(doc, loc), field, &merged);
-}
-
-/// `list exact`: the array equals exactly the asserted list.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "thin extraction from `apply_field`'s match arm; the parameters are that arm's locals"
-)]
-fn apply_list_is_exactly(
-    doc: &mut DocumentMut,
-    loc: &FieldLoc<'_>,
-    field: &str,
-    path: String,
-    items: &[String],
-    msg: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let on_disk = read_field_array(doc, loc, field);
-    if on_disk == items {
-        return;
-    }
-    util::push_mismatch(
-        findings,
-        path,
-        Some(format!("{on_disk:?}")),
-        format!("{items:?}"),
-        msg.to_owned(),
-        attribution,
-    );
-    util::write_string_array(ensure_loc(doc, loc), field, items);
 }

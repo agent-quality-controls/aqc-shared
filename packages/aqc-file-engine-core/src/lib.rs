@@ -16,9 +16,9 @@ pub mod merge;
 #[cfg(feature = "api")]
 pub mod requirement;
 #[cfg(feature = "api")]
-pub mod toml_helpers;
-#[cfg(feature = "api")]
 pub mod types;
+#[cfg(feature = "api")]
+pub mod version;
 
 #[cfg(feature = "api")]
 pub use contract::{ContractViolation, check_from_empty};
@@ -32,15 +32,16 @@ pub use merge::{
     ItemRequirements, KeyedItem, ListRequirements, Resolve, ResolvedForbiddenGlobRequirements,
     ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
     ScalarOperation, ScalarValue, compose_item_by, compose_optional_field, compose_string_list,
-    compose_string_set, keyed_entries_eq, resolve_all_equal, resolve_forbidden_globs,
+    compose_string_set, keyed_entries_eq, push_conflict, render_list_requirement,
+    render_scalar_assertion, resolve_all_equal, resolve_exact_list, resolve_forbidden_globs,
     resolve_items, resolve_list, resolve_map, resolve_maybe, resolve_scalar,
     strongest_version_floor,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;
 #[cfg(feature = "api")]
-pub use toml_helpers::{parse_or_report, parse_version_tuple};
-#[cfg(feature = "api")]
 pub use types::{
     ConfigScalar, DottedVersion, EngineOutput, OnEmpty, OnEmptyClass, Provenance, Severity,
 };
+#[cfg(feature = "api")]
+pub use version::parse_version_tuple;

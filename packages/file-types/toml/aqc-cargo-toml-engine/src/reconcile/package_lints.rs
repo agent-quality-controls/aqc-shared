@@ -3,11 +3,11 @@
 //!
 //! Lazy: nothing is created unless a write is needed.
 
-use aqc_file_engine_core::{Finding, Provenance};
-use toml_edit::{DocumentMut, Item, value};
+use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ScalarAssertion};
+use aqc_toml_engine_core::{ScalarFieldEdit, ensure_table, scalar_field_edit, table_ref};
+use toml_edit::DocumentMut;
 
 use crate::reconcile::lints::{self, LintRoot};
-use crate::reconcile::util::{ensure_table, push_mismatch, table_ref};
 use crate::requirement::ResolvedPackageLintsAssertion;
 
 /// Apply the `[lints]` decision, if any policy requires one.
@@ -39,11 +39,6 @@ pub(crate) fn apply(
     }
 }
 
-/// Read the on-disk `[lints].workspace` bool, if present.
-fn current_workspace(doc: &DocumentMut) -> Option<bool> {
-    table_ref(doc, "lints").and_then(|t| t.get("workspace").and_then(Item::as_bool))
-}
-
 /// `[lints] workspace == want`.
 fn apply_inherit(
     doc: &mut DocumentMut,
@@ -52,16 +47,15 @@ fn apply_inherit(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    if current_workspace(doc) == Some(want) {
-        return;
-    }
-    push_mismatch(
-        findings,
+    let assertion = ScalarAssertion::Equals(ConfigScalar::Bool(want), msg.to_owned());
+    let current = table_ref(doc, "lints").and_then(|t| t.get("workspace"));
+    if let Some(ScalarFieldEdit::Write(item)) = scalar_field_edit(
         "[lints].workspace".to_owned(),
-        current_workspace(doc).map(|b| b.to_string()),
-        want.to_string(),
-        msg.to_owned(),
+        current,
+        &assertion,
         attribution,
-    );
-    ensure_table(doc, "lints")["workspace"] = value(want);
+        findings,
+    ) {
+        ensure_table(doc, "lints")["workspace"] = item;
+    }
 }

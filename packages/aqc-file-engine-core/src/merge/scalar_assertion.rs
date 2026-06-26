@@ -443,7 +443,7 @@ fn push_scalar_conflict<T>(
 }
 
 /// Renders a scalar assertion for conflict attribution.
-fn render_scalar_assertion<T>(assertion: &ScalarAssertion<T>) -> String
+pub fn render_scalar_assertion<T>(assertion: &ScalarAssertion<T>) -> String
 where
     T: ScalarValue,
 {

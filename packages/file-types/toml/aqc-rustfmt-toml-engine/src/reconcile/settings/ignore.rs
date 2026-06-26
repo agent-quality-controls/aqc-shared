@@ -6,8 +6,8 @@ use aqc_file_engine_core::{Finding, Provenance, ResolvedForbiddenGlobRequirement
 use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::DocumentMut;
 
-use super::toml_io::{list_values, render_item, write_list};
 use crate::requirement::RustfmtIgnorePathGlob;
+use aqc_toml_engine_core::{list_values, report_list_shape_with_message, write_list};
 
 /// Applies forbidden path globs to the `ignore` list.
 pub(super) fn apply_forbidden_ignore_path_globs(
@@ -97,38 +97,14 @@ fn report_ignore_glob_shape(
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
     findings: &mut Vec<Finding>,
 ) -> bool {
-    let Some(item) = doc.get("ignore") else {
-        return false;
-    };
-    let message = ignore_glob_message(globs);
     let attribution = ignore_glob_attribution(globs);
-    let Some(array) = item.as_array() else {
-        findings.push(Finding::Mismatch {
-            key: "ignore".to_owned(),
-            current: render_item(item),
-            expected: "array of strings".to_owned(),
-            message,
-            severity: Severity::Error,
-            attribution,
-        });
-        return true;
-    };
-    let mut malformed = false;
-    for (index, value) in array.iter().enumerate() {
-        if value.as_str().is_some() {
-            continue;
-        }
-        malformed = true;
-        findings.push(Finding::Mismatch {
-            key: format!("ignore[{index}]"),
-            current: Some(value.to_string()),
-            expected: "string".to_owned(),
-            message: message.clone(),
-            severity: Severity::Error,
-            attribution: attribution.clone(),
-        });
-    }
-    malformed
+    report_list_shape_with_message(
+        doc,
+        "ignore",
+        ignore_glob_message(globs),
+        &attribution,
+        findings,
+    )
 }
 
 /// Returns the first message attached to forbidden ignore globs.

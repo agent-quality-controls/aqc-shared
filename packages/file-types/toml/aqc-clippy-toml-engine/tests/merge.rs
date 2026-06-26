@@ -1,3 +1,4 @@
+use aqc_toml_engine_core as _;
 use globset as _;
 use toml_edit as _;
 

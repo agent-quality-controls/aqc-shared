@@ -12,11 +12,14 @@
     reason = "Dependency lookup helpers return Cargo file-key/spec pairs."
 )]
 
-use toml_edit::{Array, InlineTable, Item, Table, Value};
+use toml_edit::{Array, InlineTable, Item, TableLike, Value};
 
 use crate::requirement::DependencySpec;
 
-pub(super) fn find_all_by_package(table: &Table, package: &str) -> Vec<(String, DependencySpec)> {
+pub(super) fn find_all_by_package(
+    table: &dyn TableLike,
+    package: &str,
+) -> Vec<(String, DependencySpec)> {
     table
         .iter()
         .filter_map(|(file_key, _)| {
@@ -86,7 +89,7 @@ pub(super) fn spec_matches(spec: &DependencySpec, current: &DependencySpec) -> b
 }
 
 /// Read an existing dependency entry into a `DependencySpec`.
-pub(super) fn read_spec(table: &Table, name: &str) -> Option<DependencySpec> {
+pub(super) fn read_spec(table: &dyn TableLike, name: &str) -> Option<DependencySpec> {
     let item = table.get(name)?;
     if let Some(s) = item.as_str() {
         return Some(DependencySpec {
@@ -94,39 +97,10 @@ pub(super) fn read_spec(table: &Table, name: &str) -> Option<DependencySpec> {
             ..DependencySpec::default()
         });
     }
-    if let Some(inline) = item.as_inline_table() {
-        return Some(spec_from_inline(inline));
-    }
-    item.as_table().map(spec_from_table)
+    item.as_table_like().map(spec_from_table)
 }
 
-fn spec_from_inline(inline: &InlineTable) -> DependencySpec {
-    let str_field = |k: &str| inline.get(k).and_then(Value::as_str).map(ToOwned::to_owned);
-    DependencySpec {
-        version: str_field("version"),
-        features: inline
-            .get("features")
-            .and_then(Value::as_array)
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(ToOwned::to_owned))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        default_features: inline.get("default-features").and_then(Value::as_bool),
-        optional: inline.get("optional").and_then(Value::as_bool),
-        workspace: inline.get("workspace").and_then(Value::as_bool),
-        path: str_field("path"),
-        git: str_field("git"),
-        branch: str_field("branch"),
-        tag: str_field("tag"),
-        rev: str_field("rev"),
-        registry: str_field("registry"),
-        package: str_field("package"),
-    }
-}
-
-fn spec_from_table(table: &Table) -> DependencySpec {
+fn spec_from_table(table: &dyn TableLike) -> DependencySpec {
     let str_field = |k: &str| table.get(k).and_then(Item::as_str).map(ToOwned::to_owned);
     DependencySpec {
         version: str_field("version"),

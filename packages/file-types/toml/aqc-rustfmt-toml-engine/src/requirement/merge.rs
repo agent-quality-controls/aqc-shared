@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, ListRequirements, Provenance, Resolve,
     ResolvedForbiddenGlobRequirements, ResolvedListRequirements, ScalarAssertion,
-    resolve_forbidden_globs, resolve_list,
 };
 use globset::GlobBuilder;
 
@@ -29,9 +28,6 @@ type RustfmtScalarRequirementInput = Vec<(Provenance, RustfmtScalarRequirements)
 /// Scalar assertions grouped by rustfmt setting.
 type RustfmtScalarAssertionsByKey =
     BTreeMap<RustfmtScalarSetting, Vec<(Provenance, ScalarAssertion<ConfigScalar>)>>;
-/// Borrowed scalar assertions for one rustfmt setting.
-type RustfmtScalarAssertionSlice<'a> = &'a [(Provenance, ScalarAssertion<ConfigScalar>)];
-
 impl RustfmtTomlRequirements {
     #[must_use]
     pub fn merge(reqs: RustfmtRequirementInput) -> RustfmtMergeOutput {
@@ -42,7 +38,7 @@ impl RustfmtTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let forbidden_ignore_path_globs = resolve_forbidden_globs(
+        let forbidden_ignore_path_globs = aqc_file_engine_core::resolve_forbidden_globs(
             RustfmtListSetting::Ignore.file_key(),
             reqs.iter()
                 .map(|(prov, req)| (prov.clone(), req.forbidden_ignore_path_globs.clone()))
@@ -66,7 +62,10 @@ impl RustfmtTomlRequirements {
 
         let mut list_settings = BTreeMap::new();
         for (key, lists) in lists_by_key {
-            let _ = list_settings.insert(key, resolve_list(key.file_key(), lists, &mut conflicts));
+            let _ = list_settings.insert(
+                key,
+                aqc_file_engine_core::resolve_list(key.file_key(), lists, &mut conflicts),
+            );
         }
         let ignore_glob_conflicts = list_settings.get(&RustfmtListSetting::Ignore).map_or_else(
             RustfmtForbiddenIgnoreGlobConflictBlocks::default,
@@ -110,7 +109,13 @@ fn resolve_scalar_settings(
             .iter()
             .all(|(_, assertion)| key.scalar_assertion_is_legal(assertion))
         {
-            push_unsupported_scalar_conflict(key_text, &items, conflicts);
+            aqc_file_engine_core::push_conflict(
+                key_text,
+                "scalar-operation-unsupported",
+                &items,
+                aqc_file_engine_core::render_scalar_assertion,
+                conflicts,
+            );
             continue;
         }
         if let Some(resolved) = ScalarAssertion::<ConfigScalar>::resolve(key_text, items, conflicts)
@@ -119,22 +124,6 @@ fn resolve_scalar_settings(
         }
     }
     out
-}
-
-/// Records a scalar assertion that rustfmt cannot represent for this setting.
-fn push_unsupported_scalar_conflict(
-    key: &str,
-    items: RustfmtScalarAssertionSlice<'_>,
-    conflicts: &mut Vec<ConflictEntry>,
-) {
-    conflicts.push(ConflictEntry {
-        key: key.to_owned(),
-        reason: "scalar-operation-unsupported".to_owned(),
-        contributors: items
-            .iter()
-            .map(|(prov, assertion)| (prov.clone(), format!("{assertion:?}")))
-            .collect(),
-    });
 }
 
 /// Records conflicts between required ignore entries and forbidden path globs.

@@ -17,13 +17,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedItemRequirements, Severity};
+use aqc_toml_engine_core::{ensure_table_at, table_at};
 use toml_edit::DocumentMut;
 
 use super::SetRule;
 use super::spec_io::{
     find_all_by_package, read_spec, spec_for_write_key, spec_matches, spec_to_item,
 };
-use crate::reconcile::util::{ensure_table_at, table_at};
 use crate::requirement::{DependencyRequirement, DependencySpec};
 
 /// Each dependency requirement must be present and partial-match.

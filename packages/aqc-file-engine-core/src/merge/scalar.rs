@@ -5,10 +5,10 @@ use std::collections::BTreeSet;
 use super::{
     ConflictEntry, GroupedAssertions, KeyedValueMap, MapInputs, OptionalInput, Provenanced,
     Resolve, ResolvedAssertionOption, ResolvedMap, ResolvedRequirement, ResolvedSameOption,
-    VersionFloor,
+    ScalarValue, VersionFloor,
 };
-use crate::toml_helpers::parse_version_tuple;
 use crate::types::ConfigScalar;
+use crate::version::parse_version_tuple;
 
 pub fn resolve_map<K, A>(
     input: MapInputs<K, A>,
@@ -83,14 +83,7 @@ where
     let (_, first) = iter.next()?;
     let disagree = iter.any(|(_, value)| value != first);
     if disagree {
-        conflicts.push(ConflictEntry {
-            key: key.to_owned(),
-            reason: reason.to_owned(),
-            contributors: items
-                .iter()
-                .map(|(prov, value)| (prov.clone(), render(value)))
-                .collect(),
-        });
+        push_conflict(key, reason, &items, render, conflicts);
         None
     } else {
         Some(ResolvedRequirement {
@@ -98,6 +91,26 @@ where
             collected: items,
         })
     }
+}
+
+pub fn push_conflict<T>(
+    key: impl Into<String>,
+    reason: impl Into<String>,
+    items: &[Provenanced<T>],
+    render: impl Fn(&T) -> String,
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    if items.is_empty() {
+        return;
+    }
+    conflicts.push(ConflictEntry {
+        key: key.into(),
+        reason: reason.into(),
+        contributors: items
+            .iter()
+            .map(|(prov, value)| (prov.clone(), render(value)))
+            .collect(),
+    });
 }
 
 pub fn compose_optional_field<T>(
@@ -161,6 +174,6 @@ impl Resolve for ConfigScalar {
         items: Vec<Provenanced<Self>>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> ResolvedAssertionOption<Self> {
-        resolve_scalar(key, items, |item| format!("{item:?}"), conflicts)
+        resolve_scalar(key, items, ScalarValue::render, conflicts)
     }
 }

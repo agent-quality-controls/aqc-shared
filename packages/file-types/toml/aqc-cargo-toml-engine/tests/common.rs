@@ -5,6 +5,7 @@
     reason = "Shared test helpers keep compact Cargo requirement fixture shapes."
 )]
 
+use aqc_toml_engine_core as _;
 pub(crate) use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) use aqc_cargo_toml_engine as cargo;

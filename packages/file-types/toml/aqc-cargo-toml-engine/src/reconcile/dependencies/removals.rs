@@ -16,14 +16,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedForbiddenGlobRequirements, Severity};
 use globset::{GlobBuilder, GlobMatcher};
-use toml_edit::{DocumentMut, Table};
+use toml_edit::{DocumentMut, TableLike};
 
 use super::spec_io::{effective_package, find_all_by_package, read_spec};
-use crate::reconcile::util::table_at_mut;
 use crate::requirement::{
     DependencyForbiddenGlobConflictBlocks, DependencyPackageGlob, DependencyRequirement,
     DependencySpec,
 };
+use aqc_toml_engine_core::table_at_mut;
 
 #[derive(Debug)]
 pub(super) struct PlannedDependencyRemoval {
@@ -59,7 +59,7 @@ fn queue_removal(
 /// Each named entry must be absent (vacuous when the table is missing).
 pub(super) fn queue_forbidden_matches(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
-    table: Option<&Table>,
+    table: Option<&dyn TableLike>,
     requirement: &DependencyRequirement,
     msg: &str,
     attribution: &[Provenance],
@@ -73,7 +73,7 @@ pub(super) fn queue_forbidden_matches(
 }
 
 fn read_forbidden_matches(
-    table: &Table,
+    table: &dyn TableLike,
     requirement: &DependencyRequirement,
 ) -> Vec<(String, DependencySpec)> {
     if let Some(file_key) = requirement.file_key.as_deref() {
@@ -89,7 +89,7 @@ fn read_forbidden_matches(
 
 pub(super) fn apply_package_glob_forbids(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
-    table: Option<&Table>,
+    table: Option<&dyn TableLike>,
     display_path: &str,
     globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     glob_conflicts: &DependencyForbiddenGlobConflictBlocks,
@@ -152,7 +152,7 @@ fn compile_package_glob(glob: &DependencyPackageGlob) -> Result<GlobMatcher, Str
 }
 
 fn read_package_glob_matches(
-    table: &Table,
+    table: &dyn TableLike,
     matcher: &GlobMatcher,
 ) -> Vec<(String, DependencySpec)> {
     table
@@ -170,7 +170,7 @@ fn read_package_glob_matches(
 /// Drop on-disk entries not allowed by the closed collection.
 pub(super) fn queue_exact_extras(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
-    table: Option<&Table>,
+    table: Option<&dyn TableLike>,
     allowed: &[DependencyRequirement],
     attribution: &[Provenance],
 ) {

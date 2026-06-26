@@ -8,7 +8,6 @@
 mod cargo_toml;
 mod dependencies;
 mod features;
-mod helpers;
 mod lints;
 mod package;
 mod profiles;

@@ -3,8 +3,9 @@
 use std::collections::BTreeSet;
 
 use super::{
-    ConflictEntry, Contributor, ExactInput, ListInput, MemberInputs, ResolvedExactList,
-    ResolvedListRequirements, ResolvedRequirement, ResolvedStringMembers, resolve_all_equal,
+    ConflictEntry, Contributor, ExactInput, ListInput, ListRequirements, MemberInputs,
+    ResolvedExactList, ResolvedListRequirements, ResolvedRequirement, ResolvedStringMembers,
+    resolve_all_equal,
 };
 use crate::types::Provenance;
 
@@ -48,13 +49,48 @@ pub fn resolve_exact_list(
         key,
         "exact-mismatch",
         items,
-        |(list, _)| format!("{list:?}"),
+        |(list, _)| format!("exact [{}]", list.join(", ")),
         conflicts,
     )?;
     Some(ResolvedRequirement {
         merged: resolved.merged.0,
         collected: resolved.collected,
     })
+}
+
+#[must_use]
+pub fn render_list_requirement(requirements: &ListRequirements) -> String {
+    let mut parts = Vec::new();
+    if !requirements.contains.is_empty() {
+        parts.push(format!(
+            "contains [{}]",
+            requirements
+                .contains
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !requirements.excludes.is_empty() {
+        parts.push(format!(
+            "excludes [{}]",
+            requirements
+                .excludes
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if let Some((items, _)) = &requirements.exact {
+        parts.push(format!("exact [{}]", items.join(", ")));
+    }
+    if parts.is_empty() {
+        "list".to_owned()
+    } else {
+        format!("list {}", parts.join("; "))
+    }
 }
 
 #[derive(Default)]

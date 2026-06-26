@@ -3,6 +3,7 @@
     reason = "These assertions index known merged fixture keys."
 )]
 
+use aqc_toml_engine_core as _;
 #[allow(
     dead_code,
     unused_imports,

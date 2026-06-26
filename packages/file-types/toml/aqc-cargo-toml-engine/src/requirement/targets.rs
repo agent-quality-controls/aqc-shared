@@ -18,10 +18,10 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, ConflictEntry, ListRequirements, OnEmpty, OnEmptyClass, Provenance, Resolve,
-    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion, resolve_list, resolve_map,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+    push_conflict as push_core_conflict, render_list_requirement, render_scalar_assertion,
+    resolve_list, resolve_map,
 };
-
-use super::helpers::push_debug_conflict;
 
 /// What must hold about a single target-table field (`path`, `harness`,
 /// `doctest`, `crate-type`, `required-features`, ...).
@@ -345,7 +345,13 @@ fn push_field_conflict(
     items: &[(Provenance, TargetFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-disagree", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-disagree",
+        items,
+        render_target_field_assertion,
+        conflicts,
+    );
 }
 
 fn target_field_assertion_is_legal(key: &str, assertion: &TargetFieldAssertion) -> bool {
@@ -367,7 +373,13 @@ fn push_unsupported_field_conflict(
     items: &[(Provenance, TargetFieldAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-operation-unsupported", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-operation-unsupported",
+        items,
+        render_target_field_assertion,
+        conflicts,
+    );
 }
 
 fn push_table_conflict(
@@ -375,5 +387,29 @@ fn push_table_conflict(
     items: &[(Provenance, TargetTableAssertion)],
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    push_debug_conflict(key, "scalar-disagree", items, conflicts);
+    push_core_conflict(
+        key,
+        "scalar-disagree",
+        items,
+        render_target_table_assertion,
+        conflicts,
+    );
+}
+
+fn render_target_field_assertion(assertion: &TargetFieldAssertion) -> String {
+    match assertion {
+        TargetFieldAssertion::Scalar(assertion) => render_scalar_assertion(assertion),
+        TargetFieldAssertion::List(requirements) => render_list_requirement(requirements),
+    }
+}
+
+fn render_target_table_assertion(assertion: &TargetTableAssertion) -> String {
+    match assertion {
+        TargetTableAssertion::Present(_) => "present".to_owned(),
+        TargetTableAssertion::Absent(_) => "absent".to_owned(),
+        TargetTableAssertion::Fields(fields) => {
+            let fields = fields.keys().cloned().collect::<Vec<_>>().join(", ");
+            format!("fields [{fields}]")
+        }
+    }
 }

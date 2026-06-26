@@ -14,8 +14,11 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity};
-use toml_edit::{DocumentMut, Item, value};
+use aqc_file_engine_core::{
+    ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
+};
+use aqc_toml_engine_core::{apply_scalar_assertion, scalar_assertion_fails};
+use toml_edit::DocumentMut;
 
 /// Apply every boolean-setting requirement.
 pub(crate) fn apply(
@@ -41,7 +44,9 @@ fn attribution_for(
     let filtered = resolved
         .collected
         .iter()
-        .filter(|(_, assertion)| assertion_fails(current, assertion))
+        .filter(|(_, assertion)| {
+            scalar_assertion_fails(current, &bool_assertion_to_config(assertion))
+        })
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
@@ -55,21 +60,6 @@ fn attribution_for(
     }
 }
 
-fn assertion_fails(current: Option<&Item>, assertion: &ScalarAssertion<bool>) -> bool {
-    let current_bool = current.and_then(Item::as_bool);
-    match assertion {
-        ScalarAssertion::Equals(want, _) => current_bool != Some(*want),
-        ScalarAssertion::OneOf(allowed, _) => {
-            !current_bool.is_some_and(|value| allowed.contains(&value))
-        }
-        ScalarAssertion::Present(_) => current_bool.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            true
-        }
-    }
-}
-
 /// Apply a single scalar assertion against a boolean setting.
 fn apply_one(
     doc: &mut DocumentMut,
@@ -78,107 +68,39 @@ fn apply_one(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
+    apply_scalar_assertion(
+        doc,
+        key,
+        &bool_assertion_to_config(assertion),
+        attribution,
+        findings,
+    );
+}
+
+fn bool_assertion_to_config(assertion: &ScalarAssertion<bool>) -> ScalarAssertion<ConfigScalar> {
     match assertion {
-        ScalarAssertion::Equals(want, message) => {
-            apply_equals(doc, key, *want, message, attribution, findings);
+        ScalarAssertion::Equals(value, msg) => {
+            ScalarAssertion::Equals(ConfigScalar::Bool(*value), msg.clone())
         }
-        ScalarAssertion::OneOf(allowed, message) => {
-            apply_one_of(doc, key, allowed, message, attribution, findings);
+        ScalarAssertion::AtLeast(value, msg) => {
+            ScalarAssertion::AtLeast(ConfigScalar::Bool(*value), msg.clone())
         }
-        ScalarAssertion::Present(message) => {
-            apply_present(doc, key, message, attribution, findings);
+        ScalarAssertion::AtMost(value, msg) => {
+            ScalarAssertion::AtMost(ConfigScalar::Bool(*value), msg.clone())
         }
-        ScalarAssertion::Absent(message) => apply_absent(doc, key, message, attribution, findings),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-        }
+        ScalarAssertion::Range(min, max, msg) => ScalarAssertion::Range(
+            ConfigScalar::Bool(*min),
+            ConfigScalar::Bool(*max),
+            msg.clone(),
+        ),
+        ScalarAssertion::OneOf(values, msg) => ScalarAssertion::OneOf(
+            values
+                .iter()
+                .map(|value| ConfigScalar::Bool(*value))
+                .collect(),
+            msg.clone(),
+        ),
+        ScalarAssertion::Present(msg) => ScalarAssertion::Present(msg.clone()),
+        ScalarAssertion::Absent(msg) => ScalarAssertion::Absent(msg.clone()),
     }
-}
-
-/// `key == want`.
-fn apply_equals(
-    doc: &mut DocumentMut,
-    key: &str,
-    want: bool,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = doc.get(key).and_then(Item::as_bool);
-    if current == Some(want) {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.into(),
-        current: current.map(|b| b.to_string()),
-        expected: want.to_string(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    doc[key] = value(want);
-}
-
-fn apply_one_of(
-    doc: &DocumentMut,
-    key: &str,
-    allowed: &std::collections::BTreeSet<bool>,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let current = doc.get(key).and_then(Item::as_bool);
-    if current.is_some_and(|value| allowed.contains(&value)) {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.into(),
-        current: current.map(|b| b.to_string()),
-        expected: format!("one of {allowed:?}"),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-}
-
-/// `key` must be set with any boolean value.
-fn apply_present(
-    doc: &DocumentMut,
-    key: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if doc.get(key).and_then(Item::as_bool).is_some() {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.into(),
-        current: None,
-        expected: "any bool (Present)".into(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-}
-
-/// `key` must not be set.
-fn apply_absent(
-    doc: &mut DocumentMut,
-    key: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if !doc.contains_key(key) {
-        return;
-    }
-    findings.push(Finding::Mismatch {
-        key: key.into(),
-        current: doc.get(key).and_then(Item::as_bool).map(|b| b.to_string()),
-        expected: "absent".into(),
-        message: message.to_owned(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-    let _ = doc.as_table_mut().remove(key);
 }
