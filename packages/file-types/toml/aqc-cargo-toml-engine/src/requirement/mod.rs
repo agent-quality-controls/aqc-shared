@@ -8,6 +8,7 @@
 mod cargo_toml;
 mod dependencies;
 mod features;
+mod lint_tables;
 mod lints;
 mod package;
 mod profiles;
@@ -25,6 +26,7 @@ pub use dependencies::DependencyRequirement;
 pub use dependencies::DependencyScope;
 pub use dependencies::DependencySpec;
 pub use features::FeatureMembers;
+pub use lint_tables::{CargoLintTableRequirements, cargo_lint_table_requirements};
 pub use lints::{LintSetting, PackageLintsAssertion, ResolvedPackageLintsAssertion};
 pub use package::{PackageFieldAssertion, ResolvedPackageFieldAssertion};
 pub use profiles::{ProfileRequirements, ResolvedProfileRequirements};

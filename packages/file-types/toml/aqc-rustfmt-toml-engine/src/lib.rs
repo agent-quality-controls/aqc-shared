@@ -9,6 +9,10 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
+pub use aqc_file_engine_core::{
+    ConfigScalar, ForbiddenGlobRequirements, ListRequirements, ScalarAssertion,
+};
+#[cfg(feature = "api")]
 pub use engine::RustfmtTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{

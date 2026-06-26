@@ -11,9 +11,16 @@ mod reconcile;
 pub mod requirement;
 
 #[cfg(feature = "api")]
+pub use aqc_file_engine_core::{
+    ConfigScalar, DottedVersion, ForbiddenGlobRequirements, ItemRequirements, KeyedItem,
+    ScalarAssertion,
+};
+#[cfg(feature = "api")]
 pub use engine::CargoTomlEngine;
 #[cfg(feature = "api")]
 pub type CargoTomlRequirements = requirement::CargoTomlRequirements;
+#[cfg(feature = "api")]
+pub use requirement::cargo_lint_table_requirements;
 #[cfg(feature = "api")]
 pub type DependencyForbiddenGlobConflictBlocks = requirement::DependencyForbiddenGlobConflictBlocks;
 #[cfg(feature = "api")]

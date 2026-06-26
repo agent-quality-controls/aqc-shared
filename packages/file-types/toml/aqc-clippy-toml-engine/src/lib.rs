@@ -12,6 +12,11 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
+pub use aqc_file_engine_core::{
+    ConfigScalar, DottedVersion, ForbiddenGlobRequirements, ItemRequirements, KeyedItem,
+    ScalarAssertion,
+};
+#[cfg(feature = "api")]
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
