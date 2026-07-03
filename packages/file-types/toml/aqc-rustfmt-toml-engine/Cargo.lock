@@ -19,7 +19,7 @@ checksum = "6523f02065f81105c5b82d869d6cab1dc6126a55aac9866a9ee60541a48d089a"
 
 [[package]]
 name = "aqc-rustfmt-toml-engine"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
