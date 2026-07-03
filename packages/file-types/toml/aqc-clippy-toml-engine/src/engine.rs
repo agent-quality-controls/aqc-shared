@@ -20,6 +20,12 @@ impl FileEngine<ResolvedClippyTomlRequirements> for ClippyTomlEngine {
         requirement: &ResolvedClippyTomlRequirements,
     ) -> EngineOutput {
         let (mut doc, mut findings) = parse_or_report(current_bytes, "clippy.toml");
+        if !findings.is_empty() {
+            return EngineOutput {
+                expected_bytes: Vec::new(),
+                findings,
+            };
+        }
         reconcile::apply(&mut doc, requirement, &mut findings);
         EngineOutput {
             expected_bytes: doc.to_string().into_bytes(),

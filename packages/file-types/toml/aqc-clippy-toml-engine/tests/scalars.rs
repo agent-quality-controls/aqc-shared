@@ -61,6 +61,29 @@ fn clippy_thresholds_compose_per_key() {
 }
 
 #[test]
+fn malformed_toml_returns_only_parse_error_and_no_expected_bytes() {
+    let req = ClippyTomlRequirements {
+        msrv: Some(ScalarAssertion::AtLeast(
+            DottedVersion::new("1.85"),
+            "msrv".to_owned(),
+        )),
+        ..ClippyTomlRequirements::default()
+    };
+
+    let out = clippy_output(Some(b"msrv = "), vec![(prov("p1"), req)]);
+
+    assert!(
+        out.expected_bytes.is_empty(),
+        "parse failures must not produce replacement bytes"
+    );
+    assert_eq!(out.findings.len(), 1, "parse failures must not cascade");
+    assert!(
+        matches!(out.findings.first(), Some(Finding::ParseError { .. })),
+        "malformed clippy.toml should report one parse error"
+    );
+}
+
+#[test]
 fn clippy_threshold_range_bounds_compose() {
     let left = ClippyTomlRequirements {
         thresholds: BTreeMap::from([(

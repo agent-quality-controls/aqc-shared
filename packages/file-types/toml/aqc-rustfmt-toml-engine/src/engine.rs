@@ -20,6 +20,12 @@ impl FileEngine<ResolvedRustfmtTomlRequirements> for RustfmtTomlEngine {
         requirement: &ResolvedRustfmtTomlRequirements,
     ) -> EngineOutput {
         let (mut doc, mut findings) = parse_or_report(current_bytes, "rustfmt.toml");
+        if !findings.is_empty() {
+            return EngineOutput {
+                expected_bytes: Vec::new(),
+                findings,
+            };
+        }
         reconcile::apply(&mut doc, requirement, &mut findings);
         EngineOutput {
             expected_bytes: doc.to_string().into_bytes(),

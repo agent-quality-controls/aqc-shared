@@ -72,6 +72,30 @@ fn package_scalar_equals_writes_on_empty() {
 }
 
 #[test]
+fn malformed_toml_returns_only_parse_error_and_no_expected_bytes() {
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.package_fields.insert(
+        "edition".to_owned(),
+        cargo::PackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(
+            engine_core::ConfigScalar::Str("2024".to_owned()),
+            "edition".to_owned(),
+        )),
+    );
+
+    let out = output(req, Some(b"[package\nname = \"fixture\"\n"));
+
+    assert!(
+        out.expected_bytes.is_empty(),
+        "parse failures must not produce replacement bytes"
+    );
+    assert_eq!(out.findings.len(), 1, "parse failures must not cascade");
+    assert!(
+        matches!(out.findings.first(), Some(engine_core::Finding::ParseError { .. })),
+        "malformed Cargo.toml should report one parse error"
+    );
+}
+
+#[test]
 fn package_one_of_is_check_only_on_empty() {
     let mut allowed = BTreeSet::new();
     let _ = allowed.insert(engine_core::ConfigScalar::Str("MIT".to_owned()));

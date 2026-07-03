@@ -177,6 +177,11 @@ fn malformed_toml_reports_parse_error() {
     );
 
     assert!(
+        output.expected_bytes.is_empty(),
+        "parse failures must not produce replacement bytes"
+    );
+    assert_eq!(output.findings.len(), 1, "parse failures must not cascade");
+    assert!(
         matches!(output.findings.first(), Some(Finding::ParseError { .. })),
         "malformed TOML should report a parse error"
     );
