@@ -1,0 +1,13 @@
+profile = "library"
+
+allowed_deps = [
+  "tempfile",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false

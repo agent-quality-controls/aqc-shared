@@ -1,0 +1,46 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-toml-engine-core",
+  "globset",
+  "toml_edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:ClippyTomlRequirements"
+reason = "Declarative requirement struct; bulk-form field-per-target is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:ResolvedClippyTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/disallowed.rs"
+selector = "struct:DisallowedEntry"
+reason = "Plain data record mirroring clippy's disallowed-methods/types/macros entry shape."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/disallowed.rs"
+selector = "struct:ClippyPathGlob"
+reason = "Plain data record for forbidden clippy disallowed-entry path globs."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/disallowed.rs"
+selector = "struct:ClippyForbiddenGlobConflictBlocks"
+reason = "Resolved conflict aggregate returned by merge; fields name the blocked required entries and glob requirements."

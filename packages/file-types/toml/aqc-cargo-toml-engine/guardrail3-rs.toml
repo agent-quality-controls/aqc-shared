@@ -1,0 +1,100 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-toml-engine-core",
+  "globset",
+  "toml_edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/cargo_toml/model.rs"
+selector = "struct:CargoTomlRequirements"
+reason = "Declarative requirement struct; bulk-form field-per-target is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/cargo_toml/model.rs"
+selector = "struct:ResolvedCargoTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/large-type-inventory"
+subject = "src/requirement/cargo_toml/model.rs"
+selector = "struct:ResolvedCargoTomlRequirements"
+reason = "Resolved Cargo requirement aggregate; field-per-Cargo-section is the public data model."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/cargo_toml/model.rs"
+selector = "struct:DependencyForbiddenGlobConflictBlocks"
+reason = "Resolved conflict aggregate returned by merge; fields name the blocked required dependencies and glob requirements."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/targets.rs"
+selector = "struct:TargetRequirements"
+reason = "Declarative requirement struct for Cargo target tables; field-per-target-kind is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/targets.rs"
+selector = "struct:ResolvedTargetRequirements"
+reason = "Resolved target-table aggregate returned by merge; fields mirror target sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/dependencies.rs"
+selector = "struct:DependencySpec"
+reason = "Plain data record mirroring a Cargo.toml dependency entry shape."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/dependencies.rs"
+selector = "struct:DependencyScope"
+reason = "Declarative dependency table address; named fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/dependencies.rs"
+selector = "struct:DependencyRequirement"
+reason = "Dependency requirement data shape; optional file key plus value is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/dependencies.rs"
+selector = "struct:DependencyPackageGlob"
+reason = "Plain data record for forbidden dependency package globs."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/features.rs"
+selector = "struct:FeatureMembers"
+reason = "Plain data record mirroring a Cargo.toml feature member list."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/lints.rs"
+selector = "struct:LintSetting"
+reason = "Plain data record mirroring a Cargo lint setting entry."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/profiles.rs"
+selector = "struct:ProfileRequirements"
+reason = "Declarative profile requirement aggregate; named sections are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/profiles.rs"
+selector = "struct:ResolvedProfileRequirements"
+reason = "Resolved profile requirement aggregate; fields mirror the profile requirement sections."

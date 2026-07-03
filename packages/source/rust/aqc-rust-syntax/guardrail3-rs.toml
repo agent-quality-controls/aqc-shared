@@ -1,0 +1,32 @@
+profile = "library"
+
+allowed_deps = [
+  "proc-macro2",
+  "syn",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/model.rs"
+selector = "struct:RustFileSyntax"
+reason = "Syntax facts are plain data records; callers consume the parsed facts directly."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/model.rs"
+selector = "struct:RustEnumDecl"
+reason = "Enum declaration facts are plain data records; named fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/model.rs"
+selector = "struct:RustSyntaxError"
+reason = "Parse errors carry a single user-facing parser message as data."

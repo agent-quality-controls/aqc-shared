@@ -1,0 +1,35 @@
+profile = "library"
+
+allowed_deps = []
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/types.rs"
+selector = "struct:Provenance"
+reason = "Provenance is a transparent data container; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/types.rs"
+selector = "struct:MergedAssertion"
+reason = "ResolvedRequirement stores collected policy assertions; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/types.rs"
+selector = "struct:EngineOutput"
+reason = "EngineOutput is the engine's return envelope; named pub fields are the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/types.rs"
+selector = "struct:MergeConflict"
+reason = "Error type carrying structured data; named pub fields are the API."

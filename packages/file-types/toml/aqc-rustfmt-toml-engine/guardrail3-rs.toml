@@ -1,0 +1,46 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-toml-engine-core",
+  "globset",
+  "toml_edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:RustfmtTomlRequirements"
+reason = "Declarative requirement struct; field-per-requirement-section is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:ResolvedRustfmtTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:RustfmtIgnorePathGlob"
+reason = "Plain data record for forbidden rustfmt ignore path globs."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:RustfmtForbiddenIgnoreGlobConflictBlocks"
+reason = "Resolved conflict aggregate returned by merge; fields name the blocked required ignore paths and glob requirements."
+
+[[waivers]]
+rule = "g3rs-code/large-type-inventory"
+subject = "src/requirement/settings.rs"
+selector = "enum:RustfmtScalarSetting"
+reason = "Schema enum for rustfmt scalar settings; splitting it would obscure the file-key model."

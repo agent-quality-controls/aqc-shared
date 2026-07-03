@@ -1,0 +1,14 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "toml_edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
