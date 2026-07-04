@@ -1,0 +1,27 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-toml-engine-core",
+  "toml_edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:RustToolchainTomlRequirements"
+reason = "Declarative requirement struct; field-per-requirement-section is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:ResolvedRustToolchainTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
