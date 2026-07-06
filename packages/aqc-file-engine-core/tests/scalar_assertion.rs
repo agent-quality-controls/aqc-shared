@@ -4,6 +4,7 @@ use aqc_file_engine_core::{
     DottedVersion, Provenance, Resolve, ScalarAssertion, merge::Contributor, push_conflict,
     resolve_exact_list,
 };
+use serde as _;
 
 fn prov(policy: &str) -> Provenance {
     Provenance {

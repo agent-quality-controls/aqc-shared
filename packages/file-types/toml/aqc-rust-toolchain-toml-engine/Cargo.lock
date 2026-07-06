@@ -4,9 +4,12 @@ version = 4
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6523f02065f81105c5b82d869d6cab1dc6126a55aac9866a9ee60541a48d089a"
+checksum = "cc5771506d80988fc251d91570d2c2d0215e435242ec5167340e03fafa0d2c3a"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "aqc-rust-toolchain-toml-engine"
