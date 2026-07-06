@@ -5,6 +5,7 @@ use core::cmp::Ordering;
 use crate::finding::Finding;
 use crate::merge::ScalarValue;
 use crate::version::parse_version_tuple;
+use serde::{Deserialize, Serialize};
 
 /// Identifies which policy contributed a requirement.
 ///
@@ -38,7 +39,8 @@ pub enum ConfigScalar {
 
 /// Dotted numeric version value for fields that explicitly choose
 /// `(major, minor, patch)` ordering.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct DottedVersion(String);
 
 impl DottedVersion {

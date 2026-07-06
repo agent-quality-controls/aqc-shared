@@ -1,19 +1,27 @@
-//! Reconcile `[toolchain]` settings.
-
-use std::collections::BTreeSet;
-use std::path::Path;
+//! Reconcile `[toolchain]` fields.
 
 use aqc_file_engine_core as file_core;
+use aqc_file_engine_core::ScalarValue;
 use aqc_toml_engine_core as toml_core;
-use toml_edit::{DocumentMut, Item, Table};
+use toml_edit::{DocumentMut, Item, Table, value as toml_value};
 
+use super::settings_support as support;
 use crate::requirement::{
-    ResolvedRustToolchainTomlRequirements, RustToolchainListSetting, RustToolchainScalarSetting,
+    ResolvedRustToolchainTomlRequirements, RustToolchainChannel, RustToolchainPath,
+    RustToolchainProfile,
 };
 
-type ResolvedRustToolchainScalarSetting = file_core::ResolvedRequirement<
-    file_core::ScalarAssertion<file_core::ConfigScalar>,
-    file_core::ScalarAssertion<file_core::ConfigScalar>,
+type ResolvedChannel = file_core::ResolvedRequirement<
+    file_core::ScalarAssertion<RustToolchainChannel>,
+    file_core::ScalarAssertion<RustToolchainChannel>,
+>;
+type ResolvedPath = file_core::ResolvedRequirement<
+    file_core::ScalarAssertion<RustToolchainPath>,
+    file_core::ScalarAssertion<RustToolchainPath>,
+>;
+type ResolvedProfile = file_core::ResolvedRequirement<
+    file_core::ScalarAssertion<RustToolchainProfile>,
+    file_core::ScalarAssertion<RustToolchainProfile>,
 >;
 
 pub(crate) fn apply(
@@ -21,21 +29,33 @@ pub(crate) fn apply(
     requirement: &ResolvedRustToolchainTomlRequirements,
     findings: &mut Vec<file_core::Finding>,
 ) {
-    report_invalid_requirement_combinations(requirement, findings);
+    support::report_invalid_requirement_combinations(requirement, findings);
     let table = ensure_toolchain_table(doc, requirement, findings);
-    report_existing_file_conflicts(table, requirement, findings);
+    support::report_invalid_file_fields(table, requirement, findings);
+    support::report_existing_file_conflicts(table, requirement, findings);
 
-    if has_path_value_requirement(requirement) {
-        apply_path_setting(table, requirement, findings);
-        apply_closed(table, requirement, findings);
-        report_empty_table(table, findings);
+    if support::has_path_value_requirement(requirement) {
+        if let Some(path) = &requirement.path {
+            apply_path(table, path, findings);
+        }
+        support::apply_closed(table, requirement, findings);
+        support::report_empty_table(table, findings);
         return;
     }
 
-    apply_scalar_settings(table, requirement, findings);
-    apply_list_settings(table, requirement, findings);
-    apply_closed(table, requirement, findings);
-    report_empty_table(table, findings);
+    if let Some(path) = &requirement.path {
+        apply_path(table, path, findings);
+    }
+    if let Some(channel) = &requirement.channel {
+        apply_channel(table, channel, findings);
+    }
+    if let Some(profile) = &requirement.profile {
+        apply_profile(table, profile, findings);
+    }
+    apply_list(table, "components", &requirement.components, findings);
+    apply_list(table, "targets", &requirement.targets, findings);
+    support::apply_closed(table, requirement, findings);
+    support::report_empty_table(table, findings);
 }
 
 fn ensure_toolchain_table<'a>(
@@ -44,483 +64,181 @@ fn ensure_toolchain_table<'a>(
     findings: &mut Vec<file_core::Finding>,
 ) -> &'a mut Table {
     if doc.get("toolchain").and_then(Item::as_table).is_none() {
-        if let Some(item) = doc.get("toolchain") {
-            toml_core::push_mismatch(
+        if doc.get("toolchain").is_some() {
+            support::push_unwritable_with_attr(
                 findings,
-                "toolchain".to_owned(),
-                toml_core::render_item(item),
-                "table".to_owned(),
-                "rust-toolchain.toml must contain a [toolchain] table.".to_owned(),
-                &requirement_attribution(requirement),
+                "toolchain",
+                "table",
+                support::requirement_attribution(requirement),
             );
-        } else if has_requirements(requirement) {
+            let _ = doc.remove("toolchain");
+        } else if support::has_requirements(requirement) {
             toml_core::push_mismatch(
                 findings,
                 "toolchain".to_owned(),
                 None,
                 "table".to_owned(),
                 "rust-toolchain.toml must contain a [toolchain] table.".to_owned(),
-                &requirement_attribution(requirement),
+                &support::requirement_attribution(requirement),
             );
         }
     }
     toml_core::ensure_table(doc, "toolchain")
 }
 
-fn apply_scalar_settings(
+fn apply_channel(
     table: &mut Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
+    resolved: &ResolvedChannel,
     findings: &mut Vec<file_core::Finding>,
 ) {
-    for (setting, resolved) in &requirement.scalar_settings {
-        if *setting == RustToolchainScalarSetting::Profile {
-            report_invalid_profile(table, resolved, findings);
-        }
-        if *setting == RustToolchainScalarSetting::Path {
-            if report_invalid_path_requirement(resolved, findings) {
-                continue;
-            }
-        }
-        apply_scalar_setting(table, *setting, resolved, findings);
-    }
-}
-
-fn apply_path_setting(
-    table: &mut Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    let Some(resolved) = requirement
-        .scalar_settings
-        .get(&RustToolchainScalarSetting::Path)
-    else {
-        return;
-    };
-    if report_invalid_path_requirement(resolved, findings) {
-        return;
-    }
-    apply_scalar_setting(table, RustToolchainScalarSetting::Path, resolved, findings);
-}
-
-fn apply_scalar_setting(
-    table: &mut Table,
-    setting: RustToolchainScalarSetting,
-    resolved: &ResolvedRustToolchainScalarSetting,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    let key = setting.file_key();
-    let display_key = format!("toolchain.{key}");
-    let attribution = scalar_attribution_for(table, key, resolved);
-    match toml_core::scalar_field_edit(
-        display_key,
-        table.get(key),
+    apply_string_scalar(
+        table,
+        "channel",
         &resolved.merged,
-        &attribution,
+        &support::scalar_attribution_for(table, "channel", resolved, support::channel_fails),
+        RustToolchainChannel::render,
         findings,
-    ) {
-        Some(toml_core::ScalarFieldEdit::Write(item)) => {
-            table[key] = item;
-        }
-        Some(toml_core::ScalarFieldEdit::Remove) => {
-            let _ = table.remove(key);
-        }
-        None => {}
-    }
-}
-
-fn apply_list_settings(
-    table: &mut Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    for (setting, resolved) in &requirement.list_settings {
-        let key = setting.file_key();
-        if report_table_list_shape(table, key, resolved, findings) {
-            let mut values = toml_core::table_list_values(table, key);
-            values.sort();
-            values.dedup();
-            toml_core::write_table_list(table, key, &values);
-        }
-        let mut values = toml_core::table_list_values(table, key);
-        values.sort();
-        values.dedup();
-        if let Some(mut updated) = toml_core::reconcile_list_field(
-            format!("toolchain.{key}"),
-            values,
-            resolved,
-            toml_core::ListFieldKeyStyle::FieldItem,
-            findings,
-        ) {
-            updated.sort();
-            updated.dedup();
-            toml_core::write_table_list(table, key, &updated);
-        }
-    }
-}
-
-fn report_table_list_shape(
-    table: &Table,
-    key: &str,
-    requirements: &file_core::ResolvedListRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) -> bool {
-    let Some(item) = table.get(key) else {
-        return false;
-    };
-    let attr = list_attribution(requirements);
-    if item.as_array().is_none() {
-        toml_core::push_mismatch(
-            findings,
-            format!("toolchain.{key}"),
-            toml_core::render_item(item),
-            "array of strings".to_owned(),
-            toml_core::list_message(requirements),
-            &attr,
-        );
-        return true;
-    }
-    let mut malformed = false;
-    for (index, value) in item.as_array().into_iter().flatten().enumerate() {
-        if value.as_str().is_some() {
-            continue;
-        }
-        malformed = true;
-        toml_core::push_mismatch(
-            findings,
-            format!("toolchain.{key}[{index}]"),
-            Some(value.to_string()),
-            "string".to_owned(),
-            toml_core::list_message(requirements),
-            &attr,
-        );
-    }
-    malformed
-}
-
-fn report_invalid_requirement_combinations(
-    requirement: &ResolvedRustToolchainTomlRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    let path = requirement
-        .scalar_settings
-        .get(&RustToolchainScalarSetting::Path);
-    if !has_path_value_requirement(requirement) {
-        return;
-    }
-    if let Some(channel) = requirement
-        .scalar_settings
-        .get(&RustToolchainScalarSetting::Channel)
-    {
-        findings.push(invalid_requirements(
-            "toolchain.path",
-            "`path` and `channel` cannot both be required.",
-            path.into_iter()
-                .chain(Some(channel))
-                .flat_map(|resolved| resolved.collected.iter())
-                .map(|(prov, assertion)| (prov.policy.clone(), assertion.message().to_owned()))
-                .collect(),
-        ));
-    }
-    for setting in [
-        RustToolchainScalarSetting::Profile,
-        RustToolchainScalarSetting::Channel,
-    ] {
-        if setting == RustToolchainScalarSetting::Channel {
-            continue;
-        }
-        if let Some(resolved) = requirement.scalar_settings.get(&setting) {
-            findings.push(invalid_requirements(
-                format!("toolchain.{}", setting.file_key()),
-                "`path` disables channel-based toolchain settings.",
-                path.into_iter()
-                    .chain(Some(resolved))
-                    .flat_map(|resolved| resolved.collected.iter())
-                    .map(|(prov, assertion)| (prov.policy.clone(), assertion.message().to_owned()))
-                    .collect(),
-            ));
-        }
-    }
-    for (setting, resolved) in &requirement.list_settings {
-        findings.push(invalid_requirements(
-            format!("toolchain.{}", setting.file_key()),
-            "`path` disables channel-based toolchain settings.",
-            path.into_iter()
-                .flat_map(|resolved| resolved.collected.iter())
-                .map(|(prov, assertion)| (prov.policy.clone(), assertion.message().to_owned()))
-                .chain(list_contributors(resolved))
-                .collect(),
-        ));
-    }
-}
-
-fn report_existing_file_conflicts(
-    table: &mut Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    if table.contains_key("channel") && table.contains_key("path") {
-        toml_core::push_mismatch(
-            findings,
-            "toolchain.path".to_owned(),
-            table.get("path").and_then(toml_core::render_item),
-            "absent when channel is set".to_owned(),
-            "`path` and `channel` cannot both be present.".to_owned(),
-            &requirement_attribution(requirement),
-        );
-        let _ = table.remove("path");
-    }
-    if table.contains_key("path") && has_channel_only_requirements(requirement) {
-        toml_core::push_mismatch(
-            findings,
-            "toolchain.path".to_owned(),
-            table.get("path").and_then(toml_core::render_item),
-            "absent when channel-based settings are required".to_owned(),
-            "`path` disables channel-based toolchain settings.".to_owned(),
-            &requirement_attribution(requirement),
-        );
-        let _ = table.remove("path");
-    }
-    report_relative_path_file(table, requirement, findings);
-}
-
-fn report_invalid_profile(
-    table: &Table,
-    resolved: &ResolvedRustToolchainScalarSetting,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    if let Some(value) = table.get("profile").and_then(Item::as_str) {
-        if matches!(value, "minimal" | "default" | "complete") {
-            return;
-        }
-        toml_core::push_mismatch(
-            findings,
-            "toolchain.profile".to_owned(),
-            Some(value.to_owned()),
-            "one of [\"minimal\", \"default\", \"complete\"]".to_owned(),
-            "rust-toolchain.toml profile must be accepted by rustup.".to_owned(),
-            &toml_core::attribution(resolved),
-        );
-    }
-}
-
-fn report_invalid_path_requirement(
-    resolved: &ResolvedRustToolchainScalarSetting,
-    findings: &mut Vec<file_core::Finding>,
-) -> bool {
-    if let file_core::ScalarAssertion::Equals(file_core::ConfigScalar::Str(value), message) =
-        &resolved.merged
-    {
-        if Path::new(value).is_absolute() {
-            return false;
-        }
-        findings.push(file_core::Finding::InvalidRequirements {
-            key: "toolchain.path".to_owned(),
-            message: "toolchain path requirements must be absolute.".to_owned(),
-            contributors: resolved
-                .collected
-                .iter()
-                .map(|(prov, _)| (prov.policy.clone(), message.clone()))
-                .collect(),
-        });
-        return true;
-    }
-    false
-}
-
-fn report_relative_path_file(
-    table: &Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    let Some(value) = table.get("path").and_then(Item::as_str) else {
-        return;
-    };
-    if Path::new(value).is_absolute() {
-        return;
-    }
-    toml_core::push_mismatch(
-        findings,
-        "toolchain.path".to_owned(),
-        Some(value.to_owned()),
-        "absolute path".to_owned(),
-        "rust-toolchain.toml path must be absolute.".to_owned(),
-        &requirement_attribution(requirement),
     );
 }
 
-fn apply_closed(
+fn apply_path(table: &mut Table, resolved: &ResolvedPath, findings: &mut Vec<file_core::Finding>) {
+    apply_string_scalar(
+        table,
+        "path",
+        &resolved.merged,
+        &support::scalar_attribution_for(table, "path", resolved, support::path_fails),
+        RustToolchainPath::render,
+        findings,
+    );
+}
+
+fn apply_profile(
     table: &mut Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
+    resolved: &ResolvedProfile,
     findings: &mut Vec<file_core::Finding>,
 ) {
-    if requirement.closed_settings.is_empty() {
+    apply_string_scalar(
+        table,
+        "profile",
+        &resolved.merged,
+        &support::scalar_attribution_for(table, "profile", resolved, support::profile_fails),
+        RustToolchainProfile::render,
+        findings,
+    );
+}
+
+fn apply_string_scalar<T>(
+    table: &mut Table,
+    key: &str,
+    assertion: &file_core::ScalarAssertion<T>,
+    attribution: &[file_core::Provenance],
+    render: impl Fn(&T) -> String,
+    findings: &mut Vec<file_core::Finding>,
+) {
+    let current = table.get(key);
+    let display_key = format!("toolchain.{key}");
+    match assertion {
+        file_core::ScalarAssertion::Equals(want, message) => {
+            let expected = render(want);
+            if current.and_then(Item::as_str) == Some(expected.as_str()) {
+                return;
+            }
+            toml_core::push_mismatch(
+                findings,
+                display_key,
+                current.and_then(toml_core::render_item),
+                expected.clone(),
+                message.clone(),
+                attribution,
+            );
+            table[key] = toml_value(expected);
+        }
+        file_core::ScalarAssertion::OneOf(allowed, message) => {
+            if current
+                .and_then(Item::as_str)
+                .is_some_and(|value| allowed.iter().map(&render).any(|allowed| allowed == value))
+            {
+                return;
+            }
+            let rendered = allowed.iter().map(render).collect::<Vec<_>>();
+            toml_core::push_mismatch(
+                findings,
+                display_key,
+                current.and_then(toml_core::render_item),
+                format!("one of {rendered:?}"),
+                message.clone(),
+                attribution,
+            );
+        }
+        file_core::ScalarAssertion::Present(message) => {
+            if current.is_some() {
+                return;
+            }
+            toml_core::push_mismatch(
+                findings,
+                display_key,
+                None,
+                "present".to_owned(),
+                message.clone(),
+                attribution,
+            );
+        }
+        file_core::ScalarAssertion::Absent(message) => {
+            let Some(rendered) = current.and_then(toml_core::render_item) else {
+                return;
+            };
+            toml_core::push_mismatch(
+                findings,
+                display_key,
+                Some(rendered),
+                "absent".to_owned(),
+                message.clone(),
+                attribution,
+            );
+            let _ = table.remove(key);
+        }
+        file_core::ScalarAssertion::AtLeast(..)
+        | file_core::ScalarAssertion::AtMost(..)
+        | file_core::ScalarAssertion::Range(..) => {}
+    }
+}
+
+fn apply_list(
+    table: &mut Table,
+    key: &str,
+    resolved: &file_core::ResolvedListRequirements,
+    findings: &mut Vec<file_core::Finding>,
+) {
+    if support::list_is_empty(resolved) {
         return;
     }
-    let allowed = requirement
-        .scalar_settings
-        .keys()
-        .map(|key| key.file_key())
-        .chain(requirement.list_settings.keys().map(|key| key.file_key()))
-        .collect::<BTreeSet<_>>();
-    let extras = table
-        .iter()
-        .map(|(key, _)| key.to_owned())
-        .filter(|key| !allowed.contains(key.as_str()))
-        .collect::<Vec<_>>();
-    for extra in extras {
+    let current_values = toml_core::table_list_values(table, key);
+    let mut values = current_values.clone();
+    values.sort();
+    values.dedup();
+    let canonical_changed = values != current_values;
+    if let Some(mut updated) = toml_core::reconcile_list_field(
+        format!("toolchain.{key}"),
+        values,
+        resolved,
+        toml_core::ListFieldKeyStyle::FieldItem,
+        findings,
+    ) {
+        updated.sort();
+        updated.dedup();
+        toml_core::write_table_list(table, key, &updated);
+    } else if canonical_changed {
+        let mut values = current_values;
+        values.sort();
+        values.dedup();
         toml_core::push_mismatch(
             findings,
-            format!("toolchain.{extra}"),
-            table.get(&extra).and_then(toml_core::render_item),
-            "absent because rust-toolchain.toml settings are closed".to_owned(),
-            requirement
-                .closed_settings
-                .first()
-                .map(|(_, msg)| msg.clone())
-                .unwrap_or_default(),
-            &requirement
-                .closed_settings
-                .iter()
-                .map(|(prov, _)| prov.clone())
-                .collect::<Vec<_>>(),
+            format!("toolchain.{key}"),
+            table.get(key).and_then(toml_core::render_item),
+            format!("{values:?}"),
+            "rust-toolchain.toml lists must be canonical.".to_owned(),
+            &support::list_attribution(resolved),
         );
-        let _ = table.remove(&extra);
-    }
-}
-
-fn report_empty_table(table: &Table, findings: &mut Vec<file_core::Finding>) {
-    if !table.is_empty() {
-        return;
-    }
-    findings.push(file_core::Finding::Mismatch {
-        key: "toolchain".to_owned(),
-        current: Some("{}".to_owned()),
-        expected: "at least one supported property".to_owned(),
-        message: "rust-toolchain.toml [toolchain] table cannot be empty.".to_owned(),
-        severity: file_core::Severity::Error,
-        attribution: Vec::new(),
-    });
-}
-
-fn scalar_attribution_for(
-    table: &Table,
-    key: &str,
-    resolved: &ResolvedRustToolchainScalarSetting,
-) -> Vec<file_core::Provenance> {
-    let current = table.get(key);
-    let filtered = resolved
-        .collected
-        .iter()
-        .filter(|(_, assertion)| toml_core::scalar_assertion_fails(current, assertion))
-        .map(|(prov, _)| prov.clone())
-        .collect::<Vec<_>>();
-    if filtered.is_empty() {
-        toml_core::attribution(resolved)
-    } else {
-        filtered
-    }
-}
-
-fn list_attribution(
-    requirements: &file_core::ResolvedListRequirements,
-) -> Vec<file_core::Provenance> {
-    requirements
-        .contains
-        .values()
-        .flat_map(toml_core::attribution)
-        .chain(
-            requirements
-                .excludes
-                .values()
-                .flat_map(toml_core::attribution),
-        )
-        .chain(requirements.exact.iter().flat_map(toml_core::attribution))
-        .collect()
-}
-
-fn list_contributors(requirements: &file_core::ResolvedListRequirements) -> Vec<(String, String)> {
-    requirements
-        .contains
-        .values()
-        .flat_map(|resolved| {
-            resolved
-                .collected
-                .iter()
-                .map(|(prov, msg)| (prov.policy.clone(), msg.clone()))
-        })
-        .chain(requirements.excludes.values().flat_map(|resolved| {
-            resolved
-                .collected
-                .iter()
-                .map(|(prov, msg)| (prov.policy.clone(), msg.clone()))
-        }))
-        .chain(requirements.exact.iter().flat_map(|resolved| {
-            resolved
-                .collected
-                .iter()
-                .map(|(prov, (_, msg))| (prov.policy.clone(), msg.clone()))
-        }))
-        .collect()
-}
-
-fn requirement_attribution(
-    requirement: &ResolvedRustToolchainTomlRequirements,
-) -> Vec<file_core::Provenance> {
-    requirement
-        .scalar_settings
-        .values()
-        .flat_map(toml_core::attribution)
-        .chain(
-            requirement
-                .list_settings
-                .values()
-                .flat_map(list_attribution),
-        )
-        .chain(
-            requirement
-                .closed_settings
-                .iter()
-                .map(|(prov, _)| prov.clone()),
-        )
-        .collect()
-}
-
-fn has_requirements(requirement: &ResolvedRustToolchainTomlRequirements) -> bool {
-    !requirement.scalar_settings.is_empty()
-        || !requirement.list_settings.is_empty()
-        || !requirement.closed_settings.is_empty()
-}
-
-fn has_path_value_requirement(requirement: &ResolvedRustToolchainTomlRequirements) -> bool {
-    requirement
-        .scalar_settings
-        .get(&RustToolchainScalarSetting::Path)
-        .is_some_and(|resolved| !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
-}
-
-fn has_channel_only_requirements(requirement: &ResolvedRustToolchainTomlRequirements) -> bool {
-    requirement
-        .scalar_settings
-        .contains_key(&RustToolchainScalarSetting::Profile)
-        || requirement
-            .scalar_settings
-            .contains_key(&RustToolchainScalarSetting::Channel)
-        || requirement
-            .list_settings
-            .contains_key(&RustToolchainListSetting::Components)
-        || requirement
-            .list_settings
-            .contains_key(&RustToolchainListSetting::Targets)
-}
-
-fn invalid_requirements(
-    key: impl Into<String>,
-    message: impl Into<String>,
-    contributors: Vec<(String, String)>,
-) -> file_core::Finding {
-    file_core::Finding::InvalidRequirements {
-        key: key.into(),
-        message: message.into(),
-        contributors,
+        toml_core::write_table_list(table, key, &values);
     }
 }

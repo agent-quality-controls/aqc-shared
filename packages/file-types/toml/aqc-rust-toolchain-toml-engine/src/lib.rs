@@ -8,14 +8,16 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
-pub use aqc_file_engine_core::{ConfigScalar, ListRequirements, ScalarAssertion};
+pub use aqc_file_engine_core::{
+    ConflictEntry, ListRequirements, Provenance, ResolvedListRequirements, ResolvedRequirement,
+    ScalarAssertion, ScalarValue,
+};
 #[cfg(feature = "api")]
 pub use engine::RustToolchainTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    ResolvedRustToolchainClosedSettings, ResolvedRustToolchainScalarSettings,
-    ResolvedRustToolchainTomlRequirements, RustToolchainListSetting, RustToolchainScalarSetting,
-    RustToolchainScalarSettings, RustToolchainTomlRequirements,
+    ResolvedRustToolchainTomlRequirements, RustToolchainChannel, RustToolchainPath,
+    RustToolchainProfile, RustToolchainTomlRequirements, RustToolchainValueError,
 };
 
 #[cfg(feature = "api")]

@@ -1,62 +1,52 @@
 //! Rust toolchain requirement merge logic.
 
-use std::collections::BTreeMap;
-
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, ListRequirements, Provenance, Resolve, ScalarAssertion,
+    ConflictEntry, ListRequirements, Provenance, Resolve, ScalarAssertion, resolve_list,
 };
 
 use super::{
-    ResolvedRustToolchainScalarSettings, ResolvedRustToolchainTomlRequirements,
-    RustToolchainListSetting, RustToolchainScalarSetting, RustToolchainScalarSettings,
-    RustToolchainTomlRequirements,
+    ResolvedRustToolchainTomlRequirements, RustToolchainChannel, RustToolchainPath,
+    RustToolchainProfile, RustToolchainTomlRequirements,
 };
 
 type RustToolchainRequirementInput = Vec<(Provenance, RustToolchainTomlRequirements)>;
 type RustToolchainMergeOutput = (ResolvedRustToolchainTomlRequirements, Vec<ConflictEntry>);
-type RustToolchainListRequirementsByKey =
-    BTreeMap<RustToolchainListSetting, Vec<(Provenance, ListRequirements)>>;
-type RustToolchainScalarRequirementInput = Vec<(Provenance, RustToolchainScalarSettings)>;
-type RustToolchainScalarAssertionsByKey =
-    BTreeMap<RustToolchainScalarSetting, Vec<(Provenance, ScalarAssertion<ConfigScalar>)>>;
 
 impl RustToolchainTomlRequirements {
     #[must_use]
     pub fn merge(reqs: RustToolchainRequirementInput) -> RustToolchainMergeOutput {
         let mut conflicts = Vec::new();
-        let scalar_settings = resolve_scalar_settings(
+        let channel =
+            resolve_optional_scalar("toolchain.channel", &reqs, field_channel, &mut conflicts);
+        let path = resolve_optional_scalar("toolchain.path", &reqs, field_path, &mut conflicts);
+        let profile =
+            resolve_optional_scalar("toolchain.profile", &reqs, field_profile, &mut conflicts);
+        let components = resolve_list(
+            "toolchain.components",
             reqs.iter()
-                .map(|(prov, req)| (prov.clone(), req.scalar_settings.clone()))
+                .map(|(prov, req)| (prov.clone(), normalize_list(req.components.clone())))
                 .collect(),
             &mut conflicts,
         );
-
-        let mut lists_by_key: RustToolchainListRequirementsByKey = BTreeMap::new();
-        let mut closed_settings = Vec::new();
-        for (prov, req) in reqs {
-            for (key, list) in req.list_settings {
-                lists_by_key
-                    .entry(key)
-                    .or_default()
-                    .push((prov.clone(), normalized_list_requirements(list)));
-            }
-            if let Some(message) = req.closed_settings {
-                closed_settings.push((prov, message));
-            }
-        }
-
-        let mut list_settings = BTreeMap::new();
-        for (key, lists) in lists_by_key {
-            let _ = list_settings.insert(
-                key,
-                aqc_file_engine_core::resolve_list(key.file_key(), lists, &mut conflicts),
-            );
-        }
+        let targets = resolve_list(
+            "toolchain.targets",
+            reqs.iter()
+                .map(|(prov, req)| (prov.clone(), normalize_list(req.targets.clone())))
+                .collect(),
+            &mut conflicts,
+        );
+        let closed_settings = reqs
+            .into_iter()
+            .filter_map(|(prov, req)| req.closed_settings.map(|message| (prov, message)))
+            .collect();
 
         (
             ResolvedRustToolchainTomlRequirements {
-                scalar_settings,
-                list_settings,
+                channel,
+                path,
+                profile,
+                components,
+                targets,
                 closed_settings,
             },
             conflicts,
@@ -64,45 +54,43 @@ impl RustToolchainTomlRequirements {
     }
 }
 
-fn resolve_scalar_settings(
-    input: RustToolchainScalarRequirementInput,
+fn resolve_optional_scalar<T>(
+    key: &str,
+    reqs: &[(Provenance, RustToolchainTomlRequirements)],
+    get: impl Fn(&RustToolchainTomlRequirements) -> &Option<ScalarAssertion<T>>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> ResolvedRustToolchainScalarSettings {
-    let mut by_key: RustToolchainScalarAssertionsByKey = BTreeMap::new();
-    for (prov, map) in input {
-        for (key, assertion) in map {
-            by_key
-                .entry(key)
-                .or_default()
-                .push((prov.clone(), assertion));
-        }
+) -> Option<aqc_file_engine_core::ResolvedRequirement<ScalarAssertion<T>, ScalarAssertion<T>>>
+where
+    T: aqc_file_engine_core::ScalarValue,
+{
+    let items = reqs
+        .iter()
+        .filter_map(|(prov, req)| get(req).clone().map(|assertion| (prov.clone(), assertion)))
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        None
+    } else {
+        ScalarAssertion::<T>::resolve(key, items, conflicts)
     }
-
-    let mut out = BTreeMap::new();
-    for (key, items) in by_key {
-        let key_text = key.file_key();
-        if !items
-            .iter()
-            .all(|(_, assertion)| key.scalar_assertion_is_legal(assertion))
-        {
-            aqc_file_engine_core::push_conflict(
-                key_text,
-                "scalar-operation-unsupported",
-                &items,
-                aqc_file_engine_core::render_scalar_assertion,
-                conflicts,
-            );
-            continue;
-        }
-        if let Some(resolved) = ScalarAssertion::<ConfigScalar>::resolve(key_text, items, conflicts)
-        {
-            let _ = out.insert(key, resolved);
-        }
-    }
-    out
 }
 
-fn normalized_list_requirements(mut list: ListRequirements) -> ListRequirements {
+fn field_channel(
+    req: &RustToolchainTomlRequirements,
+) -> &Option<ScalarAssertion<RustToolchainChannel>> {
+    &req.channel
+}
+
+fn field_path(req: &RustToolchainTomlRequirements) -> &Option<ScalarAssertion<RustToolchainPath>> {
+    &req.path
+}
+
+fn field_profile(
+    req: &RustToolchainTomlRequirements,
+) -> &Option<ScalarAssertion<RustToolchainProfile>> {
+    &req.profile
+}
+
+fn normalize_list(mut list: ListRequirements) -> ListRequirements {
     if let Some((values, message)) = list.exact {
         let mut sorted = values;
         sorted.sort();

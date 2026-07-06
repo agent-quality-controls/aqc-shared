@@ -83,4 +83,5 @@ api = []
 [dependencies]
 aqc-file-engine-core = "0.3.2"
 aqc-toml-engine-core = "0.3.2"
+serde = { version = "1", features = ["derive"] }
 toml_edit = "0.25"

@@ -2,11 +2,8 @@
 
 mod merge;
 mod model;
-mod settings;
 
 pub use model::{
-    ResolvedRustToolchainClosedSettings, ResolvedRustToolchainScalarSettings,
-    ResolvedRustToolchainTomlRequirements, RustToolchainScalarSettings,
-    RustToolchainTomlRequirements,
+    ResolvedRustToolchainTomlRequirements, RustToolchainChannel, RustToolchainPath,
+    RustToolchainProfile, RustToolchainTomlRequirements, RustToolchainValueError,
 };
-pub use settings::{RustToolchainListSetting, RustToolchainScalarSetting};
