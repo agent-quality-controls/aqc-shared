@@ -5,8 +5,8 @@ use toml_edit as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_deny_toml_engine::{
-    DenyFeatureBanSpec, DenyGraphTargetSpec, DenyLintLevel, DenyNonEmptyString,
-    DenyTomlRequirements,
+    DenyConfidenceThreshold, DenyFeatureBanSpec, DenyGraphTargetSpec, DenyLintLevel,
+    DenyNonEmptyString, DenyTomlRequirements,
 };
 use aqc_file_engine_core::{ItemRequirements, ListRequirements, Provenance, ScalarAssertion};
 
@@ -45,6 +45,45 @@ fn uses_core_scalar_merge() {
         "scalar merge should use core behavior"
     );
     assert!(resolved.bans_multiple_versions.is_some());
+}
+
+#[test]
+fn confidence_threshold_uses_core_ordered_scalar_merge() {
+    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![
+        (
+            provenance("left"),
+            DenyTomlRequirements {
+                licenses_confidence_threshold: Some(ScalarAssertion::AtLeast(
+                    DenyConfidenceThreshold::new("0.8")
+                        .expect("test confidence threshold should construct"),
+                    "left".to_owned(),
+                )),
+                ..DenyTomlRequirements::default()
+            },
+        ),
+        (
+            provenance("right"),
+            DenyTomlRequirements {
+                licenses_confidence_threshold: Some(ScalarAssertion::AtLeast(
+                    DenyConfidenceThreshold::new("0.9")
+                        .expect("test confidence threshold should construct"),
+                    "right".to_owned(),
+                )),
+                ..DenyTomlRequirements::default()
+            },
+        ),
+    ]);
+    assert!(
+        conflicts.is_empty(),
+        "ordered confidence thresholds should merge"
+    );
+    assert!(matches!(
+        resolved
+            .licenses_confidence_threshold
+            .expect("resolved confidence threshold should exist")
+            .merged,
+        ScalarAssertion::AtLeast(value, _) if value.as_str() == "0.9"
+    ));
 }
 
 #[test]

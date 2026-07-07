@@ -63,7 +63,23 @@ macro_rules! impl_string_scalar {
 
 impl_string_scalar!(DenyNonEmptyString);
 impl_string_scalar!(DenyDuration);
-impl_string_scalar!(DenyConfidenceThreshold);
+
+impl DenyTomlScalar for DenyConfidenceThreshold {
+    fn parse_item(item: &Item) -> Option<Self> {
+        item.as_float()
+            .map(|value| value.to_string())
+            .or_else(|| item.as_integer().map(|value| value.to_string()))
+            .and_then(|value| Self::new(value).ok())
+    }
+
+    fn write_item(value: &Self) -> Item {
+        toml_edit::value(value.as_f64())
+    }
+
+    fn render_value(value: &Self) -> String {
+        value.as_str().to_owned()
+    }
+}
 
 macro_rules! impl_enum_scalar {
     ($type_name:ty) => {

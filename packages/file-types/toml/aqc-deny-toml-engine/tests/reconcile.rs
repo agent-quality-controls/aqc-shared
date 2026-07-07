@@ -5,8 +5,9 @@ use toml_edit as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_deny_toml_engine::{
-    DenyBuildGlobSpec, DenyFeatureBanSpec, DenyGraphTargetSpec, DenyLintLevel, DenyNonEmptyString,
-    DenyPackageReasonSpec, DenyTomlEngine, DenyTomlRequirements, ResolvedDenyTomlRequirements,
+    DenyBuildGlobSpec, DenyConfidenceThreshold, DenyDuration, DenyFeatureBanSpec,
+    DenyGraphTargetSpec, DenyLintLevel, DenyNonEmptyString, DenyPackageReasonSpec, DenyTomlEngine,
+    DenyTomlRequirements, ResolvedDenyTomlRequirements,
 };
 use aqc_file_engine_core::{
     FileEngine, Finding, ItemRequirements, ListRequirements, Provenance, ScalarAssertion,
@@ -29,6 +30,81 @@ fn valid_drift_is_repaired() {
     assert!(
         expected.contains("multiple-versions = \"deny\""),
         "wrong scalar value should be repaired"
+    );
+}
+
+#[test]
+fn confidence_threshold_writes_float() {
+    let output = reconcile(
+        "",
+        DenyTomlRequirements {
+            licenses_confidence_threshold: Some(ScalarAssertion::AtLeast(
+                DenyConfidenceThreshold::new("0.8")
+                    .expect("test confidence threshold should construct"),
+                "minimum confidence".to_owned(),
+            )),
+            ..DenyTomlRequirements::default()
+        },
+    );
+    let expected = expected(output);
+    assert!(
+        expected.contains("confidence-threshold = 0.8"),
+        "confidence threshold should be written as a TOML float"
+    );
+    assert!(
+        !expected.contains("confidence-threshold = \"0.8\""),
+        "confidence threshold must not be written as a string"
+    );
+}
+
+#[test]
+fn confidence_threshold_at_least_accepts_stricter_value() {
+    let output = reconcile(
+        "[licenses]\nconfidence-threshold = 0.9\n",
+        DenyTomlRequirements {
+            licenses_confidence_threshold: Some(ScalarAssertion::AtLeast(
+                DenyConfidenceThreshold::new("0.8")
+                    .expect("test confidence threshold should construct"),
+                "minimum confidence".to_owned(),
+            )),
+            ..DenyTomlRequirements::default()
+        },
+    );
+    assert!(
+        output.findings.is_empty(),
+        "stricter confidence threshold should satisfy AtLeast"
+    );
+}
+
+#[test]
+fn confidence_threshold_at_least_repairs_weaker_value() {
+    let output = reconcile(
+        "[licenses]\nconfidence-threshold = 0.7\n",
+        DenyTomlRequirements {
+            licenses_confidence_threshold: Some(ScalarAssertion::AtLeast(
+                DenyConfidenceThreshold::new("0.8")
+                    .expect("test confidence threshold should construct"),
+                "minimum confidence".to_owned(),
+            )),
+            ..DenyTomlRequirements::default()
+        },
+    );
+    let expected = expected(output);
+    assert!(
+        expected.contains("confidence-threshold = 0.8"),
+        "weaker confidence threshold should be repaired to the minimum"
+    );
+}
+
+#[test]
+fn duration_requires_cargo_deny_shape() {
+    assert!(
+        DenyDuration::new("90d").is_err(),
+        "non cargo-deny duration shape must be rejected"
+    );
+    assert!(
+        DenyDuration::new("P90D").is_ok(),
+        "cargo-deny duration shape must be accepted"
     );
 }
 

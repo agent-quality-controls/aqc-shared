@@ -1,5 +1,6 @@
 //! Deny TOML scalar and item value types.
 
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -8,9 +9,22 @@ mod value_impls;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DenyTomlValueError {
-    Empty { field: &'static str },
-    UnknownEnum { field: &'static str, value: String },
-    OverlappingFeatures { package: String, feature: String },
+    Empty {
+        field: &'static str,
+    },
+    Invalid {
+        field: &'static str,
+        value: String,
+        reason: &'static str,
+    },
+    UnknownEnum {
+        field: &'static str,
+        value: String,
+    },
+    OverlappingFeatures {
+        package: String,
+        feature: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -52,8 +66,32 @@ pub struct DenyPackageSpec(String);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DenyDuration(String);
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct DenyConfidenceThreshold(String);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct DenyConfidenceThreshold {
+    text: String,
+    millionths: u32,
+}
+
+impl PartialEq for DenyConfidenceThreshold {
+    fn eq(&self, other: &Self) -> bool {
+        self.millionths == other.millionths
+    }
+}
+
+impl Eq for DenyConfidenceThreshold {}
+
+impl PartialOrd for DenyConfidenceThreshold {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DenyConfidenceThreshold {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.millionths.cmp(&other.millionths)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DenyGraphTargetSpec {
@@ -200,5 +238,111 @@ macro_rules! impl_text_wrapper {
 
 impl_text_wrapper!(DenyNonEmptyString, "text");
 impl_text_wrapper!(DenyPackageSpec, "package");
-impl_text_wrapper!(DenyDuration, "duration");
-impl_text_wrapper!(DenyConfidenceThreshold, "confidence-threshold");
+
+impl DenyDuration {
+    pub fn new(value: impl Into<String>) -> Result<Self, DenyTomlValueError> {
+        let value = value.into();
+        if value.is_empty() {
+            return Err(DenyTomlValueError::Empty { field: "duration" });
+        }
+        if !value.starts_with('P') {
+            return Err(DenyTomlValueError::Invalid {
+                field: "duration",
+                value,
+                reason: "duration must use cargo-deny ISO-8601 form such as P90D",
+            });
+        }
+        Ok(Self(value))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl DenyConfidenceThreshold {
+    pub fn new(value: impl Into<String>) -> Result<Self, DenyTomlValueError> {
+        let value = value.into();
+        if value.is_empty() {
+            return Err(DenyTomlValueError::Empty {
+                field: "confidence-threshold",
+            });
+        }
+        let millionths = parse_confidence_millionths(&value)?;
+        Ok(Self {
+            text: canonical_confidence_text(&value),
+            millionths,
+        })
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.text
+    }
+
+    #[must_use]
+    pub fn as_f64(&self) -> f64 {
+        self.text.parse::<f64>().unwrap_or(0.0)
+    }
+}
+
+impl TryFrom<String> for DenyConfidenceThreshold {
+    type Error = DenyTomlValueError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl From<DenyConfidenceThreshold> for String {
+    fn from(value: DenyConfidenceThreshold) -> Self {
+        value.text
+    }
+}
+
+fn parse_confidence_millionths(value: &str) -> Result<u32, DenyTomlValueError> {
+    let Some((whole, fraction)) = value.split_once('.') else {
+        return match value {
+            "0" => Ok(0),
+            "1" => Ok(1_000_000),
+            _ => Err(invalid_confidence(value)),
+        };
+    };
+    if fraction.is_empty()
+        || fraction.len() > 6
+        || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(invalid_confidence(value));
+    }
+    let padded = format!("{fraction:0<6}");
+    let fraction_value = padded
+        .parse::<u32>()
+        .map_err(|_| invalid_confidence(value))?;
+    match whole {
+        "0" => Ok(fraction_value),
+        "1" if fraction_value == 0 => Ok(1_000_000),
+        _ => Err(invalid_confidence(value)),
+    }
+}
+
+fn canonical_confidence_text(value: &str) -> String {
+    let mut out = value.to_owned();
+    if out.contains('.') {
+        while out.ends_with('0') {
+            let _ = out.pop();
+        }
+        if out.ends_with('.') {
+            out.push('0');
+        }
+    }
+    out
+}
+
+fn invalid_confidence(value: &str) -> DenyTomlValueError {
+    DenyTomlValueError::Invalid {
+        field: "confidence-threshold",
+        value: value.to_owned(),
+        reason: "confidence-threshold must be a number from 0.0 through 1.0",
+    }
+}

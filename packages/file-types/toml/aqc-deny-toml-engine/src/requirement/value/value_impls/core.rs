@@ -74,10 +74,10 @@ impl ScalarValue for value::DenyDuration {
 
 impl ScalarValue for value::DenyConfidenceThreshold {
     fn render(&self) -> String {
-        self.0.clone()
+        self.as_str().to_owned()
     }
-    fn compare_for_order(&self, _other: &Self) -> Option<Ordering> {
-        None
+    fn compare_for_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
