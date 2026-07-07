@@ -1,0 +1,167 @@
+//! Deny TOML requirement model types.
+
+#![expect(
+    clippy::disallowed_types,
+    reason = "`Any` is used only for EngineRequirement downcast dispatch."
+)]
+
+use core::any::Any;
+
+use aqc_file_engine_core::{
+    EngineRequirement, ItemRequirements, ListRequirements, Provenance, ResolvedItemRequirements,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+};
+
+use super::value;
+
+type ResolvedScalar<T> = Option<ResolvedRequirement<ScalarAssertion<T>, ScalarAssertion<T>>>;
+
+#[derive(Debug, Clone, Default)]
+pub struct DenyTomlRequirements {
+    pub graph_targets: ItemRequirements<value::DenyGraphTargetSpec>,
+    pub graph_exclude: ListRequirements,
+    pub graph_exclude_dev: Option<ScalarAssertion<bool>>,
+    pub graph_exclude_unpublished: Option<ScalarAssertion<bool>>,
+    pub graph_all_features: Option<ScalarAssertion<bool>>,
+    pub graph_no_default_features: Option<ScalarAssertion<bool>>,
+    pub graph_features: ListRequirements,
+    pub output_feature_depth: Option<ScalarAssertion<u64>>,
+    pub advisories_version: Option<ScalarAssertion<u64>>,
+    pub advisories_db_path: Option<ScalarAssertion<value::DenyNonEmptyString>>,
+    pub advisories_db_urls: ListRequirements,
+    pub advisories_yanked: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub advisories_disable_yank_checking: Option<ScalarAssertion<bool>>,
+    pub advisories_ignore: ItemRequirements<value::DenyAdvisoryIgnoreSpec>,
+    pub advisories_unmaintained: Option<ScalarAssertion<value::DenyAdvisoryScope>>,
+    pub advisories_unsound: Option<ScalarAssertion<value::DenyAdvisoryScope>>,
+    pub advisories_maximum_db_staleness: Option<ScalarAssertion<value::DenyDuration>>,
+    pub advisories_git_fetch_with_cli: Option<ScalarAssertion<bool>>,
+    pub advisories_unused_ignored_advisory: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub licenses_version: Option<ScalarAssertion<u64>>,
+    pub licenses_include_dev: Option<ScalarAssertion<bool>>,
+    pub licenses_include_build: Option<ScalarAssertion<bool>>,
+    pub licenses_allow: ListRequirements,
+    pub licenses_exceptions: ItemRequirements<value::DenyLicenseException>,
+    pub licenses_confidence_threshold: Option<ScalarAssertion<value::DenyConfidenceThreshold>>,
+    pub licenses_clarify: ItemRequirements<value::DenyLicenseClarification>,
+    pub licenses_private_ignore: Option<ScalarAssertion<bool>>,
+    pub licenses_private_registries: ListRequirements,
+    pub licenses_private_ignore_sources: ListRequirements,
+    pub licenses_unused_allowed_license: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub licenses_unused_license_exception: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_multiple_versions: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_multiple_versions_include_dev: Option<ScalarAssertion<bool>>,
+    pub bans_wildcards: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_allow_wildcard_paths: Option<ScalarAssertion<bool>>,
+    pub bans_highlight: Option<ScalarAssertion<value::DenyGraphHighlight>>,
+    pub bans_workspace_default_features: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_external_default_features: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_allow: ItemRequirements<value::DenyPackageReasonSpec>,
+    pub bans_allow_workspace: Option<ScalarAssertion<bool>>,
+    pub bans_deny: ItemRequirements<value::DenyBanSpec>,
+    pub bans_features: ItemRequirements<value::DenyFeatureBanSpec>,
+    pub bans_skip: ItemRequirements<value::DenyPackageReasonSpec>,
+    pub bans_skip_tree: ItemRequirements<value::DenySkipTreeSpec>,
+    pub bans_workspace_dependencies_duplicates: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_workspace_dependencies_include_path_dependencies: Option<ScalarAssertion<bool>>,
+    pub bans_workspace_dependencies_unused: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_build_executables: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_build_interpreted: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub bans_build_script_extensions: ListRequirements,
+    pub bans_build_enable_builtin_globs: Option<ScalarAssertion<bool>>,
+    pub bans_build_globs: ItemRequirements<value::DenyBuildGlobSpec>,
+    pub bans_build_include_dependencies: Option<ScalarAssertion<bool>>,
+    pub bans_build_include_workspace: Option<ScalarAssertion<bool>>,
+    pub bans_build_include_archives: Option<ScalarAssertion<bool>>,
+    pub sources_unknown_registry: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub sources_unknown_git: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub sources_required_git_spec: Option<ScalarAssertion<value::DenyGitSpec>>,
+    pub sources_allow_git: ListRequirements,
+    pub sources_private: ListRequirements,
+    pub sources_allow_registry: ListRequirements,
+    pub sources_allow_org_github: ListRequirements,
+    pub sources_allow_org_gitlab: ListRequirements,
+    pub sources_allow_org_bitbucket: ListRequirements,
+    pub sources_unused_allowed_source: Option<ScalarAssertion<value::DenyLintLevel>>,
+    pub closed_settings: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedDenyTomlRequirements {
+    pub graph_targets: ResolvedItemRequirements<value::DenyGraphTargetSpec>,
+    pub graph_exclude: ResolvedListRequirements,
+    pub graph_exclude_dev: ResolvedScalar<bool>,
+    pub graph_exclude_unpublished: ResolvedScalar<bool>,
+    pub graph_all_features: ResolvedScalar<bool>,
+    pub graph_no_default_features: ResolvedScalar<bool>,
+    pub graph_features: ResolvedListRequirements,
+    pub output_feature_depth: ResolvedScalar<u64>,
+    pub advisories_version: ResolvedScalar<u64>,
+    pub advisories_db_path: ResolvedScalar<value::DenyNonEmptyString>,
+    pub advisories_db_urls: ResolvedListRequirements,
+    pub advisories_yanked: ResolvedScalar<value::DenyLintLevel>,
+    pub advisories_disable_yank_checking: ResolvedScalar<bool>,
+    pub advisories_ignore: ResolvedItemRequirements<value::DenyAdvisoryIgnoreSpec>,
+    pub advisories_unmaintained: ResolvedScalar<value::DenyAdvisoryScope>,
+    pub advisories_unsound: ResolvedScalar<value::DenyAdvisoryScope>,
+    pub advisories_maximum_db_staleness: ResolvedScalar<value::DenyDuration>,
+    pub advisories_git_fetch_with_cli: ResolvedScalar<bool>,
+    pub advisories_unused_ignored_advisory: ResolvedScalar<value::DenyLintLevel>,
+    pub licenses_version: ResolvedScalar<u64>,
+    pub licenses_include_dev: ResolvedScalar<bool>,
+    pub licenses_include_build: ResolvedScalar<bool>,
+    pub licenses_allow: ResolvedListRequirements,
+    pub licenses_exceptions: ResolvedItemRequirements<value::DenyLicenseException>,
+    pub licenses_confidence_threshold: ResolvedScalar<value::DenyConfidenceThreshold>,
+    pub licenses_clarify: ResolvedItemRequirements<value::DenyLicenseClarification>,
+    pub licenses_private_ignore: ResolvedScalar<bool>,
+    pub licenses_private_registries: ResolvedListRequirements,
+    pub licenses_private_ignore_sources: ResolvedListRequirements,
+    pub licenses_unused_allowed_license: ResolvedScalar<value::DenyLintLevel>,
+    pub licenses_unused_license_exception: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_multiple_versions: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_multiple_versions_include_dev: ResolvedScalar<bool>,
+    pub bans_wildcards: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_allow_wildcard_paths: ResolvedScalar<bool>,
+    pub bans_highlight: ResolvedScalar<value::DenyGraphHighlight>,
+    pub bans_workspace_default_features: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_external_default_features: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_allow: ResolvedItemRequirements<value::DenyPackageReasonSpec>,
+    pub bans_allow_workspace: ResolvedScalar<bool>,
+    pub bans_deny: ResolvedItemRequirements<value::DenyBanSpec>,
+    pub bans_features: ResolvedItemRequirements<value::DenyFeatureBanSpec>,
+    pub bans_skip: ResolvedItemRequirements<value::DenyPackageReasonSpec>,
+    pub bans_skip_tree: ResolvedItemRequirements<value::DenySkipTreeSpec>,
+    pub bans_workspace_dependencies_duplicates: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_workspace_dependencies_include_path_dependencies: ResolvedScalar<bool>,
+    pub bans_workspace_dependencies_unused: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_build_executables: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_build_interpreted: ResolvedScalar<value::DenyLintLevel>,
+    pub bans_build_script_extensions: ResolvedListRequirements,
+    pub bans_build_enable_builtin_globs: ResolvedScalar<bool>,
+    pub bans_build_globs: ResolvedItemRequirements<value::DenyBuildGlobSpec>,
+    pub bans_build_include_dependencies: ResolvedScalar<bool>,
+    pub bans_build_include_workspace: ResolvedScalar<bool>,
+    pub bans_build_include_archives: ResolvedScalar<bool>,
+    pub sources_unknown_registry: ResolvedScalar<value::DenyLintLevel>,
+    pub sources_unknown_git: ResolvedScalar<value::DenyLintLevel>,
+    pub sources_required_git_spec: ResolvedScalar<value::DenyGitSpec>,
+    pub sources_allow_git: ResolvedListRequirements,
+    pub sources_private: ResolvedListRequirements,
+    pub sources_allow_registry: ResolvedListRequirements,
+    pub sources_allow_org_github: ResolvedListRequirements,
+    pub sources_allow_org_gitlab: ResolvedListRequirements,
+    pub sources_allow_org_bitbucket: ResolvedListRequirements,
+    pub sources_unused_allowed_source: ResolvedScalar<value::DenyLintLevel>,
+    pub closed_settings: Vec<(Provenance, String)>,
+}
+
+impl EngineRequirement for DenyTomlRequirements {
+    fn engine_id(&self) -> &'static str {
+        crate::ENGINE_ID
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}

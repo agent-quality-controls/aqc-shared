@@ -8,13 +8,15 @@
     )
 )]
 
-use std::collections::BTreeSet;
-
 use aqc_file_engine_core::{
-    Finding, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, Severity,
+    Finding, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, Severity,
+};
+use aqc_toml_engine_core::{
+    TomlArrayItem, TomlItemError, TomlItemField, reconcile_array_items,
+    report_list_shape_with_message,
 };
 use globset::{GlobBuilder, GlobMatcher};
-use toml_edit::{Array, DocumentMut, InlineTable, Item, Value};
+use toml_edit::{Array, DocumentMut, InlineTable, Value};
 
 use crate::requirement::{ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, DisallowedEntry};
 
@@ -34,78 +36,35 @@ pub(crate) fn apply(
         return;
     }
 
-    let array = if merged.required.is_empty() {
-        let Some(item) = doc.get_mut(table_key) else {
-            return;
-        };
-        if !item.is_array() {
-            push_malformed_array_finding(table_key, item, merged, findings);
-            return;
-        }
-        let Some(array) = item.as_array_mut() else {
-            return;
-        };
-        array
-    } else {
-        let item = doc
-            .entry(table_key)
-            .or_insert(Item::Value(Value::Array(Array::new())));
-        if !item.is_array() {
-            push_malformed_array_finding(table_key, item, merged, findings);
-            *item = Item::Value(Value::Array(Array::new()));
-        }
-        let Some(array) = item.as_array_mut() else {
-            return;
-        };
-        array
+    reconcile_array_items(
+        doc,
+        TomlItemField::new(&[], table_key, table_key),
+        merged,
+        findings,
+    );
+
+    let Some(item) = doc.get_mut(table_key) else {
+        return;
     };
-    let mut current_paths = collect_current_paths(array);
-
-    for (path, entry) in &merged.required {
-        if glob_conflicts.required.contains(path) {
-            continue;
+    let Some(array) = item.as_array_mut() else {
+        if !globs.globs.is_empty() {
+            let attribution = globs
+                .globs
+                .values()
+                .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone()))
+                .collect::<Vec<_>>();
+            let message = globs
+                .globs
+                .values()
+                .flat_map(|entry| entry.collected.iter().map(|(_, msg)| msg.as_str()))
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            let _ = report_list_shape_with_message(doc, table_key, message, &attribution, findings);
         }
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
-        apply_required(
-            table_key,
-            array,
-            &mut current_paths,
-            &entry.merged,
-            &attribution,
-            findings,
-        );
-    }
-
-    for entry in merged.forbidden.values() {
-        let path = &entry.merged.path;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
-        let message = entry
-            .collected
-            .first()
-            .map(|(_, msg)| msg.clone())
-            .unwrap_or_default();
-        apply_forbidden(table_key, array, path, &message, &attribution, findings);
-    }
-
+        return;
+    };
     apply_forbidden_path_globs(table_key, array, globs, glob_conflicts, findings);
-
-    if !merged.closed_by.is_empty() {
-        let allowed = merged.required.keys().cloned().collect();
-        let attribution = merged
-            .closed_by
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
-        prune_extras(table_key, array, &allowed, &attribution, findings);
-    }
 }
 
 fn apply_forbidden_path_globs(
@@ -168,150 +127,6 @@ fn apply_forbidden_path_globs(
     }
 }
 
-fn apply_required(
-    table_key: &str,
-    array: &mut Array,
-    current_paths: &mut BTreeSet<String>,
-    entry: &DisallowedEntry,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if let Some(index) = position_with_path(array, &entry.path) {
-        let current = array.get(index).cloned();
-        if current
-            .as_ref()
-            .is_some_and(|value| disallowed_value_matches(value, entry))
-        {
-            return;
-        }
-        let _ = array.replace(index, disallowed_value(entry));
-        findings.push(Finding::Mismatch {
-            key: format!("{table_key}[?path == \"{}\"]", entry.path),
-            current: current.map(|value| value.to_string()),
-            expected: format_entry(entry),
-            message: entry.message.clone(),
-            severity: Severity::Error,
-            attribution: attribution.to_vec(),
-        });
-        return;
-    }
-    array.push(disallowed_value(entry));
-    let _ = current_paths.insert(entry.path.clone());
-    findings.push(Finding::Mismatch {
-        key: format!("{table_key}[?path == \"{}\"]", entry.path),
-        current: None,
-        expected: format_entry(entry),
-        message: entry.message.clone(),
-        severity: Severity::Error,
-        attribution: attribution.to_vec(),
-    });
-}
-
-fn push_malformed_array_finding(
-    table_key: &str,
-    item: &Item,
-    merged: &ResolvedItemRequirements<DisallowedEntry>,
-    findings: &mut Vec<Finding>,
-) {
-    let mut attribution = merged
-        .required
-        .values()
-        .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone()))
-        .collect::<Vec<_>>();
-    attribution.extend(
-        merged
-            .forbidden
-            .values()
-            .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone())),
-    );
-    attribution.extend(merged.closed_by.iter().map(|(prov, _)| prov.clone()));
-    findings.push(Finding::Mismatch {
-        key: table_key.to_owned(),
-        current: Some(item.to_string().trim().to_owned()),
-        expected: "array".to_owned(),
-        message: String::new(),
-        severity: Severity::Error,
-        attribution,
-    });
-}
-
-fn apply_forbidden(
-    table_key: &str,
-    array: &mut Array,
-    path_to_remove: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let positions = positions_with_path(array, path_to_remove);
-    for i in positions.into_iter().rev() {
-        let _ = array.remove(i);
-        findings.push(Finding::Mismatch {
-            key: format!("{table_key}[?path == \"{path_to_remove}\"]"),
-            current: Some(path_to_remove.to_owned()),
-            expected: "absent".into(),
-            message: message.to_owned(),
-            severity: Severity::Error,
-            attribution: attribution.to_vec(),
-        });
-    }
-}
-
-fn prune_extras(
-    table_key: &str,
-    array: &mut Array,
-    allowed: &BTreeSet<String>,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let mut indices_to_remove = Vec::new();
-    for (i, value) in array.iter().enumerate() {
-        if let Some(path) = read_entry_path(value) {
-            if !allowed.contains(&path) {
-                indices_to_remove.push((i, path));
-            }
-        }
-    }
-    for (i, path) in indices_to_remove.into_iter().rev() {
-        let _ = array.remove(i);
-        findings.push(Finding::Mismatch {
-            key: format!("{table_key}[?path == \"{path}\"]"),
-            current: Some(path),
-            expected: "absent (closed table)".into(),
-            message: String::new(),
-            severity: Severity::Error,
-            attribution: attribution.to_vec(),
-        });
-    }
-}
-
-fn collect_current_paths(array: &Array) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    for entry in array {
-        if let Some(path) = read_entry_path(entry) {
-            let _ = out.insert(path);
-        }
-    }
-    out
-}
-
-fn positions_with_path(array: &Array, target: &str) -> Vec<usize> {
-    let mut out = Vec::new();
-    for (i, value) in array.iter().enumerate() {
-        if read_entry_path(value).as_deref() == Some(target) {
-            out.push(i);
-        }
-    }
-    out
-}
-
-fn position_with_path(array: &Array, target: &str) -> Option<usize> {
-    array
-        .iter()
-        .enumerate()
-        .find_map(|(i, value)| (read_entry_path(value).as_deref() == Some(target)).then_some(i))
-}
-
 fn read_entry_path(item: &Value) -> Option<String> {
     if let Some(path) = item.as_str() {
         return Some(path.to_owned());
@@ -331,14 +146,7 @@ fn read_entry_reason(item: &Value) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn disallowed_value_matches(item: &Value, required: &DisallowedEntry) -> bool {
-    read_entry_path(item).as_deref() == Some(required.path.as_str())
-        && (required.message.is_empty()
-            || read_entry_reason(item).as_deref() == Some(required.message.as_str()))
-}
-
 fn disallowed_value(entry: &DisallowedEntry) -> Value {
-    // Required disallowed entries are writable array items.
     if entry.message.is_empty() {
         Value::from(entry.path.as_str())
     } else {
@@ -354,6 +162,33 @@ fn format_entry(entry: &DisallowedEntry) -> String {
         format!("path={}", entry.path)
     } else {
         format!("path={} reason={}", entry.path, entry.message)
+    }
+}
+
+impl TomlArrayItem for DisallowedEntry {
+    fn read_value(value: &Value) -> Result<Self, TomlItemError> {
+        let Some(path) = read_entry_path(value) else {
+            return Err(TomlItemError::new(
+                "disallowed entry requires a string path or inline table path",
+            ));
+        };
+        Ok(Self {
+            path,
+            message: read_entry_reason(value).unwrap_or_default(),
+        })
+    }
+
+    fn write_value(&self) -> Value {
+        disallowed_value(self)
+    }
+
+    fn matches_value(current: &Self, required: &Self) -> bool {
+        current.path == required.path
+            && (required.message.is_empty() || current.message == required.message)
+    }
+
+    fn render_value(&self) -> String {
+        format_entry(self)
     }
 }
 

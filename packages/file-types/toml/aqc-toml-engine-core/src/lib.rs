@@ -3,6 +3,8 @@
 #[cfg(feature = "api")]
 mod finding;
 #[cfg(feature = "api")]
+mod items;
+#[cfg(feature = "api")]
 mod lists;
 #[cfg(feature = "api")]
 mod scalars;
@@ -11,6 +13,11 @@ mod tables;
 
 #[cfg(feature = "api")]
 pub use finding::{attribution, push_mismatch};
+#[cfg(feature = "api")]
+pub use items::{
+    TomlArrayItem, TomlArrayTableItem, TomlItemError, TomlItemField, reconcile_array_items,
+    reconcile_array_table_items,
+};
 #[cfg(feature = "api")]
 pub use lists::{
     ListFieldKeyStyle, list_contains, list_item, list_message, list_values, reconcile_list_field,

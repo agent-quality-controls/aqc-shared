@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "aqc-deny-toml-engine"
+version = "0.1.0"
+dependencies = [
+ "aqc-file-engine-core",
+ "aqc-toml-engine-core",
+ "serde",
+ "toml_edit",
+]
+
+[[package]]
 name = "aqc-file-engine-core"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14,6 +24,8 @@ dependencies = [
 [[package]]
 name = "aqc-toml-engine-core"
 version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "065735d3f369874dd9fed78d736e96ca5dc9482a123a0759fb79b6c3c5c72997"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",

@@ -1,22 +1,19 @@
 [package]
-name = "aqc-toml-engine-core"
-version = "0.3.5"
+name = "aqc-deny-toml-engine"
+version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 repository = "https://github.com/agent-quality-controls/aqc-shared"
-description = "Shared TOML IO and application helpers for AQC TOML file engines."
+description = "FileEngine for deny.toml. Writes cargo-deny settings via toml_edit."
 publish = true
 readme = "README.md"
-keywords = ["aqc", "toml", "file-engine", "config"]
+keywords = ["aqc", "cargo-deny", "toml", "config"]
 categories = ["development-tools", "config", "parser-implementations"]
-include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [package.metadata.docs.rs]
 all-features = true
-
-[package.metadata.guardrail3]
-shared = true
 
 [workspace]
 resolver = "3"
@@ -85,4 +82,6 @@ api = []
 
 [dependencies]
 aqc-file-engine-core = "0.3.3"
+aqc-toml-engine-core = "0.3.5"
+serde = { version = "1", features = ["derive"] }
 toml_edit = "0.25"

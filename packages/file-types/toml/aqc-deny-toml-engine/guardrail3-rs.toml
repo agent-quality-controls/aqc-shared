@@ -1,0 +1,40 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-toml-engine-core",
+  "serde",
+  "toml_edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:DenyTomlRequirements"
+reason = "Declarative requirement struct; field-per-deny-section is the API."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/requirement/model.rs"
+selector = "struct:ResolvedDenyTomlRequirements"
+reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
+
+[[waivers]]
+rule = "g3rs-code/large-type-inventory"
+subject = "src/requirement/model.rs"
+selector = "struct:DenyTomlRequirements"
+reason = "Deny requirement root mirrors the supported cargo-deny schema as a field-per-setting data contract."
+
+[[waivers]]
+rule = "g3rs-code/large-type-inventory"
+subject = "src/requirement/model.rs"
+selector = "struct:ResolvedDenyTomlRequirements"
+reason = "Resolved deny requirement root mirrors the supported cargo-deny schema as a field-per-setting data contract."
