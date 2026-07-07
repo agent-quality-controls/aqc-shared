@@ -90,7 +90,10 @@ fn malformed_toml_returns_only_parse_error_and_no_expected_bytes() {
     );
     assert_eq!(out.findings.len(), 1, "parse failures must not cascade");
     assert!(
-        matches!(out.findings.first(), Some(engine_core::Finding::ParseError { .. })),
+        matches!(
+            out.findings.first(),
+            Some(engine_core::Finding::ParseError { .. })
+        ),
         "malformed Cargo.toml should report one parse error"
     );
 }
@@ -339,4 +342,18 @@ fn section_presence_absent_removes_table() {
         String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
     assert!(!out.findings.is_empty());
     assert!(!text.contains("[badges]"));
+}
+
+#[test]
+fn section_presence_writes_workspace_lints_table() {
+    let mut req = cargo::CargoTomlRequirements::default();
+    let _ = req.section_presence.insert(
+        cargo::ManifestSection::WorkspaceLints,
+        cargo::SectionPresenceAssertion::Present("workspace lints root".to_owned()),
+    );
+    let out = output(req, Some(b"[workspace]\nresolver = \"3\"\n"));
+    let text =
+        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+    assert!(!out.findings.is_empty());
+    assert!(text.contains("[workspace.lints]"));
 }

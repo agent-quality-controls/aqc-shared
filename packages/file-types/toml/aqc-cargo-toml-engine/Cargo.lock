@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-cargo-toml-engine"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
@@ -23,15 +23,18 @@ dependencies = [
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6523f02065f81105c5b82d869d6cab1dc6126a55aac9866a9ee60541a48d089a"
+checksum = "cc5771506d80988fc251d91570d2c2d0215e435242ec5167340e03fafa0d2c3a"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "aqc-toml-engine-core"
-version = "0.3.2"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fc7f4ddc884075cc4a13e0b04517a7644c19f603f16e89c35c406cf609d4702"
+checksum = "065735d3f369874dd9fed78d736e96ca5dc9482a123a0759fb79b6c3c5c72997"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",
@@ -130,6 +133,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "serde"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+dependencies = [
+ "serde_core",
+ "serde_derive",
+]
+
+[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -211,3 +224,63 @@ checksum = "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1"
 dependencies = [
  "memchr",
 ]
+
+[[patch.unused]]
+name = "shakrs-cargo-adapter"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-cargo-policy"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-clippy-adapter"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-clippy-strict-policy"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-core"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-deny-adapter"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-deny-policy"
+version = "0.1.2"
+
+[[patch.unused]]
+name = "shakrs-json-parser"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "shakrs-runner"
+version = "0.1.2"
+
+[[patch.unused]]
+name = "shakrs-rustc-adapter"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-rustc-strict-policy"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-rustfmt-adapter"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-rustfmt-policy"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-toolchain-adapter"
+version = "0.1.1"
+
+[[patch.unused]]
+name = "shakrs-toolchain-policy"
+version = "0.1.1"

@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement};
 use aqc_toml_engine_core::{attribution as resolved_attribution, push_mismatch};
+use aqc_toml_engine_core::{ensure_nested, ensure_table};
 use toml_edit::{DocumentMut, Item, Table};
 
 use crate::requirement::{ManifestSection, SectionPresenceAssertion};
@@ -59,8 +60,7 @@ fn apply_present(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let key = section.key();
-    if doc.get(key).is_some() {
+    if section_exists(doc, section) {
         return;
     }
     push_mismatch(
@@ -75,7 +75,7 @@ fn apply_present(
     if matches!(section, ManifestSection::Package) {
         return;
     }
-    let _ = doc.entry(key).or_insert(Item::Table(Table::new()));
+    ensure_section(doc, section);
 }
 
 /// The section's table must not exist (vacuous when already absent).
@@ -86,8 +86,7 @@ fn apply_absent(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    let key = section.key();
-    if doc.get(key).is_none() {
+    if !section_exists(doc, section) {
         return;
     }
     push_mismatch(
@@ -98,5 +97,37 @@ fn apply_absent(
         msg.to_owned(),
         attribution,
     );
-    let _ = doc.remove(key);
+    remove_section(doc, section);
+}
+
+fn section_exists(doc: &DocumentMut, section: ManifestSection) -> bool {
+    if matches!(section, ManifestSection::WorkspaceLints) {
+        return doc
+            .get("workspace")
+            .and_then(Item::as_table_like)
+            .and_then(|workspace| workspace.get("lints"))
+            .is_some();
+    }
+    doc.get(section.key()).is_some()
+}
+
+fn ensure_section(doc: &mut DocumentMut, section: ManifestSection) {
+    if matches!(section, ManifestSection::WorkspaceLints) {
+        let workspace = ensure_table(doc, "workspace");
+        let _ = ensure_nested(workspace, "lints");
+        return;
+    }
+    let _ = doc
+        .entry(section.key())
+        .or_insert(Item::Table(Table::new()));
+}
+
+fn remove_section(doc: &mut DocumentMut, section: ManifestSection) {
+    if matches!(section, ManifestSection::WorkspaceLints) {
+        if let Some(workspace) = doc.get_mut("workspace").and_then(Item::as_table_mut) {
+            let _ = workspace.remove("lints");
+        }
+        return;
+    }
+    let _ = doc.remove(section.key());
 }

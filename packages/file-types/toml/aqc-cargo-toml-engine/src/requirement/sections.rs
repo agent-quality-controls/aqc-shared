@@ -10,6 +10,7 @@ use aqc_file_engine_core::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ManifestSection {
     Workspace,
+    WorkspaceLints,
     Package,
     Lib,
     Badges,
@@ -25,6 +26,7 @@ impl ManifestSection {
     pub const fn table_path(self) -> &'static str {
         match self {
             Self::Workspace => "[workspace]",
+            Self::WorkspaceLints => "[workspace.lints]",
             Self::Package => "[package]",
             Self::Lib => "[lib]",
             Self::Badges => "[badges]",
@@ -40,6 +42,7 @@ impl ManifestSection {
     pub const fn key(self) -> &'static str {
         match self {
             Self::Workspace => "workspace",
+            Self::WorkspaceLints => "lints",
             Self::Package => "package",
             Self::Lib => "lib",
             Self::Badges => "badges",
