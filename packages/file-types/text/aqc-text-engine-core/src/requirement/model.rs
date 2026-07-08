@@ -5,13 +5,12 @@
     reason = "Public text-engine values use the TextFile prefix."
 )]
 
-use core::any::Any;
 use core::cmp::Ordering;
 use core::fmt;
 use std::path::{Component, Path, PathBuf};
 
 use aqc_file_engine_core::{
-    ConflictEntry, EngineRequirement, FileItemRequirement, ItemAssertionInput, ItemRequirements,
+    ConflictEntry, FileItemRequirement, ItemAssertionInput, ItemRequirements,
     RequiredItemResolution, ResolvedItemRequirements, ResolvedRequirement, ScalarAssertion,
     ScalarValue,
 };
@@ -177,16 +176,6 @@ impl FileItemRequirement for TextFileRequirement {
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<RequiredItemResolution<Self>> {
         crate::requirement::merge::compose_text_file(key, items, conflicts)
-    }
-}
-
-impl EngineRequirement for TextFileRequirements {
-    fn engine_id(&self) -> &'static str {
-        crate::ENGINE_ID
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 

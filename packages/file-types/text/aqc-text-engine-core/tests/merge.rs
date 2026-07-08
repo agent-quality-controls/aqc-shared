@@ -1,5 +1,5 @@
 use aqc_file_engine_core::{ItemRequirements, Provenance, ScalarAssertion};
-use aqc_text_file_engine::{
+use aqc_text_engine_core::{
     TextFileContents, TextFilePath, TextFileRequirement, TextFileRequirements, TextSnippet,
     TextSnippetId,
 };

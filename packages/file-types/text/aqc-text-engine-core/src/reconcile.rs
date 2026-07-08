@@ -11,7 +11,7 @@ use crate::requirement::{
     ResolvedTextFileRequirements, TextFileContents, TextFileRequirement, TextSnippet,
 };
 
-pub(crate) fn apply(
+pub fn reconcile_text_files(
     root: &Path,
     current: &[EngineFileState],
     requirements: &ResolvedTextFileRequirements,

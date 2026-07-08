@@ -1,12 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use aqc_file_engine_core::{
-    Engine, EngineFileState, EngineRequirement, Finding, ItemRequirements, Provenance,
-    ScalarAssertion,
+    EngineFileState, Finding, ItemRequirements, Provenance, ScalarAssertion,
 };
-use aqc_text_file_engine::{
-    TextFileContents, TextFileEngine, TextFilePath, TextFileRequirement, TextFileRequirements,
-    TextSnippet, TextSnippetId,
+use aqc_text_engine_core::{
+    TextFileContents, TextFilePath, TextFileRequirement, TextFileRequirements, TextSnippet,
+    TextSnippetId, reconcile_text_files,
 };
 
 #[test]
@@ -122,9 +121,16 @@ fn reconcile(
     requirements: TextFileRequirements,
     current: Vec<EngineFileState>,
 ) -> aqc_file_engine_core::EngineOutput {
-    let reqs: Vec<(Provenance, Box<dyn EngineRequirement>)> =
-        vec![(provenance("policy"), Box::new(requirements))];
-    TextFileEngine.reconcile(Path::new("/repo"), &current, &reqs)
+    let (requirements, conflicts) =
+        TextFileRequirements::merge(vec![(provenance("policy"), requirements)]);
+    assert!(
+        conflicts.is_empty(),
+        "test requirements should not have merge conflicts"
+    );
+    aqc_file_engine_core::EngineOutput {
+        files: reconcile_text_files(Path::new("/repo"), &current, &requirements),
+        findings: Vec::new(),
+    }
 }
 
 fn requirements(file: TextFileRequirement) -> TextFileRequirements {

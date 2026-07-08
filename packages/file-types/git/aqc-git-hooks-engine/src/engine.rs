@@ -2,8 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use aqc_file_engine_core::{Engine, EngineFileState, EngineOutput, EngineRequirement, Provenance};
-use aqc_text_file_engine::TextFileEngine;
+use aqc_file_engine_core::{
+    Engine, EngineFileState, EngineOutput, EngineRequirement, Finding, Provenance,
+};
+use aqc_text_engine_core::{TextFileRequirements, reconcile_text_files};
 
 use crate::requirement::GitHooksRequirements;
 
@@ -40,17 +42,28 @@ impl Engine for GitHooksEngine {
         current: &[EngineFileState],
         reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     ) -> EngineOutput {
-        let text_reqs = text_reqs(reqs)
+        let (requirements, conflicts) = TextFileRequirements::merge(text_reqs(reqs));
+        let files = reconcile_text_files(target_root, current, &requirements);
+        let findings = conflicts
             .into_iter()
-            .map(|(prov, req)| (prov, Box::new(req) as Box<dyn EngineRequirement>))
-            .collect::<Vec<_>>();
-        TextFileEngine.reconcile(target_root, current, &text_reqs)
+            .map(|entry| Finding::ConflictingRequirements {
+                subject: "git hooks".to_owned(),
+                key: entry.key,
+                contributors: entry
+                    .contributors
+                    .into_iter()
+                    .map(|(prov, value)| (prov.policy, value))
+                    .collect(),
+                reason: entry.reason,
+            })
+            .collect();
+        EngineOutput { files, findings }
     }
 }
 
 fn text_reqs(
     reqs: &[(Provenance, Box<dyn EngineRequirement>)],
-) -> Vec<(Provenance, aqc_text_file_engine::TextFileRequirements)> {
+) -> Vec<(Provenance, TextFileRequirements)> {
     reqs.iter()
         .filter_map(|(prov, req)| {
             req.as_any()

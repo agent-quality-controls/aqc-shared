@@ -2,7 +2,7 @@ profile = "library"
 
 allowed_deps = [
   "aqc-file-engine-core",
-  "aqc-text-file-engine",
+  "aqc-text-engine-core",
 ]
 
 [checks]

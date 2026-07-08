@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use aqc_text_file_engine as _;
+use aqc_text_engine_core as _;
 
 use aqc_file_engine_core::{
     Engine, EngineFileState, EngineRequirement, Finding, ItemRequirements, Provenance,

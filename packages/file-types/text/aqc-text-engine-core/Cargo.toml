@@ -1,11 +1,11 @@
 [package]
-name = "aqc-text-file-engine"
+name = "aqc-text-engine-core"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 repository = "https://github.com/agent-quality-controls/aqc-shared"
-description = "FileEngine for exact text file contents, required snippets, and executable metadata."
+description = "Reusable text file requirement, merge, and reconcile helpers for AQC file engines."
 publish = true
 readme = "README.md"
 keywords = ["aqc", "text", "file-engine", "config"]

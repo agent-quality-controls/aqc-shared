@@ -82,4 +82,4 @@ api = []
 
 [dependencies]
 aqc-file-engine-core = { path = "../../../aqc-file-engine-core", version = "0.3.4" }
-aqc-text-file-engine = { path = "../../text/aqc-text-file-engine", version = "0.1.0" }
+aqc-text-engine-core = { path = "../../text/aqc-text-engine-core", version = "0.1.0" }

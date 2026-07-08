@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "aqc-text-file-engine"
+name = "aqc-text-engine-core"
 version = "0.1.0"
 dependencies = [
  "aqc-file-engine-core",

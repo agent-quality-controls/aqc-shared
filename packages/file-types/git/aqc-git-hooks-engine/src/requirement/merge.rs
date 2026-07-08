@@ -1,7 +1,7 @@
 //! Git hooks requirement merge.
 
 use aqc_file_engine_core::{ConflictEntry, Provenance};
-use aqc_text_file_engine::TextFileRequirements;
+use aqc_text_engine_core::TextFileRequirements;
 
 use super::{GitHooksRequirements, ResolvedGitHooksRequirements};
 

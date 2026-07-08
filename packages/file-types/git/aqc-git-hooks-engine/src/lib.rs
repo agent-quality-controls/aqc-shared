@@ -11,7 +11,7 @@ pub use aqc_file_engine_core::{
     ItemRequirements, Provenance, ScalarAssertion,
 };
 #[cfg(feature = "api")]
-pub use aqc_text_file_engine::{
+pub use aqc_text_engine_core::{
     TextFileContents, TextFilePath, TextFileRequirement, TextFileRequirements, TextSnippet,
     TextSnippetId,
 };

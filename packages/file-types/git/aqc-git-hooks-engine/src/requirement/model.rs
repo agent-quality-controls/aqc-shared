@@ -5,7 +5,7 @@ use core::fmt;
 use std::path::{Component, Path, PathBuf};
 
 use aqc_file_engine_core::EngineRequirement;
-use aqc_text_file_engine::{ResolvedTextFileRequirements, TextFileRequirements};
+use aqc_text_engine_core::{ResolvedTextFileRequirements, TextFileRequirements};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GitHooksPath(PathBuf);

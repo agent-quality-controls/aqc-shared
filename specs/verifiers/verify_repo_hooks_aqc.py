@@ -16,8 +16,8 @@ def main() -> int:
     check = entry["check"]
     if check == "cargo-workspaces":
         print(json.dumps(cargo_workspaces(), sort_keys=True))
-    elif check == "text-engine-contract":
-        print(json.dumps(text_engine_contract(), sort_keys=True))
+    elif check == "text-core-contract":
+        print(json.dumps(text_core_contract(), sort_keys=True))
     else:
         print(json.dumps(fail(f"unknown check {check}", check=check), sort_keys=True))
     return 0
@@ -48,7 +48,7 @@ def run(argv: list[str], cwd: Path) -> dict[str, object]:
 def cargo_workspaces() -> dict[str, object]:
     workspaces = [
         ROOT / "packages/aqc-file-engine-core",
-        ROOT / "packages/file-types/text/aqc-text-file-engine",
+        ROOT / "packages/file-types/text/aqc-text-engine-core",
         ROOT / "packages/file-types/git/aqc-git-hooks-engine",
     ]
     missing = [str(path.relative_to(ROOT)) for path in workspaces if not (path / "Cargo.toml").exists()]
@@ -64,10 +64,10 @@ def cargo_workspaces() -> dict[str, object]:
     return ok(check="cargo-workspaces")
 
 
-def text_engine_contract() -> dict[str, object]:
-    tests = ROOT / "packages/file-types/text/aqc-text-file-engine/tests"
+def text_core_contract() -> dict[str, object]:
+    tests = ROOT / "packages/file-types/text/aqc-text-engine-core/tests"
     if not tests.exists():
-        return fail("missing text engine tests directory")
+        return fail("missing text core tests directory")
     text = "\n".join(path.read_text(errors="replace") for path in sorted(tests.glob("*.rs")))
     required_tests = [
         "uses_core_item_merge_for_files",
@@ -79,8 +79,11 @@ def text_engine_contract() -> dict[str, object]:
     ]
     missing = [name for name in required_tests if name not in text]
     if missing:
-        return fail("missing required text engine contract tests", missing=missing)
-    return ok(check="text-engine-contract")
+        return fail("missing required text core contract tests", missing=missing)
+    cargo = (ROOT / "packages/file-types/git/aqc-git-hooks-engine/Cargo.toml").read_text()
+    if "aqc-text-file-engine" in cargo:
+        return fail("git hooks engine still depends on text file engine")
+    return ok(check="text-core-contract")
 
 
 if __name__ == "__main__":
