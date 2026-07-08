@@ -11,7 +11,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-rust-toolchain-toml-engine"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",

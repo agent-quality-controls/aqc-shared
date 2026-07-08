@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-clippy-toml-engine"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
