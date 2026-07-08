@@ -18,9 +18,7 @@ pub use aqc_text_engine_core::{
 #[cfg(feature = "api")]
 pub use engine::GitHooksEngine;
 #[cfg(feature = "api")]
-pub use requirement::{
-    GitHooksPath, GitHooksRequirements, GitHooksValueError, ResolvedGitHooksRequirements,
-};
+pub use requirement::{GitHooksRequirements, ResolvedGitHooksRequirements};
 
 #[cfg(feature = "api")]
 pub const ENGINE_ID: &str = "git-hooks";

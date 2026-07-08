@@ -110,11 +110,8 @@
         "files": [
           "packages/file-types/git/aqc-git-hooks-engine/src/requirement/model.rs"
         ],
-        "reason": "repo hooks proof: Git hooks engine owns Git hook path and delegates file bytes to text helper core",
+        "reason": "repo hooks proof: Git hooks engine owns Git hook files and delegates file bytes to text helper core",
         "required": [
-          "pub struct GitHooksPath",
-          "pub enum GitHooksValueError",
-          "pub fn dot_githooks() -> Self",
           "pub struct GitHooksRequirements",
           "pub files: TextFileRequirements",
           "pub struct ResolvedGitHooksRequirements",
@@ -124,7 +121,9 @@
           "Shakrs",
           "shakrs",
           "Command::new",
-          "std::fs"
+          "std::fs",
+          "GitHooksPath",
+          "GitHooksValueError"
         ]
       },
       {

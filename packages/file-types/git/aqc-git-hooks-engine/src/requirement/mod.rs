@@ -4,5 +4,5 @@ mod merge;
 mod model;
 
 pub use model::{
-    GitHooksPath, GitHooksRequirements, GitHooksValueError, ResolvedGitHooksRequirements,
+    GitHooksRequirements, ResolvedGitHooksRequirements,
 };
