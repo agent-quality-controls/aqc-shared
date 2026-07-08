@@ -1,0 +1,201 @@
+{
+  "version": 4,
+  "requirements": {
+    "tree": {
+      "verifier": [
+        "builtin:tree"
+      ],
+      "reason": "repo hooks proof: AQC core plus text and Git hooks engines",
+      "required": [
+        "specs/2026-07-08-104701-repo-hooks-aqc.spec.json",
+        "specs/2026-07-08-104701-repo-hooks-aqc.spec.coverage.md",
+        "specs/verifiers/verify_repo_hooks_aqc.py",
+        "packages/file-types/text/aqc-text-file-engine/Cargo.toml",
+        "packages/file-types/text/aqc-text-file-engine/src/lib.rs",
+        "packages/file-types/text/aqc-text-file-engine/src/engine.rs",
+        "packages/file-types/text/aqc-text-file-engine/src/requirement/model.rs",
+        "packages/file-types/text/aqc-text-file-engine/src/requirement/merge.rs",
+        "packages/file-types/text/aqc-text-file-engine/src/reconcile.rs",
+        "packages/file-types/text/aqc-text-file-engine/tests/merge.rs",
+        "packages/file-types/text/aqc-text-file-engine/tests/reconcile.rs",
+        "packages/file-types/git/aqc-git-hooks-engine/Cargo.toml",
+        "packages/file-types/git/aqc-git-hooks-engine/src/lib.rs",
+        "packages/file-types/git/aqc-git-hooks-engine/src/engine.rs",
+        "packages/file-types/git/aqc-git-hooks-engine/src/requirement/model.rs",
+        "packages/file-types/git/aqc-git-hooks-engine/src/requirement/merge.rs",
+        "packages/file-types/git/aqc-git-hooks-engine/tests/engine_requirement.rs"
+      ]
+    },
+    "content": [
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/aqc-file-engine-core/src/types.rs"
+        ],
+        "reason": "repo hooks proof: core output supports multiple files and file metadata without tool names",
+        "required": [
+          "EngineFileState",
+          "EngineFileOutput",
+          "expected_executable",
+          "Vec<EngineFileOutput>"
+        ],
+        "forbidden": [
+          "GitHooks",
+          "Shakrs",
+          "ExecutableRequirement"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/aqc-file-engine-core/src/engine.rs"
+        ],
+        "reason": "repo hooks proof: core engine trait supports multiple target paths",
+        "required": [
+          "target_paths",
+          "EngineFileState",
+          "EngineFileOutput"
+        ],
+        "forbidden": [
+          "GitHooks",
+          "Shakrs",
+          "ExecutableRequirement"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/text/aqc-text-file-engine/src/requirement/model.rs"
+        ],
+        "reason": "repo hooks proof: text requirements reuse core item and scalar assertions",
+        "required": [
+          "pub struct TextFilePath",
+          "pub struct TextSnippetId",
+          "pub struct TextFileContents",
+          "pub struct TextSnippet",
+          "pub struct TextFileRequirement",
+          "pub path: TextFilePath",
+          "pub exact_contents: Option<ScalarAssertion<TextFileContents>>",
+          "pub required_snippets: ItemRequirements<TextSnippet>",
+          "pub executable: Option<ScalarAssertion<bool>>",
+          "pub struct TextFileRequirements",
+          "pub files: ItemRequirements<TextFileRequirement>",
+          "pub struct ResolvedTextFileRequirement",
+          "pub required_snippets: ResolvedItemRequirements<TextSnippet>",
+          "pub struct ResolvedTextFileRequirements",
+          "pub files: ResolvedItemRequirements<TextFileRequirement>",
+          "impl FileItemRequirement for TextSnippet",
+          "impl FileItemRequirement for TextFileRequirement"
+        ],
+        "forbidden": [
+          "BTreeMap<TextFilePath",
+          "BTreeMap<TextSnippetId",
+          "ExecutableRequirement",
+          "GitHooks"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/git/aqc-git-hooks-engine/src/requirement/model.rs"
+        ],
+        "reason": "repo hooks proof: Git hooks engine owns Git hook path and delegates file bytes to text engine",
+        "required": [
+          "pub struct GitHooksPath",
+          "pub enum GitHooksValueError",
+          "pub fn dot_githooks() -> Self",
+          "pub struct GitHooksRequirements",
+          "pub files: TextFileRequirements",
+          "pub struct ResolvedGitHooksRequirements",
+          "pub files: ResolvedTextFileRequirements"
+        ],
+        "forbidden": [
+          "Shakrs",
+          "shakrs",
+          "Command::new",
+          "std::fs"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/text/aqc-text-file-engine/src/**/*.rs",
+          "packages/file-types/git/aqc-git-hooks-engine/src/**/*.rs"
+        ],
+        "reason": "repo hooks proof: engines remain pure AQC file engines",
+        "forbidden": [
+          "shackles",
+          "shakrs",
+          "Policy",
+          "Adapter",
+          "Command::new"
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/text/aqc-text-file-engine/Cargo.toml"
+        ],
+        "reason": "repo hooks proof: text engine depends only on file-engine core",
+        "required": [
+          "aqc-file-engine-core"
+        ],
+        "forbidden": [
+          "shackles-core",
+          "shakrs-core",
+          "aqc-git-hooks-engine"
+        ]
+      },
+      {
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/git/aqc-git-hooks-engine/Cargo.toml"
+        ],
+        "reason": "repo hooks proof: Git hooks engine depends on file-engine core and text engine",
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-text-file-engine"
+        ],
+        "forbidden": [
+          "shackles-core",
+          "shakrs-core",
+          "shakrs-hooks-policy"
+        ]
+      }
+    ],
+    "custom": [
+      {
+        "verifier": [
+          "python3",
+          "specs/verifiers/verify_repo_hooks_aqc.py"
+        ],
+        "check": "cargo-workspaces",
+        "reason": "repo hooks proof: changed AQC workspaces compile"
+      },
+      {
+        "verifier": [
+          "python3",
+          "specs/verifiers/verify_repo_hooks_aqc.py"
+        ],
+        "check": "text-engine-contract",
+        "reason": "repo hooks proof: text engine tests prove exact contents, snippets, executable metadata, and core item merge"
+      }
+    ]
+  }
+}
