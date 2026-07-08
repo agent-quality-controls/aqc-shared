@@ -22,7 +22,7 @@ fn malformed_toml() {
         "malformed TOML should report parse error"
     );
     assert!(
-        output.expected_bytes.is_empty(),
+        first_bytes(&output).is_empty(),
         "parse failures should not produce expected bytes"
     );
 }
@@ -73,4 +73,11 @@ fn resolved() -> ResolvedDenyTomlRequirements {
     )]);
     assert!(conflicts.is_empty(), "parse fixture must merge");
     resolved
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

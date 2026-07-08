@@ -190,7 +190,7 @@ pub(crate) fn cargo_findings_with(
         .into_iter()
         .map(|(p, r)| (p, Box::new(r) as Box<dyn engine_core::EngineRequirement>))
         .collect::<Vec<_>>();
-    cargo::CargoTomlEngine.reconcile(bytes, &reqs).findings
+    cargo_output_from_erased(bytes, &reqs).findings
 }
 
 pub(crate) fn cargo_output(
@@ -201,7 +201,24 @@ pub(crate) fn cargo_output(
         .into_iter()
         .map(|(p, r)| (p, Box::new(r) as Box<dyn engine_core::EngineRequirement>))
         .collect::<Vec<_>>();
-    cargo::CargoTomlEngine.reconcile(bytes, &reqs)
+    cargo_output_from_erased(bytes, &reqs)
+}
+
+fn cargo_output_from_erased(
+    bytes: Option<&[u8]>,
+    reqs: &[(
+        engine_core::Provenance,
+        Box<dyn engine_core::EngineRequirement>,
+    )],
+) -> engine_core::EngineOutput {
+    let current = bytes.map_or_else(Vec::new, |bytes| {
+        vec![engine_core::EngineFileState {
+            path: std::path::PathBuf::from("/workspace/Cargo.toml"),
+            bytes: Some(bytes.to_vec()),
+            executable: None,
+        }]
+    });
+    cargo::CargoTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, reqs)
 }
 
 pub(crate) fn has_conflict(findings: &[engine_core::Finding]) -> bool {

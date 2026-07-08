@@ -26,7 +26,14 @@ fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_c
         prov(),
         Box::new(req) as Box<dyn engine_core::EngineRequirement>,
     )];
-    cargo::CargoTomlEngine.reconcile(current, &reqs)
+    let current = current.map_or_else(Vec::new, |bytes| {
+        vec![engine_core::EngineFileState {
+            path: std::path::PathBuf::from("/workspace/Cargo.toml"),
+            bytes: Some(bytes.to_vec()),
+            executable: None,
+        }]
+    });
+    cargo::CargoTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
 }
 
 fn normal_scope() -> cargo::DependencyScope {
@@ -116,7 +123,7 @@ fn dependency_table_required_entry_writes_version() {
     let _ = req.dependencies.insert(normal_scope(), table);
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[dependencies]"));
     assert!(text.contains("serde = \"1\""));
 }
@@ -135,7 +142,7 @@ fn dependency_table_forbidden_entry_removes_key() {
         Some(b"[dependencies]\nserde = \"1\"\ntoml = \"0.8\"\n"),
     );
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(!text.contains("serde = "));
     assert!(text.contains("toml = \"0.8\""));
 }
@@ -160,7 +167,7 @@ fn workspace_dependencies_use_same_table_product() {
     req.workspace_dependencies = Some(table);
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[workspace.dependencies]"));
     assert!(text.contains("serde = \"1\""));
 }
@@ -178,7 +185,7 @@ fn features_table_writes_required_feature_entry() {
     ));
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[features]"));
     assert!(text.contains("default = [\"dep:serde\"]"));
 }
@@ -203,7 +210,7 @@ fn required_empty_feature_writes_empty_array_when_absent() {
     };
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("empty = []"));
 }
 
@@ -227,7 +234,7 @@ fn required_empty_feature_overwrites_malformed_value() {
     };
     let out = output(req, Some(b"[features]\nempty = \"bad\"\n"));
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("empty = []"));
     assert!(!out.findings.is_empty());
 }
@@ -243,7 +250,7 @@ fn profile_nested_fields_are_addressable() {
     let _ = req.profiles.insert("release".to_owned(), profile);
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[profile.release]"));
     assert!(text.contains("opt-level = 3"));
 }
@@ -265,7 +272,7 @@ fn named_target_fields_are_addressable() {
     req.targets = targets;
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[[bin]]"));
     assert!(text.contains("name = \"cli\""));
     assert!(text.contains("path = \"src/bin/cli.rs\""));
@@ -286,7 +293,14 @@ fn target_lib_list_field_uses_unified_list_requirements() {
     req.targets = targets;
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[lib]"));
     assert!(text.contains("required-features = [\"feat-a\"]"));
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

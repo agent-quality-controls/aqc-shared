@@ -81,7 +81,7 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = "0.3.3"
-aqc-toml-engine-core = "0.3.2"
+aqc-file-engine-core = { path = "../../../aqc-file-engine-core", version = "0.3.4" }
+aqc-toml-engine-core = { path = "../aqc-toml-engine-core", version = "0.3.6" }
 serde = { version = "1", features = ["derive"] }
 toml_edit = "0.25"

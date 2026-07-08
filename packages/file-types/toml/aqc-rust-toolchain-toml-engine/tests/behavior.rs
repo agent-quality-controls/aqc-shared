@@ -99,7 +99,7 @@ fn reconcile_refuses_malformed_toml() {
     let output = reconcile(malformed, baseline_req());
 
     assert!(
-        output.expected_bytes.is_empty()
+        first_bytes(&output).is_empty()
             && output.findings.iter().any(|finding| matches!(
                 finding,
                 Finding::ParseError {
@@ -200,7 +200,8 @@ fn reconcile_repairs_missing_channel_profile_components() {
     let profile = "profile";
     let components = "components";
     let output = reconcile("[toolchain]\n", baseline_req());
-    let expected = String::from_utf8_lossy(&output.expected_bytes);
+    let expected_bytes = first_bytes(&output);
+    let expected = String::from_utf8_lossy(&expected_bytes);
 
     assert!(
         expected.contains("channel = \"stable\"")
@@ -222,7 +223,8 @@ fn reconcile_canonicalizes_components_and_targets() {
             ..RustToolchainTomlRequirements::default()
         },
     );
-    let expected = String::from_utf8_lossy(&output.expected_bytes);
+    let expected_bytes = first_bytes(&output);
+    let expected = String::from_utf8_lossy(&expected_bytes);
 
     assert!(
         expected.contains("components = [\"clippy\", \"rustfmt\"]")
@@ -312,4 +314,11 @@ fn prov(policy: &str) -> Provenance {
     Provenance {
         policy: policy.to_owned(),
     }
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

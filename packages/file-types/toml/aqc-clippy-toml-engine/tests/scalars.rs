@@ -31,7 +31,14 @@ fn clippy_output(
             (p, requirement)
         })
         .collect::<Vec<_>>();
-    ClippyTomlEngine.reconcile(bytes, &reqs)
+    let current = bytes.map_or_else(Vec::new, |bytes| {
+        vec![aqc_file_engine_core::EngineFileState {
+            path: std::path::PathBuf::from("/workspace/clippy.toml"),
+            bytes: Some(bytes.to_vec()),
+            executable: None,
+        }]
+    });
+    ClippyTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
 }
 
 #[test]
@@ -73,7 +80,7 @@ fn malformed_toml_returns_only_parse_error_and_no_expected_bytes() {
     let out = clippy_output(Some(b"msrv = "), vec![(prov("p1"), req)]);
 
     assert!(
-        out.expected_bytes.is_empty(),
+        first_bytes(&out).is_empty(),
         "parse failures must not produce replacement bytes"
     );
     assert_eq!(out.findings.len(), 1, "parse failures must not cascade");
@@ -371,4 +378,11 @@ fn clippy_scalar_incompatible_cases_conflict() {
             .iter()
             .any(|f| matches!(f, Finding::ConflictingRequirements { .. }))
     );
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

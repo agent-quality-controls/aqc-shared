@@ -25,7 +25,7 @@ fn list_contains_and_excludes_reconcile_values() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(expected.contains("\"kept\""), "existing item should remain");
     assert!(
         expected.contains("\"new\""),
@@ -58,7 +58,7 @@ fn exact_list_writes_exact_values() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("\"generated\""),
         "exact list should write required value"
@@ -96,7 +96,7 @@ fn non_array_list_setting_reports_shape_finding() {
         ),
         "non-array list setting should report shape finding"
     );
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("ignore = [\"target\"]"),
         "non-array list setting should be rewritten to a string array"
@@ -128,7 +128,7 @@ fn non_string_list_item_reports_shape_finding() {
         ),
         "non-string list item should report shape finding"
     );
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("ignore = [\"target\", \"generated\"]"),
         "non-string list item should be removed before writing"
@@ -154,7 +154,7 @@ fn malformed_list_is_normalized_even_without_matching_item_change() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("ignore = []"),
         "malformed list should be normalized even when excludes does not match"
@@ -183,4 +183,11 @@ fn reconcile_resolved(
         Some(current.as_bytes()),
         &resolved,
     )
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

@@ -351,5 +351,12 @@ fn reconcile(current: &str, req: DenyTomlRequirements) -> aqc_file_engine_core::
 }
 
 fn expected(output: aqc_file_engine_core::EngineOutput) -> String {
-    String::from_utf8(output.expected_bytes).unwrap_or_default()
+    String::from_utf8(first_bytes(&output)).unwrap_or_default()
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

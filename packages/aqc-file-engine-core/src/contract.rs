@@ -71,23 +71,27 @@ fn check_writes_law<Req>(
     requirement: &Req,
     first: &EngineOutput,
 ) -> Result<(), ContractViolation> {
-    if let Some(hard) = first.findings.iter().find(|f| is_hard(f)) {
+    let first_findings = output_findings(first);
+    if let Some(hard) = first_findings.iter().find(|f| is_hard(f)) {
         return Err(ContractViolation::new(format!(
             "Writes law: first pass from empty produced a hard-failure finding: {hard:?}"
         )));
     }
-    let second = reconcile(Some(&first.expected_bytes), requirement);
-    if !second.findings.is_empty() {
+    let first_bytes = output_bytes(first);
+    let second = reconcile(Some(first_bytes), requirement);
+    let second_findings = output_findings(&second);
+    if !second_findings.is_empty() {
         return Err(ContractViolation::new(format!(
             "Writes law: reconciling the engine's own output is not clean: {:?}",
-            second.findings
+            second_findings
         )));
     }
-    if second.expected_bytes != first.expected_bytes {
+    let second_bytes = output_bytes(&second);
+    if second_bytes != first_bytes {
         return Err(ContractViolation::new(format!(
             "Writes law: not idempotent; second pass changed the bytes.\nfirst:\n{}\nsecond:\n{}",
-            String::from_utf8_lossy(&first.expected_bytes),
-            String::from_utf8_lossy(&second.expected_bytes),
+            String::from_utf8_lossy(first_bytes),
+            String::from_utf8_lossy(second_bytes),
         )));
     }
     Ok(())
@@ -99,20 +103,23 @@ fn check_checks_only_law<Req>(
     requirement: &Req,
     first: &EngineOutput,
 ) -> Result<(), ContractViolation> {
-    if !first.expected_bytes.is_empty() {
+    let first_bytes = output_bytes(first);
+    if !first_bytes.is_empty() {
         return Err(ContractViolation::new(format!(
             "ChecksOnly law: wrote content from an empty file:\n{}",
-            String::from_utf8_lossy(&first.expected_bytes)
+            String::from_utf8_lossy(first_bytes)
         )));
     }
-    if !has_error(&first.findings) {
+    let first_findings = output_findings(first);
+    if !has_error(&first_findings) {
         return Err(ContractViolation::new(format!(
             "ChecksOnly law: no Error finding from an empty file; findings: {:?}",
-            first.findings
+            first_findings
         )));
     }
-    let second = reconcile(Some(&first.expected_bytes), requirement);
-    if !has_error(&second.findings) {
+    let second = reconcile(Some(first_bytes), requirement);
+    let second_findings = output_findings(&second);
+    if !has_error(&second_findings) {
         return Err(ContractViolation::new(
             "ChecksOnly law: converged on its own output; a check-only assertion never resolves itself"
                 .to_owned(),
@@ -121,8 +128,23 @@ fn check_checks_only_law<Req>(
     Ok(())
 }
 
+fn output_bytes(output: &EngineOutput) -> &[u8] {
+    output
+        .files
+        .first()
+        .map_or(&[], |file| file.expected_bytes.as_slice())
+}
+
+fn output_findings(output: &EngineOutput) -> Vec<&Finding> {
+    output
+        .findings
+        .iter()
+        .chain(output.files.iter().flat_map(|file| file.findings.iter()))
+        .collect()
+}
+
 /// True when any finding carries `Severity::Error` (or is implicitly Error).
-fn has_error(findings: &[Finding]) -> bool {
+fn has_error(findings: &[&Finding]) -> bool {
     findings.iter().any(|f| severity_of(f) == Severity::Error)
 }
 

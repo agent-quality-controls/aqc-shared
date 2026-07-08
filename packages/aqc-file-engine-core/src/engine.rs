@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::finding::Finding;
 use crate::merge::ConflictEntry;
 use crate::requirement::EngineRequirement;
-use crate::types::{EngineOutput, Provenance};
+use crate::types::{EngineFileState, EngineOutput, Provenance};
 
 /// A file engine: reconciles bytes-on-disk against typed declarative
 /// requirements, returning both the bytes `init` would write and the
@@ -27,16 +27,21 @@ pub trait FileEngine<Req> {
 
 /// Erased engine contract the runner dispatches over.
 ///
-/// Each engine knows the file it owns and reconciles the type-erased
-/// requirements routed to it (all carrying this engine's id). Object-safe so
-/// the runner registry can hold `Box<dyn Engine>`; the typed `FileEngine` is
-/// what each engine calls internally.
+/// Each engine knows the files it owns and reconciles the type-erased
+/// requirements routed to it (all carrying this engine's id). The result is
+/// an `EngineOutput` containing one `EngineFileOutput` per touched file.
+/// Object-safe so the runner registry can hold `Box<dyn Engine>`; the typed
+/// `FileEngine` is what each engine calls internally.
 pub trait Engine {
     /// Stable engine id (matches the crate's `ENGINE_ID`).
     fn id(&self) -> &'static str;
-    /// The workspace-relative file this engine owns (e.g. `Cargo.toml`).
-    fn target_path(&self, workspace_root: &Path) -> PathBuf;
-    /// Reconcile `current` bytes against the requirements routed to this
+    /// The files this engine owns for the routed requirements.
+    fn target_paths(
+        &self,
+        workspace_root: &Path,
+        reqs: &[(Provenance, Box<dyn EngineRequirement>)],
+    ) -> Vec<PathBuf>;
+    /// Reconcile current file state against the requirements routed to this
     /// engine. The runner groups requirements by engine id, so every element
     /// downcasts to this engine's requirement type.
     #[expect(
@@ -45,7 +50,8 @@ pub trait Engine {
     )]
     fn reconcile(
         &self,
-        current: Option<&[u8]>,
+        target_root: &Path,
+        current: &[EngineFileState],
         reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     ) -> EngineOutput;
 }
@@ -64,7 +70,8 @@ pub trait Engine {
     reason = "`Fn(Vec<(Provenance, Req)>) -> (Resolved, Vec<ConflictEntry>)` is the merge phase's signature as data; aliasing it would hide the raw-to-resolved contract."
 )]
 pub fn merged_reconcile<Req, Resolved, M, F>(
-    current: Option<&[u8]>,
+    current: &[EngineFileState],
+    target_path: PathBuf,
     reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     subject: &str,
     merge: M,
@@ -83,16 +90,21 @@ where
                 .map(|req| (prov.clone(), req.clone()))
         })
         .collect();
+    let current_bytes = current
+        .iter()
+        .find(|state| state.path == target_path)
+        .and_then(|state| state.bytes.as_deref());
     if typed.is_empty() {
-        return EngineOutput {
-            expected_bytes: current.map(<[u8]>::to_vec).unwrap_or_default(),
-            findings: Vec::new(),
-        };
+        return EngineOutput::single(
+            current_bytes.map(<[u8]>::to_vec).unwrap_or_default(),
+            Vec::new(),
+        )
+        .with_single_path(target_path);
     }
     let (merged, conflicts) = merge(typed);
-    let mut out = reconcile_one(current, &merged);
+    let mut out = reconcile_one(current_bytes, &merged).with_single_path(target_path);
     for entry in conflicts {
-        out.findings.push(Finding::ConflictingRequirements {
+        let finding = Finding::ConflictingRequirements {
             subject: subject.to_owned(),
             key: entry.key,
             contributors: entry
@@ -101,7 +113,8 @@ where
                 .map(|(prov, value)| (prov.policy, value))
                 .collect(),
             reason: entry.reason,
-        });
+        };
+        out.findings.push(finding);
     }
     out
 }

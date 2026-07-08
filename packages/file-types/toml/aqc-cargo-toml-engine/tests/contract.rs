@@ -25,7 +25,14 @@ fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_c
         prov(),
         Box::new(req) as Box<dyn engine_core::EngineRequirement>,
     )];
-    cargo::CargoTomlEngine.reconcile(current, &reqs)
+    let current = current.map_or_else(Vec::new, |bytes| {
+        vec![engine_core::EngineFileState {
+            path: std::path::PathBuf::from("/workspace/Cargo.toml"),
+            bytes: Some(bytes.to_vec()),
+            executable: None,
+        }]
+    });
+    cargo::CargoTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
 }
 
 fn keyed_items<Entry: Default>(
@@ -66,7 +73,7 @@ fn package_scalar_equals_writes_on_empty() {
     );
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[package]"));
     assert!(text.contains("edition = \"2024\""));
 }
@@ -85,7 +92,7 @@ fn malformed_toml_returns_only_parse_error_and_no_expected_bytes() {
     let out = output(req, Some(b"[package\nname = \"fixture\"\n"));
 
     assert!(
-        out.expected_bytes.is_empty(),
+        first_bytes(&out).is_empty(),
         "parse failures must not produce replacement bytes"
     );
     assert_eq!(out.findings.len(), 1, "parse failures must not cascade");
@@ -274,7 +281,7 @@ fn package_lints_inherit_writes_workspace_true() {
     ));
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[lints]"));
     assert!(text.contains("workspace = true"));
 }
@@ -303,7 +310,7 @@ fn inline_lint_table_writes_one_lint() {
     )])));
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[lints.clippy]"));
     assert!(text.contains("unwrap_used = \"deny\""));
 }
@@ -321,7 +328,7 @@ fn workspace_field_list_uses_unified_list_requirements() {
     );
     let out = output(req, None);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(!out.findings.is_empty());
     assert!(text.contains("[workspace]"));
     assert!(text.contains("members = [\"crates/*\"]"));
@@ -339,7 +346,7 @@ fn section_presence_absent_removes_table() {
         Some(b"[badges]\nmaintenance = { status = \"actively-developed\" }\n"),
     );
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(!out.findings.is_empty());
     assert!(!text.contains("[badges]"));
 }
@@ -353,7 +360,14 @@ fn section_presence_writes_workspace_lints_table() {
     );
     let out = output(req, Some(b"[workspace]\nresolver = \"3\"\n"));
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(!out.findings.is_empty());
     assert!(text.contains("[workspace.lints]"));
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

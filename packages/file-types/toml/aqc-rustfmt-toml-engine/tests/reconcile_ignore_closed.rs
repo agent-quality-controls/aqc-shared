@@ -27,7 +27,7 @@ fn forbidden_ignore_path_glob_removes_matching_values() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         !expected.contains("target/generated"),
         "matching ignore value should be removed"
@@ -75,7 +75,7 @@ fn forbidden_ignore_path_glob_reports_and_normalizes_malformed_ignore_list() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("ignore = [\"target/generated\"]"),
         "malformed ignore list should be normalized when glob rules inspect it"
@@ -99,7 +99,7 @@ fn closed_settings_keep_ignore_when_only_glob_rules_manage_it() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("ignore"),
         "ignore should be allowed when forbidden ignore glob rules manage it"
@@ -124,7 +124,7 @@ fn closed_settings_remove_unlisted_keys() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(expected.contains("max_width"), "listed key should remain");
     assert!(
         !expected.contains("unknown"),
@@ -150,7 +150,7 @@ fn closed_settings_keep_allowed_list_keys() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("ignore"),
         "allowed list key should remain"
@@ -175,7 +175,7 @@ fn unrelated_settings_are_preserved_when_not_closed() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("unknown = true"),
         "unrelated key should remain when settings are not closed"
@@ -224,4 +224,11 @@ fn ignore_globs(globs: IgnoreGlobCases<'_>) -> ForbiddenGlobRequirements<Rustfmt
             })
             .collect(),
     }
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

@@ -52,7 +52,7 @@ fn forbidden_cargo_lint_removes_malformed_existing_key() {
         vec![(prov("p1"), req)],
     );
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(!text.contains("unwrap_used"));
     assert_eq!(out.findings.len(), 1);
 }
@@ -293,4 +293,11 @@ fn list_excludes_and_exact_compose_when_exact_omits_item() {
     );
     let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

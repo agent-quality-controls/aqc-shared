@@ -21,16 +21,10 @@ impl FileEngine<ResolvedCargoTomlRequirements> for CargoTomlEngine {
     ) -> EngineOutput {
         let (mut doc, mut findings) = parse_or_report(current_bytes, "Cargo.toml");
         if !findings.is_empty() {
-            return EngineOutput {
-                expected_bytes: Vec::new(),
-                findings,
-            };
+            return EngineOutput::single(Vec::new(), findings);
         }
         reconcile::apply(&mut doc, requirement, &mut findings);
-        EngineOutput {
-            expected_bytes: doc.to_string().into_bytes(),
-            findings,
-        }
+        EngineOutput::single(doc.to_string().into_bytes(), findings)
     }
 }
 
@@ -39,17 +33,26 @@ impl Engine for CargoTomlEngine {
         crate::ENGINE_ID
     }
 
-    fn target_path(&self, workspace_root: &Path) -> PathBuf {
-        workspace_root.join("Cargo.toml")
+    fn target_paths(
+        &self,
+        workspace_root: &Path,
+        _reqs: &[(Provenance, Box<dyn EngineRequirement>)],
+    ) -> Vec<PathBuf> {
+        vec![workspace_root.join("Cargo.toml")]
     }
 
     fn reconcile(
         &self,
-        current: Option<&[u8]>,
+        workspace_root: &Path,
+        current: &[aqc_file_engine_core::EngineFileState],
         reqs: &[(Provenance, Box<dyn EngineRequirement>)],
     ) -> EngineOutput {
         merged_reconcile(
             current,
+            self.target_paths(workspace_root, reqs)
+                .into_iter()
+                .next()
+                .unwrap_or_else(PathBuf::new),
             reqs,
             "Cargo.toml",
             CargoTomlRequirements::merge,

@@ -32,7 +32,14 @@ fn clippy_output(bytes: Option<&[u8]>, reqs: Vec<ClippyRequirementInput>) -> Eng
             (p, requirement)
         })
         .collect::<Vec<_>>();
-    ClippyTomlEngine.reconcile(bytes, &reqs)
+    let current = bytes.map_or_else(Vec::new, |bytes| {
+        vec![aqc_file_engine_core::EngineFileState {
+            path: std::path::PathBuf::from("/workspace/clippy.toml"),
+            bytes: Some(bytes.to_vec()),
+            executable: None,
+        }]
+    });
+    ClippyTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
 }
 
 fn forbid(path: &str) -> DisallowedEntry {
@@ -86,7 +93,7 @@ disallowed-macros = ["std::println", "tracing::info"]
         ),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes)
+    let text = String::from_utf8(first_bytes(&output))
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(!text.contains("std::env::set_var"));
     assert!(text.contains("std::fs::read_to_string"));
@@ -112,7 +119,7 @@ fn forbidden_disallowed_path_glob_conflict_does_not_remove_required_entry() {
         Some(br#"disallowed-methods = ["std::env::set_var"]"#),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes)
+    let text = String::from_utf8(first_bytes(&output))
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("std::env::set_var"));
     assert!(output.findings.iter().any(|finding| {
@@ -209,7 +216,7 @@ fn init_writes_clippy_disallowed_array_item() {
         ..ClippyTomlRequirements::default()
     };
     let output = clippy_output(None, vec![(prov("p1"), req)]);
-    let text = String::from_utf8(output.expected_bytes)
+    let text = String::from_utf8(first_bytes(&output))
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("disallowed-methods"));
     assert!(text.contains("path = \"std::env::set_var\""));
@@ -230,7 +237,7 @@ fn required_clippy_disallowed_updates_missing_reason() {
         Some(b"disallowed-methods = [\"std::env::set_var\"]\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes)
+    let text = String::from_utf8(first_bytes(&output))
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("reason = \"forbid\""));
     assert_eq!(output.findings.len(), 1);
@@ -250,7 +257,7 @@ fn required_clippy_disallowed_handles_non_array_without_panic() {
         Some(b"disallowed-methods = \"bad\"\n"),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes)
+    let text = String::from_utf8(first_bytes(&output))
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(text.contains("path = \"std::env::set_var\""));
     assert!(!output.findings.is_empty());
@@ -272,7 +279,7 @@ fn forbidden_clippy_disallowed_removes_duplicate_entries() {
         ),
         vec![(prov("p1"), req)],
     );
-    let text = String::from_utf8(output.expected_bytes)
+    let text = String::from_utf8(first_bytes(&output))
         .expect("engine output should remain valid UTF-8 TOML text");
     assert!(!text.contains("std::env::set_var"));
     assert_eq!(output.findings.len(), 2);
@@ -291,7 +298,7 @@ fn clippy_forbidden_absent_does_not_create_empty_array() {
     let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);
     assert!(output.findings.is_empty());
     assert_eq!(
-        String::from_utf8(output.expected_bytes)
+        String::from_utf8(first_bytes(&output))
             .expect("engine output should remain valid UTF-8 TOML text"),
         ""
     );
@@ -306,8 +313,15 @@ fn clippy_closed_absent_does_not_create_empty_array() {
     let output = clippy_output(Some(b""), vec![(prov("p1"), req)]);
     assert!(output.findings.is_empty());
     assert_eq!(
-        String::from_utf8(output.expected_bytes)
+        String::from_utf8(first_bytes(&output))
             .expect("engine output should remain valid UTF-8 TOML text"),
         ""
     );
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

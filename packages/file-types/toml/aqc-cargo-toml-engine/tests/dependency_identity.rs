@@ -166,7 +166,7 @@ fn dependency_package_identity_forbid_catches_renamed_key() {
         vec![(prov("p1"), req)],
     );
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert_eq!(out.findings.len(), 1);
     assert!(!text.contains("json ="));
 }
@@ -341,7 +341,7 @@ fn missing_package_identity_dependency_writes_package_name() {
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[dependencies]"));
     assert!(text.contains("serde_json = \"1\""));
     assert!(!text.contains("package = \"serde_json\""));
@@ -365,7 +365,7 @@ fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reser
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
         matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
     }));
@@ -388,7 +388,7 @@ fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_diff
         vec![(prov("p1"), req)],
     );
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
         matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].serde_json")
     }));
@@ -414,7 +414,7 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
     let text =
-        String::from_utf8(out.expected_bytes).expect("engine output should be valid UTF-8 TOML");
+        String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(out.findings.iter().any(|finding| {
         matches!(
             finding,
@@ -450,4 +450,11 @@ fn renamed_forbidden_package_reports_one_finding() {
         vec![(prov("p1"), req)],
     );
     assert_eq!(findings.len(), 1);
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

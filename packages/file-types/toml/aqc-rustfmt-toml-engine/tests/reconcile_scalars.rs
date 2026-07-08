@@ -22,7 +22,7 @@ fn equals_writes_missing_scalar() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("max_width = 100"),
         "init bytes should write max_width"
@@ -57,7 +57,7 @@ fn missing_file_writes_scalar() {
     let output = <RustfmtTomlEngine as FileEngine<ResolvedRustfmtTomlRequirements>>::reconcile(
         None, &resolved,
     );
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("max_width = 100"),
         "missing file should be initialized"
@@ -82,7 +82,7 @@ fn absent_removes_existing_scalar() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         !expected.contains("group_imports"),
         "absent scalar should be removed"
@@ -113,7 +113,7 @@ fn one_of_reports_without_writing_choice() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         !expected.contains("edition"),
         "check-only one-of should not write a value"
@@ -134,7 +134,7 @@ fn present_reports_missing_without_writing_choice() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         !expected.contains("edition"),
         "present check should not write a value"
@@ -155,7 +155,7 @@ fn wrong_scalar_type_writes_desired_value() {
         },
     );
 
-    let expected = String::from_utf8(output.expected_bytes).unwrap_or_default();
+    let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("max_width = 100"),
         "wrong scalar type should be replaced"
@@ -177,7 +177,7 @@ fn malformed_toml_reports_parse_error() {
     );
 
     assert!(
-        output.expected_bytes.is_empty(),
+        first_bytes(&output).is_empty(),
         "parse failures must not produce replacement bytes"
     );
     assert_eq!(output.findings.len(), 1, "parse failures must not cascade");
@@ -209,4 +209,11 @@ fn reconcile_resolved(
         Some(current.as_bytes()),
         &resolved,
     )
+}
+
+fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
+    output
+        .files
+        .first()
+        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
 }

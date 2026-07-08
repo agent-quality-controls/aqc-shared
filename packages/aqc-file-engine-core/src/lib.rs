@@ -29,19 +29,20 @@ pub use finding::Finding;
 #[cfg(feature = "api")]
 pub use merge::{
     ConflictEntry, FileItemRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements,
-    ItemRequirements, KeyedItem, ListRequirements, Resolve, ResolvedForbiddenGlobRequirements,
-    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
-    ScalarOperation, ScalarValue, compose_item_by, compose_optional_field, compose_string_list,
-    compose_string_set, keyed_entries_eq, push_conflict, render_list_requirement,
-    render_scalar_assertion, resolve_all_equal, resolve_exact_list, resolve_forbidden_globs,
-    resolve_items, resolve_list, resolve_map, resolve_maybe, resolve_scalar,
-    strongest_version_floor,
+    ItemAssertionInput, ItemRequirements, KeyedItem, ListRequirements, RequiredItemResolution,
+    Resolve, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedListRequirements,
+    ResolvedRequirement, ScalarAssertion, ScalarOperation, ScalarValue, compose_item_by,
+    compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,
+    push_conflict, render_list_requirement, render_scalar_assertion, resolve_all_equal,
+    resolve_exact_list, resolve_forbidden_globs, resolve_items, resolve_list, resolve_map,
+    resolve_maybe, resolve_scalar, strongest_version_floor,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;
 #[cfg(feature = "api")]
 pub use types::{
-    ConfigScalar, DottedVersion, EngineOutput, OnEmpty, OnEmptyClass, Provenance, Severity,
+    ConfigScalar, DottedVersion, EngineFileOutput, EngineFileState, EngineOutput, OnEmpty,
+    OnEmptyClass, Provenance, Severity,
 };
 #[cfg(feature = "api")]
 pub use version::parse_version_tuple;

@@ -4,9 +4,7 @@ version = 4
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc5771506d80988fc251d91570d2c2d0215e435242ec5167340e03fafa0d2c3a"
+version = "0.3.4"
 dependencies = [
  "serde",
 ]
@@ -23,9 +21,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-toml-engine-core"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fc7f4ddc884075cc4a13e0b04517a7644c19f603f16e89c35c406cf609d4702"
+version = "0.3.6"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",
@@ -55,9 +51,9 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.8.2"
+version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
+checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "proc-macro2"
