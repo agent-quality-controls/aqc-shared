@@ -1,123 +1,79 @@
 use aqc_file_engine_core::{ItemRequirements, Provenance, ScalarAssertion};
-use aqc_text_engine_core::{
-    TextFileContents, TextFilePath, TextFileRequirement, TextFileRequirements, TextSnippet,
-    TextSnippetId,
-};
+use aqc_text_engine_core::{TextFileContents, TextFileRequirements, TextSnippet, TextSnippetId};
 
 #[test]
-fn uses_core_item_merge_for_files() -> Result<(), String> {
-    let first = text_file("hooks/pre-commit", Some("one\n"), Vec::new(), None)?;
-    let second = text_file("hooks/pre-commit", Some("two\n"), Vec::new(), None)?;
-    let (resolved, conflicts) = TextFileRequirements::merge(vec![
-        (provenance("alpha"), requirements(first)),
-        (provenance("beta"), requirements(second)),
+fn merges_exact_contents_and_snippets() -> Result<(), String> {
+    let (resolved, conflicts) = TextFileRequirements::merge(vec![(
+        provenance("policy"),
+        TextFileRequirements {
+            exact_contents: Some(ScalarAssertion::Equals(
+                contents("abc")?,
+                "exact".to_owned(),
+            )),
+            required_snippets: snippets(vec![snippet("chain", "abc")?]),
+        },
+    )]);
+
+    assert!(conflicts.is_empty(), "single policy should not conflict");
+    assert!(
+        resolved.exact_contents.is_some(),
+        "exact contents assertion should resolve"
+    );
+    assert_eq!(
+        resolved.required_snippets.required.len(),
+        1,
+        "one snippet should resolve"
+    );
+    Ok(())
+}
+
+#[test]
+fn conflicting_exact_contents_reports_conflict() -> Result<(), String> {
+    let (_resolved, conflicts) = TextFileRequirements::merge(vec![
+        (
+            provenance("one"),
+            TextFileRequirements {
+                exact_contents: Some(ScalarAssertion::Equals(contents("one")?, "one".to_owned())),
+                required_snippets: ItemRequirements::default(),
+            },
+        ),
+        (
+            provenance("two"),
+            TextFileRequirements {
+                exact_contents: Some(ScalarAssertion::Equals(contents("two")?, "two".to_owned())),
+                required_snippets: ItemRequirements::default(),
+            },
+        ),
     ]);
 
-    assert_eq!(
-        resolved.files.required.len(),
-        1,
-        "conflicting nested fields should keep the file item"
-    );
-    assert!(
-        resolved
-            .files
-            .required
-            .values()
-            .all(|entry| entry.merged.exact_contents.is_none()),
-        "conflicting exact contents should be dropped from the merged file"
-    );
     assert_eq!(
         conflicts.len(),
         1,
-        "file identity merge should report one conflict"
-    );
-    assert_eq!(conflicts[0].key, "files.hooks/pre-commit.exact_contents");
-    Ok(())
-}
-
-#[test]
-fn uses_core_item_merge_for_snippets() -> Result<(), String> {
-    let first = text_file(
-        "hooks/pre-commit",
-        None,
-        vec![snippet("runner", "cargo test\n")?],
-        None,
-    )?;
-    let second = text_file(
-        "hooks/pre-commit",
-        None,
-        vec![snippet("runner", "cargo clippy\n")?],
-        None,
-    )?;
-    let (resolved, conflicts) = TextFileRequirements::merge(vec![
-        (provenance("alpha"), requirements(first)),
-        (provenance("beta"), requirements(second)),
-    ]);
-
-    assert_eq!(
-        resolved.files.required.len(),
-        1,
-        "conflicting nested snippets should keep the file item"
-    );
-    assert!(
-        resolved.files.required.values().all(|entry| entry
-            .merged
-            .required_snippets
-            .required
-            .is_empty()),
-        "conflicting snippets should be dropped from the merged file"
-    );
-    assert_eq!(
-        conflicts[0].key, "files.hooks/pre-commit.required_snippets.runner",
-        "snippet identity merge should report the nested snippet key"
+        "different exact contents should conflict"
     );
     Ok(())
 }
 
-fn requirements(file: TextFileRequirement) -> TextFileRequirements {
-    TextFileRequirements {
-        files: ItemRequirements {
-            required: vec![(file, "file required".to_owned())],
-            forbidden: Vec::new(),
-            closed: None,
-        },
+fn snippets(items: Vec<TextSnippet>) -> ItemRequirements<TextSnippet> {
+    ItemRequirements {
+        required: items
+            .into_iter()
+            .map(|item| (item, "snippet".to_owned()))
+            .collect(),
+        forbidden: Vec::new(),
+        closed: None,
     }
 }
 
-fn text_file(
-    path: &str,
-    exact_contents: Option<&str>,
-    snippets: Vec<TextSnippet>,
-    executable: Option<bool>,
-) -> Result<TextFileRequirement, String> {
-    let exact_contents = exact_contents
-        .map(|contents| TextFileContents::new(contents.as_bytes().to_vec()))
-        .transpose()
-        .map_err(|err| err.to_string())?
-        .map(|contents| ScalarAssertion::Equals(contents, "exact contents".to_owned()));
-    let executable =
-        executable.map(|value| ScalarAssertion::Equals(value, "executable".to_owned()));
-    Ok(TextFileRequirement {
-        path: TextFilePath::new(path).map_err(|err| err.to_string())?,
-        exact_contents,
-        required_snippets: ItemRequirements {
-            required: snippets
-                .into_iter()
-                .map(|snippet| (snippet, "snippet required".to_owned()))
-                .collect(),
-            forbidden: Vec::new(),
-            closed: None,
-        },
-        executable,
+fn snippet(id: &str, value: &str) -> Result<TextSnippet, String> {
+    Ok(TextSnippet {
+        id: TextSnippetId::new(id).map_err(|err| err.to_string())?,
+        contents: contents(value)?,
     })
 }
 
-fn snippet(id: &str, contents: &str) -> Result<TextSnippet, String> {
-    Ok(TextSnippet {
-        id: TextSnippetId::new(id).map_err(|err| err.to_string())?,
-        contents: TextFileContents::new(contents.as_bytes().to_vec())
-            .map_err(|err| err.to_string())?,
-    })
+fn contents(value: &str) -> Result<TextFileContents, String> {
+    TextFileContents::new(value.as_bytes().to_vec()).map_err(|err| err.to_string())
 }
 
 fn provenance(policy: &str) -> Provenance {

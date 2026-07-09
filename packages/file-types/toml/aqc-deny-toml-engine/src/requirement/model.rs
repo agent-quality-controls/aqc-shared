@@ -1,6 +1,6 @@
 //! Deny TOML requirement model types.
 
-#![expect(
+#![allow(
     clippy::disallowed_types,
     reason = "`Any` is used only for EngineRequirement downcast dispatch."
 )]

@@ -1,6 +1,6 @@
 //! Rust toolchain requirement model types.
 
-#![expect(
+#![allow(
     clippy::disallowed_types,
     reason = "`Any` is used only for EngineRequirement downcast dispatch."
 )]
@@ -26,8 +26,9 @@ pub enum RustToolchainValueError {
     RelativePath { value: PathBuf },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RustToolchainProfile {
+    #[default]
     Minimal,
     Default,
     Complete,
@@ -76,18 +77,12 @@ impl RustToolchainProfile {
     }
 
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Minimal => "minimal",
             Self::Default => "default",
             Self::Complete => "complete",
         }
-    }
-}
-
-impl Default for RustToolchainProfile {
-    fn default() -> Self {
-        Self::Minimal
     }
 }
 

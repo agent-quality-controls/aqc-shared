@@ -5,7 +5,7 @@
 //! needs a `name` the engine cannot invent). `Absent`: remove the whole table
 //! when present (vacuous when already missing).
 
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Section reconciliation consumes resolved map requirement shapes."
 )]
@@ -100,6 +100,7 @@ fn apply_absent(
     remove_section(doc, section);
 }
 
+/// Return whether the manifest currently contains the section table.
 fn section_exists(doc: &DocumentMut, section: ManifestSection) -> bool {
     if matches!(section, ManifestSection::WorkspaceLints) {
         return doc
@@ -111,6 +112,8 @@ fn section_exists(doc: &DocumentMut, section: ManifestSection) -> bool {
     doc.get(section.key()).is_some()
 }
 
+/// Insert the section table when it can be initialized without inventing
+/// Cargo-owned semantic fields.
 fn ensure_section(doc: &mut DocumentMut, section: ManifestSection) {
     if matches!(section, ManifestSection::WorkspaceLints) {
         let workspace = ensure_table(doc, "workspace");
@@ -122,6 +125,7 @@ fn ensure_section(doc: &mut DocumentMut, section: ManifestSection) {
         .or_insert(Item::Table(Table::new()));
 }
 
+/// Remove the section table from the manifest when it exists.
 fn remove_section(doc: &mut DocumentMut, section: ManifestSection) {
     if matches!(section, ManifestSection::WorkspaceLints) {
         if let Some(workspace) = doc.get_mut("workspace").and_then(Item::as_table_mut) {

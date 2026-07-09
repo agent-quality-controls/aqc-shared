@@ -82,6 +82,8 @@ deny = [
     { crate = "g3rs", reason = "AQC shared crates must not depend on product crates" },
     { crate = "g3rs-core", reason = "AQC shared crates must not depend on product crates" },
     { crate = "specular", reason = "AQC shared crates must not depend on product crates" },
+    { name = "shackles-core", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakrs-runner", wrappers = [], reason = "Forbidden by package dependency boundary" },
 ]
 
 [[bans.features]]

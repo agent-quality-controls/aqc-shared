@@ -228,17 +228,17 @@ fn apply_list(
         updated.dedup();
         toml_core::write_table_list(table, key, &updated);
     } else if canonical_changed {
-        let mut values = current_values;
-        values.sort();
-        values.dedup();
+        let mut canonical_values = current_values;
+        canonical_values.sort();
+        canonical_values.dedup();
         toml_core::push_mismatch(
             findings,
             format!("toolchain.{key}"),
             table.get(key).and_then(toml_core::render_item),
-            format!("{values:?}"),
+            format!("{canonical_values:?}"),
             "rust-toolchain.toml lists must be canonical.".to_owned(),
             &support::list_attribution(resolved),
         );
-        toml_core::write_table_list(table, key, &values);
+        toml_core::write_table_list(table, key, &canonical_values);
     }
 }

@@ -1,6 +1,6 @@
 //! Public dependency reconciliation entry points.
 
-#![expect(
+#![allow(
     clippy::too_many_arguments,
     clippy::type_complexity,
     reason = "Dependency reconciliation passes resolved requirement sections and output sinks through module boundaries."

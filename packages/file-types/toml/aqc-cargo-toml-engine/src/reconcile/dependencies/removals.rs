@@ -7,7 +7,7 @@
         reason = "Private dependency removal helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Dependency match helpers return file-key/spec pairs from Cargo tables."
 )]

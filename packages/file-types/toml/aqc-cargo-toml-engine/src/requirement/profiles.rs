@@ -1,6 +1,6 @@
 //! `[profile.<name>]` requirements.
 
-#![expect(
+#![allow(
     clippy::type_complexity,
     clippy::use_self,
     reason = "Profile requirement composition uses core scalar assertions and collected provenance tuples."

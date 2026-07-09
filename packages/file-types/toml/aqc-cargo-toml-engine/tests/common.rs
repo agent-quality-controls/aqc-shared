@@ -1,4 +1,4 @@
-#![expect(
+#![allow(
     clippy::as_conversions,
     clippy::missing_const_for_fn,
     clippy::type_complexity,
@@ -211,14 +211,7 @@ fn cargo_output_from_erased(
         Box<dyn engine_core::EngineRequirement>,
     )],
 ) -> engine_core::EngineOutput {
-    let current = bytes.map_or_else(Vec::new, |bytes| {
-        vec![engine_core::EngineFileState {
-            path: std::path::PathBuf::from("/workspace/Cargo.toml"),
-            bytes: Some(bytes.to_vec()),
-            executable: None,
-        }]
-    });
-    cargo::CargoTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, reqs)
+    cargo::CargoTomlEngine.reconcile(bytes, reqs)
 }
 
 pub(crate) fn has_conflict(findings: &[engine_core::Finding]) -> bool {

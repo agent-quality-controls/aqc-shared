@@ -7,7 +7,7 @@
         reason = "Private threshold reconciliation helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Private threshold reconciliation helpers carry repeated resolved requirement shapes."
 )]

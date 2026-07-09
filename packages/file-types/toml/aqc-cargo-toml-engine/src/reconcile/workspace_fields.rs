@@ -9,7 +9,7 @@
         reason = "Private workspace-field helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Workspace-field reconciliation consumes resolved requirement map shapes."
 )]

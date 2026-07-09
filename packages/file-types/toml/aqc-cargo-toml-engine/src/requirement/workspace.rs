@@ -7,7 +7,7 @@
         reason = "Private workspace-field composition helpers are internal requirement steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::option_option,
     reason = "Workspace-field composition uses product wrappers and three-state resolution."
 )]

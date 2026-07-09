@@ -144,16 +144,14 @@ fn apply_forbidden_array_table_items<ItemType>(
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
-    remove_array_table_items(array, |table| {
+    for identity in remove_array_table_items(array, |table| {
         ItemType::read_table(table)
             .ok()
             .map(|item| item.merge_identity())
             .filter(|identity| forbidden.contains(identity))
-    })
-    .into_iter()
-    .for_each(|identity| {
+    }) {
         let Some(entry) = requirements.forbidden.get(&identity) else {
-            return;
+            continue;
         };
         push_mismatch(
             findings,
@@ -163,7 +161,7 @@ fn apply_forbidden_array_table_items<ItemType>(
             forbidden_message(&entry.collected),
             &attribution(entry),
         );
-    });
+    }
 }
 
 fn apply_closed_array_table_items<ItemType>(
@@ -183,14 +181,12 @@ fn apply_closed_array_table_items<ItemType>(
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
-    remove_array_table_items(array, |table| {
+    for identity in remove_array_table_items(array, |table| {
         ItemType::read_table(table)
             .ok()
             .map(|item| item.merge_identity())
             .filter(|identity| !allowed.contains(identity))
-    })
-    .into_iter()
-    .for_each(|identity| {
+    }) {
         push_mismatch(
             findings,
             item_key::<ItemType>(field, &identity),
@@ -199,5 +195,5 @@ fn apply_closed_array_table_items<ItemType>(
             first_closed_message(requirements),
             &closed_attribution(requirements),
         );
-    });
+    }
 }

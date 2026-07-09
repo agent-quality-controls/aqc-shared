@@ -1,5 +1,13 @@
 //! Shared TOML IO and application helpers for AQC TOML engines.
 
+#![allow(
+    clippy::missing_docs_in_private_items,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    reason = "Public TOML core helpers are documented; private module wiring is not part of the API contract."
+)]
+
 #[cfg(feature = "api")]
 mod finding;
 #[cfg(feature = "api")]

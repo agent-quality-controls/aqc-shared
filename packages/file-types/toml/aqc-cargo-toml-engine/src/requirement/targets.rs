@@ -8,7 +8,7 @@
         reason = "Private target-table composition helpers are internal requirement steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::option_option,
     clippy::type_complexity,
     reason = "Target-table composition uses three-state resolution and core scalar assertions."

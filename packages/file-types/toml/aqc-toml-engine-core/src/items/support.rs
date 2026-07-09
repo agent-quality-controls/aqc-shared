@@ -1,5 +1,10 @@
 //! Shared support for TOML item reconciliation.
 
+#![allow(
+    clippy::expect_used,
+    reason = "These expects guard internal post-conditions immediately after replacing TOML item variants."
+)]
+
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{FileItemRequirement, Finding, Provenance, ResolvedItemRequirements};
@@ -155,7 +160,10 @@ pub(super) fn remove_array_table_items<Identity>(
     for (index, _) in removals.iter().rev() {
         let _ = array.remove(*index);
     }
-    removals.into_iter().map(|(_, identity)| identity).collect()
+    removals
+        .into_iter()
+        .map(|(_, removed_identity)| removed_identity)
+        .collect()
 }
 
 pub(super) fn item_key<ItemType>(field: TomlItemField<'_>, identity: &ItemType::Identity) -> String

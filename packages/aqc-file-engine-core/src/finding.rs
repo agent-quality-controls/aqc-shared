@@ -69,8 +69,6 @@ pub enum Finding {
     /// value. Always `Severity::Error`; the field is dropped (not written);
     /// not waivable.
     ConflictingRequirements {
-        /// The file (e.g. `Cargo.toml`).
-        subject: String,
         /// The in-file key (e.g. `[workspace.lints.clippy].unwrap_used`).
         key: String,
         /// Each disagreeing policy id + its rendered value.

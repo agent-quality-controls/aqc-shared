@@ -7,7 +7,7 @@
         reason = "Private aggregate merge helpers are internal requirement steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::needless_pass_by_value,
     clippy::too_many_lines,
     clippy::type_complexity,

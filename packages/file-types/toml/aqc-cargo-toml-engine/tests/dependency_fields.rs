@@ -1,4 +1,4 @@
-#![expect(
+#![allow(
     clippy::indexing_slicing,
     reason = "These assertions index known merged fixture keys."
 )]

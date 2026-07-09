@@ -57,7 +57,7 @@ impl RustToolchainTomlRequirements {
 fn resolve_optional_scalar<T>(
     key: &str,
     reqs: &[(Provenance, RustToolchainTomlRequirements)],
-    get: impl Fn(&RustToolchainTomlRequirements) -> &Option<ScalarAssertion<T>>,
+    get: impl Fn(&RustToolchainTomlRequirements) -> Option<&ScalarAssertion<T>>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> Option<aqc_file_engine_core::ResolvedRequirement<ScalarAssertion<T>, ScalarAssertion<T>>>
 where
@@ -65,7 +65,7 @@ where
 {
     let items = reqs
         .iter()
-        .filter_map(|(prov, req)| get(req).clone().map(|assertion| (prov.clone(), assertion)))
+        .filter_map(|(prov, req)| get(req).cloned().map(|assertion| (prov.clone(), assertion)))
         .collect::<Vec<_>>();
     if items.is_empty() {
         None
@@ -76,18 +76,18 @@ where
 
 fn field_channel(
     req: &RustToolchainTomlRequirements,
-) -> &Option<ScalarAssertion<RustToolchainChannel>> {
-    &req.channel
+) -> Option<&ScalarAssertion<RustToolchainChannel>> {
+    req.channel.as_ref()
 }
 
-fn field_path(req: &RustToolchainTomlRequirements) -> &Option<ScalarAssertion<RustToolchainPath>> {
-    &req.path
+fn field_path(req: &RustToolchainTomlRequirements) -> Option<&ScalarAssertion<RustToolchainPath>> {
+    req.path.as_ref()
 }
 
 fn field_profile(
     req: &RustToolchainTomlRequirements,
-) -> &Option<ScalarAssertion<RustToolchainProfile>> {
-    &req.profile
+) -> Option<&ScalarAssertion<RustToolchainProfile>> {
+    req.profile.as_ref()
 }
 
 fn normalize_list(mut list: ListRequirements) -> ListRequirements {

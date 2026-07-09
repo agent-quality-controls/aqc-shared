@@ -76,8 +76,5 @@ fn resolved() -> ResolvedDenyTomlRequirements {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

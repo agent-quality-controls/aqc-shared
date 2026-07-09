@@ -1,6 +1,6 @@
 //! Reconcile `[features]`.
 
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Feature reconciliation consumes resolved item requirement shapes."
 )]

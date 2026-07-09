@@ -146,16 +146,14 @@ fn apply_forbidden_array_items<ItemType>(
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
-    support::remove_array_items(array, |value| {
+    for (index, identity) in support::remove_array_items(array, |value| {
         ItemType::read_value(value)
             .ok()
             .map(|item| item.merge_identity())
             .filter(|identity| forbidden.contains(identity))
-    })
-    .into_iter()
-    .for_each(|(index, identity)| {
+    }) {
         let Some(entry) = requirements.forbidden.get(&identity) else {
-            return;
+            continue;
         };
         let _ = index;
         push_mismatch(
@@ -166,7 +164,7 @@ fn apply_forbidden_array_items<ItemType>(
             support::forbidden_message(&entry.collected),
             &attribution(entry),
         );
-    });
+    }
 }
 
 fn apply_closed_array_items<ItemType>(
@@ -186,14 +184,12 @@ fn apply_closed_array_items<ItemType>(
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
-    support::remove_array_items(array, |value| {
+    for (_, identity) in support::remove_array_items(array, |value| {
         ItemType::read_value(value)
             .ok()
             .map(|item| item.merge_identity())
             .filter(|identity| !allowed.contains(identity))
-    })
-    .into_iter()
-    .for_each(|(_, identity)| {
+    }) {
         push_mismatch(
             findings,
             support::item_key::<ItemType>(field, &identity),
@@ -202,5 +198,5 @@ fn apply_closed_array_items<ItemType>(
             support::first_closed_message(requirements),
             &support::closed_attribution(requirements),
         );
-    });
+    }
 }

@@ -21,14 +21,14 @@ fn missing_file() {
 
 #[test]
 fn writes_deterministic_baseline() {
+    let requirement: Box<dyn EngineRequirement> = Box::new(raw());
     let output = DenyTomlEngine.reconcile(
-        std::path::Path::new("/tmp/work"),
-        &[],
+        None,
         &[(
             Provenance {
                 policy: "test".to_owned(),
             },
-            Box::new(raw()) as Box<dyn EngineRequirement>,
+            requirement,
         )],
     );
     let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
@@ -39,18 +39,9 @@ fn writes_deterministic_baseline() {
 }
 
 #[test]
-fn engine_requirement_id_and_path() {
+fn engine_requirement_id_matches_crate() {
     let req = raw();
     assert_eq!(req.engine_id(), aqc_deny_toml_engine::ENGINE_ID);
-    assert_eq!(
-        DenyTomlEngine
-            .target_paths(std::path::Path::new("/tmp/work"), &[])
-            .first()
-            .map_or_else(std::path::PathBuf::new, Clone::clone)
-            .ends_with("deny.toml"),
-        true,
-        "target path must be deny.toml"
-    );
 }
 
 fn raw() -> DenyTomlRequirements {
@@ -75,8 +66,5 @@ fn resolved() -> ResolvedDenyTomlRequirements {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

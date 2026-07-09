@@ -1,6 +1,6 @@
 //! Clippy requirement aggregate types.
 
-#![expect(
+#![allow(
     clippy::disallowed_types,
     clippy::type_complexity,
     reason = "`Any` is required by the shared EngineRequirement downcast API; resolved requirement fields mirror public API sections."

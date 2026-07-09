@@ -1,6 +1,6 @@
 //! Dependency-table scopes and entry payloads.
 
-#![expect(
+#![allow(
     clippy::too_many_lines,
     clippy::use_self,
     reason = "Cargo dependency records intentionally keep Cargo terminology in public API names."

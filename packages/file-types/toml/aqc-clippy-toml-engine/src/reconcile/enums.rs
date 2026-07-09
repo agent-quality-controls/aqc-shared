@@ -7,7 +7,7 @@
         reason = "Private setting reconciliation helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Private setting reconciliation helpers carry repeated resolved requirement shapes."
 )]

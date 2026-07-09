@@ -82,8 +82,7 @@ fn check_writes_law<Req>(
     let second_findings = output_findings(&second);
     if !second_findings.is_empty() {
         return Err(ContractViolation::new(format!(
-            "Writes law: reconciling the engine's own output is not clean: {:?}",
-            second_findings
+            "Writes law: reconciling the engine's own output is not clean: {second_findings:?}"
         )));
     }
     let second_bytes = output_bytes(&second);
@@ -113,8 +112,7 @@ fn check_checks_only_law<Req>(
     let first_findings = output_findings(first);
     if !has_error(&first_findings) {
         return Err(ContractViolation::new(format!(
-            "ChecksOnly law: no Error finding from an empty file; findings: {:?}",
-            first_findings
+            "ChecksOnly law: no Error finding from an empty file; findings: {first_findings:?}"
         )));
     }
     let second = reconcile(Some(first_bytes), requirement);
@@ -128,19 +126,14 @@ fn check_checks_only_law<Req>(
     Ok(())
 }
 
+/// Return the bytes that init would write.
 fn output_bytes(output: &EngineOutput) -> &[u8] {
-    output
-        .files
-        .first()
-        .map_or(&[], |file| file.expected_bytes.as_slice())
+    output.expected_bytes.as_slice()
 }
 
+/// Return the findings that validate would report.
 fn output_findings(output: &EngineOutput) -> Vec<&Finding> {
-    output
-        .findings
-        .iter()
-        .chain(output.files.iter().flat_map(|file| file.findings.iter()))
-        .collect()
+    output.findings.iter().collect()
 }
 
 /// True when any finding carries `Severity::Error` (or is implicitly Error).

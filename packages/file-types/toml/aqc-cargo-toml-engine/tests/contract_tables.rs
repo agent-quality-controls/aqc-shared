@@ -1,4 +1,5 @@
-#![expect(
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
     clippy::as_conversions,
     clippy::field_reassign_with_default,
     clippy::missing_const_for_fn,
@@ -26,14 +27,7 @@ fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_c
         prov(),
         Box::new(req) as Box<dyn engine_core::EngineRequirement>,
     )];
-    let current = current.map_or_else(Vec::new, |bytes| {
-        vec![engine_core::EngineFileState {
-            path: std::path::PathBuf::from("/workspace/Cargo.toml"),
-            bytes: Some(bytes.to_vec()),
-            executable: None,
-        }]
-    });
-    cargo::CargoTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
+    cargo::CargoTomlEngine.reconcile(current, &reqs)
 }
 
 fn normal_scope() -> cargo::DependencyScope {
@@ -299,8 +293,5 @@ fn target_lib_list_field_uses_unified_list_requirements() {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

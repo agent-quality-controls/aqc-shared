@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
 use aqc_toml_engine_core as _;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -31,14 +32,7 @@ fn clippy_output(
             (p, requirement)
         })
         .collect::<Vec<_>>();
-    let current = bytes.map_or_else(Vec::new, |bytes| {
-        vec![aqc_file_engine_core::EngineFileState {
-            path: std::path::PathBuf::from("/workspace/clippy.toml"),
-            bytes: Some(bytes.to_vec()),
-            executable: None,
-        }]
-    });
-    ClippyTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
+    ClippyTomlEngine.reconcile(bytes, &reqs)
 }
 
 #[test]
@@ -381,8 +375,5 @@ fn clippy_scalar_incompatible_cases_conflict() {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

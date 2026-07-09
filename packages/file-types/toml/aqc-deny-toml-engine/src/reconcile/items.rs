@@ -130,14 +130,15 @@ impl TomlArrayItem for requirement::DenyAdvisoryIgnoreSpec {
     }
 
     fn write_value(&self) -> Value {
-        if let Some(reason) = self.reason() {
-            let mut table = InlineTable::new();
-            let _ = table.insert("id", Value::from(self.as_str()));
-            let _ = table.insert("reason", Value::from(reason));
-            Value::InlineTable(table)
-        } else {
-            Value::from(self.as_str())
-        }
+        self.reason().map_or_else(
+            || Value::from(self.as_str()),
+            |reason| {
+                let mut table = InlineTable::new();
+                let _ = table.insert("id", Value::from(self.as_str()));
+                let _ = table.insert("reason", Value::from(reason));
+                Value::InlineTable(table)
+            },
+        )
     }
 
     fn matches_value(current: &Self, required: &Self) -> bool {
@@ -206,14 +207,15 @@ impl TomlArrayItem for requirement::DenyPackageReasonSpec {
     }
 
     fn write_value(&self) -> Value {
-        if let Some(reason) = self.reason() {
-            let mut table = InlineTable::new();
-            let _ = table.insert("crate", Value::from(self.as_str()));
-            let _ = table.insert("reason", Value::from(reason));
-            Value::InlineTable(table)
-        } else {
-            Value::from(self.as_str())
-        }
+        self.reason().map_or_else(
+            || Value::from(self.as_str()),
+            |reason| {
+                let mut table = InlineTable::new();
+                let _ = table.insert("crate", Value::from(self.as_str()));
+                let _ = table.insert("reason", Value::from(reason));
+                Value::InlineTable(table)
+            },
+        )
     }
 
     fn matches_value(current: &Self, required: &Self) -> bool {
@@ -329,14 +331,15 @@ impl TomlArrayItem for requirement::DenyBuildGlobSpec {
     }
 
     fn write_value(&self) -> Value {
-        if let Some(reason) = self.reason() {
-            let mut table = InlineTable::new();
-            let _ = table.insert("glob", Value::from(self.as_str()));
-            let _ = table.insert("reason", Value::from(reason));
-            Value::InlineTable(table)
-        } else {
-            Value::from(self.as_str())
-        }
+        self.reason().map_or_else(
+            || Value::from(self.as_str()),
+            |reason| {
+                let mut table = InlineTable::new();
+                let _ = table.insert("glob", Value::from(self.as_str()));
+                let _ = table.insert("reason", Value::from(reason));
+                Value::InlineTable(table)
+            },
+        )
     }
 
     fn matches_value(current: &Self, required: &Self) -> bool {
@@ -367,11 +370,11 @@ impl TomlArrayTableItem for requirement::DenyLicenseClarification {
 
     fn write_table(&self) -> Table {
         let mut table = Table::new();
-        table["crate"] = toml_edit::value(self.as_str());
+        let _ = table.insert("crate", toml_edit::value(self.as_str()));
         if let Some(version) = self.version() {
-            table["version"] = toml_edit::value(version);
+            let _ = table.insert("version", toml_edit::value(version));
         }
-        table["expression"] = toml_edit::value(self.expression());
+        let _ = table.insert("expression", toml_edit::value(self.expression()));
         if !self.license_files().is_empty() {
             let mut files = Array::new();
             for file in self.license_files() {
@@ -380,7 +383,7 @@ impl TomlArrayTableItem for requirement::DenyLicenseClarification {
                 let _ = inner.insert("hash", Value::from(file.hash()));
                 files.push(Value::InlineTable(inner));
             }
-            table["license-files"] = Item::Value(Value::Array(files));
+            let _ = table.insert("license-files", Item::Value(Value::Array(files)));
         }
         table
     }
@@ -412,20 +415,26 @@ impl TomlArrayTableItem for requirement::DenyFeatureBanSpec {
 
     fn write_table(&self) -> Table {
         let mut table = Table::new();
-        table["crate"] = toml_edit::value(self.as_str());
-        table["allow"] = string_array_item(
-            &self
-                .allowed_features()
-                .iter()
-                .map(|feature| feature.as_str().to_owned())
-                .collect::<Vec<_>>(),
+        let _ = table.insert("crate", toml_edit::value(self.as_str()));
+        let _ = table.insert(
+            "allow",
+            string_array_item(
+                &self
+                    .allowed_features()
+                    .iter()
+                    .map(|feature| feature.as_str().to_owned())
+                    .collect::<Vec<_>>(),
+            ),
         );
-        table["deny"] = string_array_item(
-            &self
-                .forbidden_features()
-                .iter()
-                .map(|feature| feature.as_str().to_owned())
-                .collect::<Vec<_>>(),
+        let _ = table.insert(
+            "deny",
+            string_array_item(
+                &self
+                    .forbidden_features()
+                    .iter()
+                    .map(|feature| feature.as_str().to_owned())
+                    .collect::<Vec<_>>(),
+            ),
         );
         table
     }
@@ -472,7 +481,7 @@ fn read_string_set(
     Ok(out)
 }
 
-fn item_error(error: impl ToString) -> TomlItemError {
+fn item_error(error: requirement::DenyTomlValueError) -> TomlItemError {
     TomlItemError::new(error.to_string())
 }
 

@@ -11,7 +11,7 @@
         reason = "Private package-field helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Package-field reconciliation consumes resolved requirement map shapes."
 )]

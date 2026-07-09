@@ -18,7 +18,7 @@ pub enum ScalarFieldEdit {
 
 /// Parse TOML bytes into a document, reporting invalid bytes or invalid TOML.
 #[must_use]
-#[expect(
+#[allow(
     clippy::type_complexity,
     reason = "Returning the parsed document and findings is the engine contract shape."
 )]

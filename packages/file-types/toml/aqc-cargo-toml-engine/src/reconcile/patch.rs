@@ -1,7 +1,7 @@
 //! Reconcile `[patch.<registry>]` tables. Reuses the dependency helpers
 //! against the nested `[patch.<registry>]` table.
 
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Patch reconciliation consumes resolved dependency and forbidden-glob maps."
 )]

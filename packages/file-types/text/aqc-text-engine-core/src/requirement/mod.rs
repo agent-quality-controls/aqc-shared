@@ -4,6 +4,6 @@ mod merge;
 mod model;
 
 pub use model::{
-    ResolvedTextFileRequirement, ResolvedTextFileRequirements, TextFileContents, TextFilePath,
-    TextFileRequirement, TextFileRequirements, TextFileValueError, TextSnippet, TextSnippetId,
+    ResolvedTextFileRequirements, TextFileContents, TextFileRequirements, TextFileValueError,
+    TextSnippet, TextSnippetId,
 };

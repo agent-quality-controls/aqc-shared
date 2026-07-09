@@ -7,7 +7,7 @@
         reason = "Private lint-table helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::too_many_arguments,
     clippy::type_complexity,
     reason = "Lint table reconciliation passes TOML location, policy values, and findings together."

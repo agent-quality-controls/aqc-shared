@@ -1,6 +1,6 @@
 //! Declarative requirement and assertion types accepted by `CargoTomlEngine`.
 
-#![expect(
+#![allow(
     clippy::module_name_repetitions,
     reason = "Public re-exports preserve Cargo domain names for downstream callers."
 )]

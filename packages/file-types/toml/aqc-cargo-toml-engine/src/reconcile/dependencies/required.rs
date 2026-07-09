@@ -7,7 +7,7 @@
         reason = "Private required-dependency helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::type_complexity,

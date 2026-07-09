@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
 use aqc_toml_engine_core as _;
 use serde as _;
 use toml_edit as _;
@@ -16,7 +17,7 @@ use aqc_file_engine_core::{
 #[test]
 fn missing_field_is_repaired() {
     let output = reconcile("", scalar_req());
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("multiple-versions = \"deny\""),
         "missing scalar field should be written"
@@ -26,7 +27,7 @@ fn missing_field_is_repaired() {
 #[test]
 fn valid_drift_is_repaired() {
     let output = reconcile("[bans]\nmultiple-versions = \"allow\"\n", scalar_req());
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("multiple-versions = \"deny\""),
         "wrong scalar value should be repaired"
@@ -46,7 +47,7 @@ fn confidence_threshold_writes_float() {
             ..DenyTomlRequirements::default()
         },
     );
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("confidence-threshold = 0.8"),
         "confidence threshold should be written as a TOML float"
@@ -89,7 +90,7 @@ fn confidence_threshold_at_least_repairs_weaker_value() {
             ..DenyTomlRequirements::default()
         },
     );
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("confidence-threshold = 0.8"),
         "weaker confidence threshold should be repaired to the minimum"
@@ -135,7 +136,7 @@ fn empty_list_member() {
         "[graph]\nfeatures = [\"\"]\n",
         DenyTomlRequirements {
             graph_features: ListRequirements {
-                excludes: BTreeMap::from([("".to_owned(), "empty".to_owned())]),
+                excludes: BTreeMap::from([(String::new(), "empty".to_owned())]),
                 ..ListRequirements::default()
             },
             ..DenyTomlRequirements::default()
@@ -232,7 +233,7 @@ fn closed_bans_build_removes_extra() {
             ..DenyTomlRequirements::default()
         },
     );
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         !expected.contains("unknown"),
         "closed settings should remove unknown bans.build key"
@@ -254,7 +255,7 @@ fn deprecated_name_repairs_to_crate() {
             ..DenyTomlRequirements::default()
         },
     );
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("crate = \"serde\"") && !expected.contains("name = \"serde\""),
         "deprecated name key should be repaired to crate"
@@ -273,7 +274,7 @@ fn list_output_is_sorted() {
             ..DenyTomlRequirements::default()
         },
     );
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("features = [\"a\", \"b\"]"),
         "exact list output should be deterministic"
@@ -318,7 +319,7 @@ fn item_collections_write_required_items() {
             ..DenyTomlRequirements::default()
         },
     );
-    let expected = expected(output);
+    let expected = expected(&output);
     assert!(
         expected.contains("targets = [\"x86_64-unknown-linux-gnu\"]")
             && expected.contains("globs = [\"**/*.sh\"]"),
@@ -350,13 +351,10 @@ fn reconcile(current: &str, req: DenyTomlRequirements) -> aqc_file_engine_core::
     )
 }
 
-fn expected(output: aqc_file_engine_core::EngineOutput) -> String {
-    String::from_utf8(first_bytes(&output)).unwrap_or_default()
+fn expected(output: &aqc_file_engine_core::EngineOutput) -> String {
+    String::from_utf8(first_bytes(output)).unwrap_or_default()
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

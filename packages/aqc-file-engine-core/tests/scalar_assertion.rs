@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    reason = "These tests use expect messages as assertion failure labels."
+)]
+
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{

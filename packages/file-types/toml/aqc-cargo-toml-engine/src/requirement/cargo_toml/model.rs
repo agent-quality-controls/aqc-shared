@@ -1,6 +1,6 @@
 //! Public `Cargo.toml` requirement model types.
 
-#![expect(
+#![allow(
     clippy::disallowed_types,
     reason = "`Any` is used only for EngineRequirement downcast dispatch."
 )]
@@ -11,7 +11,7 @@
         reason = "Private aggregate model helpers support the shared requirement API."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Cargo aggregate structs expose field-per-section requirement shapes."
 )]

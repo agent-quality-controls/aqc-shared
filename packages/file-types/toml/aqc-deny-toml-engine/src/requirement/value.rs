@@ -1,5 +1,12 @@
 //! Deny TOML scalar and item value types.
 
+#![allow(
+    clippy::missing_docs_in_private_items,
+    clippy::missing_errors_doc,
+    clippy::missing_const_for_fn,
+    reason = "Closed cargo-deny value wrappers are generated in macros; detailed constructor docs would duplicate the file-format field names already encoded in each wrapper."
+)]
+
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 

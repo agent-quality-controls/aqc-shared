@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
 use aqc_toml_engine_core as _;
 use std::collections::BTreeMap;
 
@@ -143,7 +144,7 @@ fn rustfmt_rejects_scalar_operations_outside_setting_type() {
 }
 
 #[test]
-#[expect(
+#[allow(
     clippy::too_many_lines,
     reason = "Exhaustive rustfmt scalar-kind test covers bool, int, text, and unsupported operations."
 )]

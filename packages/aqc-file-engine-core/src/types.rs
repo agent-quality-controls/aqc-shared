@@ -1,7 +1,6 @@
 //! Framework data types: `Provenance`, `ConfigScalar`, `DottedVersion`, and `Severity`.
 
 use core::cmp::Ordering;
-use std::path::PathBuf;
 
 use crate::finding::Finding;
 use crate::merge::ScalarValue;
@@ -171,54 +170,9 @@ pub trait OnEmptyClass {
     fn on_empty(&self) -> OnEmpty;
 }
 
-/// Current state for one file an erased engine reconciles.
-#[derive(Debug, Clone)]
-pub struct EngineFileState {
-    pub path: PathBuf,
-    pub bytes: Option<Vec<u8>>,
-    pub executable: Option<bool>,
-}
-
-/// Result of reconciling one output file.
-#[derive(Debug, Clone)]
-pub struct EngineFileOutput {
-    pub path: PathBuf,
-    pub expected_bytes: Vec<u8>,
-    pub expected_executable: Option<bool>,
-    pub findings: Vec<Finding>,
-}
-
-/// Result of a reconcile operation.
-///
-/// `files` contains the file bytes and metadata `init` would write. `findings`
-/// contains repo-level or engine-level findings not tied to one output file.
+/// Result of reconciling one byte stream.
 #[derive(Debug, Clone)]
 pub struct EngineOutput {
-    pub files: Vec<EngineFileOutput>,
+    pub expected_bytes: Vec<u8>,
     pub findings: Vec<Finding>,
-}
-
-impl EngineOutput {
-    #[must_use]
-    pub fn single(expected_bytes: Vec<u8>, findings: Vec<Finding>) -> Self {
-        Self {
-            files: vec![EngineFileOutput {
-                path: PathBuf::new(),
-                expected_bytes,
-                expected_executable: None,
-                findings: Vec::new(),
-            }],
-            findings,
-        }
-    }
-
-    #[must_use]
-    pub fn with_single_path(mut self, path: PathBuf) -> Self {
-        for file in &mut self.files {
-            if file.path.as_os_str().is_empty() {
-                file.path = path.clone();
-            }
-        }
-        self
-    }
 }

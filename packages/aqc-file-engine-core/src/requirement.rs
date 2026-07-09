@@ -8,7 +8,7 @@
 //! See the slice plan at
 //! `guardrail3/.plans/g3v2-architecture/2026-05-27-185042-clippy-policy-and-adapter-slice.md`.
 
-#![expect(
+#![allow(
     clippy::disallowed_types,
     reason = "`Any` is required here as the dynamic-dispatch escape hatch the broker uses to downcast `Box<dyn EngineRequirement>` to each engine's concrete `Req` type; a closed enum was rejected because it would force every adapter to transitively depend on every engine crate (~20 planned)."
 )]

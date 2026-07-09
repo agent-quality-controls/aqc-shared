@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
 use aqc_toml_engine_core as _;
 use globset as _;
 use toml_edit as _;
@@ -32,14 +33,7 @@ fn clippy_output(bytes: Option<&[u8]>, reqs: Vec<ClippyRequirementInput>) -> Eng
             (p, requirement)
         })
         .collect::<Vec<_>>();
-    let current = bytes.map_or_else(Vec::new, |bytes| {
-        vec![aqc_file_engine_core::EngineFileState {
-            path: std::path::PathBuf::from("/workspace/clippy.toml"),
-            bytes: Some(bytes.to_vec()),
-            executable: None,
-        }]
-    });
-    ClippyTomlEngine.reconcile(std::path::Path::new("/workspace"), &current, &reqs)
+    ClippyTomlEngine.reconcile(bytes, &reqs)
 }
 
 fn forbid(path: &str) -> DisallowedEntry {
@@ -320,8 +314,5 @@ fn clippy_closed_absent_does_not_create_empty_array() {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

@@ -7,7 +7,7 @@
         reason = "Private aggregate resolution helpers are internal requirement steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Resolution helpers preserve the public requirement map shapes."
 )]

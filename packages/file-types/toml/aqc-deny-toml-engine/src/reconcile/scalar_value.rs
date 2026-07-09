@@ -31,7 +31,7 @@ impl DenyTomlScalar for bool {
 impl DenyTomlScalar for u64 {
     fn parse_item(item: &Item) -> Option<Self> {
         item.as_integer()
-            .and_then(|value| u64::try_from(value).ok())
+            .and_then(|value| Self::try_from(value).ok())
     }
 
     fn write_item(value: &Self) -> Item {

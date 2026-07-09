@@ -7,7 +7,7 @@
         reason = "Private dependency TOML helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Dependency lookup helpers return Cargo file-key/spec pairs."
 )]

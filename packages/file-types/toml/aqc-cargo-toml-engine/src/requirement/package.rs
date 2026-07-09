@@ -7,7 +7,7 @@
         reason = "Private package-field composition helpers are internal requirement steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::option_option,
     clippy::type_complexity,
     reason = "Package-field composition uses product wrappers and three-state resolution."

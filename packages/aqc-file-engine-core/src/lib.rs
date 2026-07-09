@@ -41,8 +41,7 @@ pub use merge::{
 pub use requirement::EngineRequirement;
 #[cfg(feature = "api")]
 pub use types::{
-    ConfigScalar, DottedVersion, EngineFileOutput, EngineFileState, EngineOutput, OnEmpty,
-    OnEmptyClass, Provenance, Severity,
+    ConfigScalar, DottedVersion, EngineOutput, OnEmpty, OnEmptyClass, Provenance, Severity,
 };
 #[cfg(feature = "api")]
 pub use version::parse_version_tuple;

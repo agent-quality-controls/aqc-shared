@@ -83,7 +83,7 @@ pub(super) fn report_feature_overlaps(
             continue;
         };
         push_conflict(
-            format!("bans.features.{}", package.to_string()),
+            format!("bans.features.{package}"),
             "feature-allow-deny-overlap",
             &entry.collected,
             |(_, message)| format!("{}: {message}", feature.as_str()),

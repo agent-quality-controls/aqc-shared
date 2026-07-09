@@ -92,7 +92,7 @@ pub enum RustfmtScalarSetting {
 
 impl RustfmtScalarSetting {
     #[must_use]
-    #[expect(
+    #[allow(
         clippy::too_many_lines,
         reason = "Exhaustive rustfmt setting map is intentionally one match table."
     )]
@@ -231,7 +231,7 @@ impl RustfmtScalarSetting {
     }
 
     /// Returns the TOML scalar kind rustfmt expects for this setting.
-    #[expect(
+    #[allow(
         clippy::too_many_lines,
         reason = "Exhaustive rustfmt setting-kind map is intentionally one match table."
     )]

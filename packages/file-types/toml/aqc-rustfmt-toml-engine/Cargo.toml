@@ -1,6 +1,6 @@
 [package]
 name = "aqc-rustfmt-toml-engine"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
@@ -81,7 +81,7 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = { path = "../../../aqc-file-engine-core", version = "0.3.4" }
-aqc-toml-engine-core = { path = "../aqc-toml-engine-core", version = "0.3.6" }
+aqc-file-engine-core = "0.4.0"
+aqc-toml-engine-core = "0.4.0"
 globset = "0.4"
 toml_edit = "0.25"

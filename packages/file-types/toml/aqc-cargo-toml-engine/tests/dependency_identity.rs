@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
 use aqc_toml_engine_core as _;
 #[allow(
     dead_code,
@@ -453,8 +454,5 @@ fn renamed_forbidden_package_reports_one_finding() {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

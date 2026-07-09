@@ -7,7 +7,7 @@
         reason = "Private aggregate conflict helpers are internal requirement steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Conflict helpers consume resolved dependency and forbidden-glob requirement shapes."
 )]

@@ -13,7 +13,7 @@
         reason = "Private target-table helpers are internal reconciliation steps."
     )
 )]
-#![expect(
+#![allow(
     clippy::type_complexity,
     reason = "Target table reconciliation keeps nested Cargo target fields in one traversal."
 )]

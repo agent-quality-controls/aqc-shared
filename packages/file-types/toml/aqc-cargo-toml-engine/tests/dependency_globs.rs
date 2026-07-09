@@ -1,4 +1,5 @@
-#![expect(
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
     clippy::field_reassign_with_default,
     clippy::indexing_slicing,
     reason = "Dependency glob tests keep compact fixtures and index known merged keys."
@@ -367,8 +368,5 @@ fn patch_requirement_with_file_key_writes_patch_entry() {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

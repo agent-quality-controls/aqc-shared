@@ -91,7 +91,7 @@ impl FileItemRequirement for value::DenyGraphTargetSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -105,7 +105,7 @@ impl FileItemRequirement for value::DenyAdvisoryIgnoreSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -119,7 +119,7 @@ impl FileItemRequirement for value::DenyLicenseException {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -136,7 +136,7 @@ impl FileItemRequirement for value::DenyLicenseClarification {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -150,7 +150,7 @@ impl FileItemRequirement for value::DenyPackageReasonSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -164,7 +164,7 @@ impl FileItemRequirement for value::DenyBanSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -178,7 +178,7 @@ impl FileItemRequirement for value::DenyFeatureBanSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -192,7 +192,7 @@ impl FileItemRequirement for value::DenySkipTreeSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }
 
@@ -206,6 +206,6 @@ impl FileItemRequirement for value::DenyBuildGlobSpec {
         items: Vec<(Provenance, (Self, String))>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<ResolvedRequirement<Self, (Self, String)>> {
-        compose_item_by(key, items, |item| item.clone(), conflicts)
+        compose_item_by(key, items, Clone::clone, conflicts)
     }
 }

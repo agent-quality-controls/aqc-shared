@@ -251,10 +251,7 @@ fn baseline_req() -> RustToolchainTomlRequirements {
 fn req_channel(value: &str) -> RustToolchainTomlRequirements {
     let parsed = RustToolchainChannel::new(value);
     assert!(parsed.is_ok(), "test channel must parse");
-    let channel = match parsed {
-        Ok(value) => value,
-        Err(_) => RustToolchainChannel::stable(),
-    };
+    let channel = parsed.unwrap_or_else(|_| RustToolchainChannel::stable());
     RustToolchainTomlRequirements {
         channel: Some(ScalarAssertion::Equals(channel, "channel".to_owned())),
         ..RustToolchainTomlRequirements::default()
@@ -266,9 +263,8 @@ fn req_path_with(
 ) -> RustToolchainTomlRequirements {
     let parsed = RustToolchainPath::new("/opt/rust");
     assert!(parsed.is_ok(), "test path must parse");
-    let path = match parsed {
-        Ok(value) => value,
-        Err(_) => return RustToolchainTomlRequirements::default(),
+    let Ok(path) = parsed else {
+        return RustToolchainTomlRequirements::default();
     };
     let mut req = RustToolchainTomlRequirements {
         path: Some(ScalarAssertion::Equals(path, "path".to_owned())),
@@ -317,8 +313,5 @@ fn prov(policy: &str) -> Provenance {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

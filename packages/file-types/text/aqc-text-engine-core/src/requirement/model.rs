@@ -1,83 +1,80 @@
-//! Text file requirement model.
+//! Text byte-stream requirement model.
 
-#![expect(
+#![allow(
     clippy::module_name_repetitions,
     reason = "Public text-engine values use the TextFile prefix."
 )]
 
+use core::any::Any;
 use core::cmp::Ordering;
 use core::fmt;
-use std::path::{Component, Path, PathBuf};
 
 use aqc_file_engine_core::{
-    ConflictEntry, FileItemRequirement, ItemAssertionInput, ItemRequirements,
+    ConflictEntry, EngineRequirement, FileItemRequirement, ItemAssertionInput, ItemRequirements,
     RequiredItemResolution, ResolvedItemRequirements, ResolvedRequirement, ScalarAssertion,
     ScalarValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TextFilePath(PathBuf);
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// Stable identity for a required byte snippet inside a text file.
 pub struct TextSnippetId(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// Expected byte contents for a whole text file or required snippet.
 pub struct TextFileContents(Vec<u8>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Validation errors for text requirement values.
 pub enum TextFileValueError {
+    /// A required text value was empty.
     Empty { field: &'static str },
-    AbsolutePath { value: PathBuf },
-    ParentDirectory { value: PathBuf },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// A named byte snippet that must appear inside a text file.
 pub struct TextSnippet {
+    /// Stable snippet identity used for merge attribution.
     pub id: TextSnippetId,
+    /// Required snippet bytes.
     pub contents: TextFileContents,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TextFileRequirement {
-    pub path: TextFilePath,
+#[derive(Debug, Clone, Default)]
+/// Requirements for a generic text byte stream.
+pub struct TextFileRequirements {
+    /// Optional exact file contents assertion.
     pub exact_contents: Option<ScalarAssertion<TextFileContents>>,
+    /// Snippets that must appear when exact file contents are not required.
     pub required_snippets: ItemRequirements<TextSnippet>,
-    pub executable: Option<ScalarAssertion<bool>>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct TextFileRequirements {
-    pub files: ItemRequirements<TextFileRequirement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedTextFileRequirement {
+/// Resolved requirements for a generic text byte stream.
+pub struct ResolvedTextFileRequirements {
+    /// Resolved exact file contents assertion.
     pub exact_contents: Option<
         ResolvedRequirement<ScalarAssertion<TextFileContents>, ScalarAssertion<TextFileContents>>,
     >,
+    /// Resolved required snippet assertions.
     pub required_snippets: ResolvedItemRequirements<TextSnippet>,
-    pub executable: Option<ResolvedRequirement<ScalarAssertion<bool>, ScalarAssertion<bool>>>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ResolvedTextFileRequirements {
-    pub files: ResolvedItemRequirements<TextFileRequirement>,
-}
-
-impl TextFilePath {
-    pub fn new(value: impl Into<PathBuf>) -> Result<Self, TextFileValueError> {
-        let value = value.into();
-        validate_relative_path(&value, "path")?;
-        Ok(Self(value))
+impl EngineRequirement for TextFileRequirements {
+    fn engine_id(&self) -> &'static str {
+        crate::ENGINE_ID
     }
 
-    #[must_use]
-    pub fn as_path(&self) -> &Path {
-        &self.0
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
 impl TextSnippetId {
+    /// Build a non-empty snippet id.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TextFileValueError::Empty`] when `value` is empty.
     pub fn new(value: impl Into<String>) -> Result<Self, TextFileValueError> {
         let value = value.into();
         if value.is_empty() {
@@ -93,6 +90,11 @@ impl TextSnippetId {
 }
 
 impl TextFileContents {
+    /// Build non-empty text file contents.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TextFileValueError::Empty`] when `value` is empty.
     pub fn new(value: impl Into<Vec<u8>>) -> Result<Self, TextFileValueError> {
         let value = value.into();
         if value.is_empty() {
@@ -111,23 +113,7 @@ impl fmt::Display for TextFileValueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty { field } => write!(f, "{field} must not be empty"),
-            Self::AbsolutePath { value } => {
-                write!(f, "path must be relative: {}", value.display())
-            }
-            Self::ParentDirectory { value } => {
-                write!(
-                    f,
-                    "path must not contain parent directory: {}",
-                    value.display()
-                )
-            }
         }
-    }
-}
-
-impl fmt::Display for TextFilePath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.display())
     }
 }
 
@@ -161,40 +147,4 @@ impl FileItemRequirement for TextSnippet {
     ) -> Option<RequiredItemResolution<Self>> {
         aqc_file_engine_core::compose_item_by(key, items, |item| item.contents.clone(), conflicts)
     }
-}
-
-impl FileItemRequirement for TextFileRequirement {
-    type Identity = TextFilePath;
-
-    fn merge_identity(&self) -> Self::Identity {
-        self.path.clone()
-    }
-
-    fn compose_item(
-        key: &str,
-        items: Vec<ItemAssertionInput<Self>>,
-        conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<RequiredItemResolution<Self>> {
-        crate::requirement::merge::compose_text_file(key, items, conflicts)
-    }
-}
-
-fn validate_relative_path(value: &Path, field: &'static str) -> Result<(), TextFileValueError> {
-    if value.as_os_str().is_empty() {
-        return Err(TextFileValueError::Empty { field });
-    }
-    if value.is_absolute() {
-        return Err(TextFileValueError::AbsolutePath {
-            value: value.to_path_buf(),
-        });
-    }
-    if value
-        .components()
-        .any(|component| matches!(component, Component::ParentDir))
-    {
-        return Err(TextFileValueError::ParentDirectory {
-            value: value.to_path_buf(),
-        });
-    }
-    Ok(())
 }

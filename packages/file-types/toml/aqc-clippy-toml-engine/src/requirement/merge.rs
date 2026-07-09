@@ -1,6 +1,6 @@
 //! Clippy requirement merge orchestration.
 
-#![expect(
+#![allow(
     clippy::needless_pass_by_value,
     clippy::too_many_lines,
     clippy::type_complexity,

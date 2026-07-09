@@ -1,4 +1,5 @@
-#![expect(
+#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
     clippy::field_reassign_with_default,
     clippy::indexing_slicing,
     reason = "These tests keep compact Cargo requirement fixtures and index known conflict entries."
@@ -296,8 +297,5 @@ fn list_excludes_and_exact_compose_when_exact_omits_item() {
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
-    output
-        .files
-        .first()
-        .map_or_else(Vec::new, |file| file.expected_bytes.clone())
+    output.expected_bytes.clone()
 }

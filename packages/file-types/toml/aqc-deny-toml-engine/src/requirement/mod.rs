@@ -1,5 +1,10 @@
 //! Deny TOML requirement model and merge logic.
 
+#![allow(
+    clippy::missing_docs_in_private_items,
+    reason = "Private merge aliases and helpers are direct file-format wiring; the public requirement surface carries the useful documentation boundary."
+)]
+
 mod merge;
 mod merge_helpers;
 mod model;

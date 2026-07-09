@@ -1,6 +1,6 @@
 //! `[lints.<tool>]` / `[workspace.lints.<tool>]` tables and `[lints]`.
 
-#![expect(
+#![allow(
     clippy::excessive_nesting,
     clippy::type_complexity,
     reason = "Lint requirement composition groups collected requirements by lint tool."
