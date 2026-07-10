@@ -15,6 +15,8 @@ dependencies = [
 [[package]]
 name = "aqc-file-engine-core"
 version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4f9fd134b591c8dc63684b0d94b823e168c094438d11bfb155b610c674029c1"
 dependencies = [
  "serde",
 ]
@@ -22,6 +24,8 @@ dependencies = [
 [[package]]
 name = "aqc-toml-engine-core"
 version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dbe7ef025971b7166065c0bf6730f32af3bcb04c23ccfc6389b85caf094fceb"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",
@@ -165,111 +169,3 @@ checksum = "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1"
 dependencies = [
  "memchr",
 ]
-
-[[patch.unused]]
-name = "aqc-cargo-toml-engine"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "aqc-clippy-toml-engine"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "aqc-filetree"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-fs-utils"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-git-helpers"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-rust-syntax"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-rust-toolchain-toml-engine"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "aqc-rustfmt-toml-engine"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "aqc-text-engine-core"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shackles-core"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shackles-git-hooks-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-cargo-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-cargo-policy"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-clippy-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-clippy-strict-policy"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-deny-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-deny-policy"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-hooks-policy"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-json-parser"
-version = "0.1.1"
-
-[[patch.unused]]
-name = "shakrs-runner"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-rustc-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-rustc-strict-policy"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-rustfmt-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-rustfmt-policy"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-toolchain-adapter"
-version = "0.2.1"
-
-[[patch.unused]]
-name = "shakrs-toolchain-policy"
-version = "0.2.1"
