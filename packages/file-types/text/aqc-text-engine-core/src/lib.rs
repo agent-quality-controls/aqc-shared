@@ -1,4 +1,4 @@
-//! Reusable text byte-stream mechanics for exact contents and snippets.
+//! Reusable text byte-stream mechanics for exact and contained contents.
 
 #[cfg(feature = "api")]
 mod engine;
@@ -18,5 +18,4 @@ pub use reconcile::reconcile_text_file;
 #[cfg(feature = "api")]
 pub use requirement::{
     ResolvedTextFileRequirements, TextFileContents, TextFileRequirements, TextFileValueError,
-    TextSnippet, TextSnippetId,
 };

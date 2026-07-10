@@ -15,29 +15,11 @@ release = false
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "src/requirement/model.rs"
-selector = "struct:TextSnippet"
-reason = "Declarative snippet data carries an identity and exact bytes for core item merge."
-
-[[waivers]]
-rule = "g3rs-code/public-struct-named-fields"
-subject = "src/requirement/model.rs"
-selector = "struct:TextFileRequirement"
-reason = "Declarative requirement struct; fields mirror exact file contents, snippets, and executable metadata."
-
-[[waivers]]
-rule = "g3rs-code/public-struct-named-fields"
-subject = "src/requirement/model.rs"
 selector = "struct:TextFileRequirements"
-reason = "Requirement root mirrors the file collection contract."
-
-[[waivers]]
-rule = "g3rs-code/public-struct-named-fields"
-subject = "src/requirement/model.rs"
-selector = "struct:ResolvedTextFileRequirement"
-reason = "Resolved aggregate returned by merge; fields keep provenance-bearing resolved values."
+reason = "Requirement root mirrors exact and contained text contents."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "src/requirement/model.rs"
 selector = "struct:ResolvedTextFileRequirements"
-reason = "Resolved root mirrors the file collection contract."
+reason = "Resolved root mirrors exact and contained text contents."

@@ -16,11 +16,7 @@ use aqc_file_engine_core::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-/// Stable identity for a required byte snippet inside a text file.
-pub struct TextSnippetId(String);
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-/// Expected byte contents for a whole text file or required snippet.
+/// Expected byte contents for a whole text file or contained item.
 pub struct TextFileContents(Vec<u8>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,22 +26,13 @@ pub enum TextFileValueError {
     Empty { field: &'static str },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// A named byte snippet that must appear inside a text file.
-pub struct TextSnippet {
-    /// Stable snippet identity used for merge attribution.
-    pub id: TextSnippetId,
-    /// Required snippet bytes.
-    pub contents: TextFileContents,
-}
-
 #[derive(Debug, Clone, Default)]
 /// Requirements for a generic text byte stream.
 pub struct TextFileRequirements {
     /// Optional exact file contents assertion.
     pub exact_contents: Option<ScalarAssertion<TextFileContents>>,
-    /// Snippets that must appear when exact file contents are not required.
-    pub required_snippets: ItemRequirements<TextSnippet>,
+    /// Byte sequences that must appear when exact file contents are not required.
+    pub contents: ItemRequirements<TextFileContents>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -55,8 +42,8 @@ pub struct ResolvedTextFileRequirements {
     pub exact_contents: Option<
         ResolvedRequirement<ScalarAssertion<TextFileContents>, ScalarAssertion<TextFileContents>>,
     >,
-    /// Resolved required snippet assertions.
-    pub required_snippets: ResolvedItemRequirements<TextSnippet>,
+    /// Resolved contained byte assertions.
+    pub contents: ResolvedItemRequirements<TextFileContents>,
 }
 
 impl EngineRequirement for TextFileRequirements {
@@ -66,26 +53,6 @@ impl EngineRequirement for TextFileRequirements {
 
     fn as_any(&self) -> &dyn Any {
         self
-    }
-}
-
-impl TextSnippetId {
-    /// Build a non-empty snippet id.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TextFileValueError::Empty`] when `value` is empty.
-    pub fn new(value: impl Into<String>) -> Result<Self, TextFileValueError> {
-        let value = value.into();
-        if value.is_empty() {
-            return Err(TextFileValueError::Empty { field: "snippet" });
-        }
-        Ok(Self(value))
-    }
-
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 
@@ -117,9 +84,9 @@ impl fmt::Display for TextFileValueError {
     }
 }
 
-impl fmt::Display for TextSnippetId {
+impl fmt::Display for TextFileContents {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        f.write_str("contents")
     }
 }
 
@@ -133,11 +100,11 @@ impl ScalarValue for TextFileContents {
     }
 }
 
-impl FileItemRequirement for TextSnippet {
-    type Identity = TextSnippetId;
+impl FileItemRequirement for TextFileContents {
+    type Identity = Self;
 
     fn merge_identity(&self) -> Self::Identity {
-        self.id.clone()
+        self.clone()
     }
 
     fn compose_item(
@@ -145,6 +112,6 @@ impl FileItemRequirement for TextSnippet {
         items: Vec<ItemAssertionInput<Self>>,
         conflicts: &mut Vec<ConflictEntry>,
     ) -> Option<RequiredItemResolution<Self>> {
-        aqc_file_engine_core::compose_item_by(key, items, |item| item.contents.clone(), conflicts)
+        aqc_file_engine_core::compose_item_by(key, items, Clone::clone, conflicts)
     }
 }

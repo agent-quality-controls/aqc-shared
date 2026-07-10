@@ -5,5 +5,4 @@ mod model;
 
 pub use model::{
     ResolvedTextFileRequirements, TextFileContents, TextFileRequirements, TextFileValueError,
-    TextSnippet, TextSnippetId,
 };

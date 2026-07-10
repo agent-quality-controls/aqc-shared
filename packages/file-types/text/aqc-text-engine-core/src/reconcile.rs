@@ -1,8 +1,8 @@
 //! Text byte-stream reconciliation.
 
-use aqc_file_engine_core::{EngineOutput, Finding, Provenance, ScalarAssertion, Severity};
+use aqc_file_engine_core::{EngineOutput, Finding, ScalarAssertion, Severity};
 
-use crate::requirement::{ResolvedTextFileRequirements, TextFileContents, TextSnippet};
+use crate::requirement::{ResolvedTextFileRequirements, TextFileContents};
 
 pub fn reconcile_text_file(
     current_bytes: Option<&[u8]>,
@@ -12,21 +12,11 @@ pub fn reconcile_text_file(
     let mut expected = current_bytes.map(<[u8]>::to_vec).unwrap_or_default();
 
     if let Some(assertion) = &requirements.exact_contents {
-        apply_exact_contents(
-            &assertion.merged,
-            current_bytes,
-            &assertion
-                .collected
-                .iter()
-                .map(|(prov, assertion)| (prov.clone(), assertion.clone()))
-                .collect::<Vec<_>>(),
-            &mut expected,
-            &mut findings,
-        );
+        apply_exact_contents(assertion, current_bytes, &mut expected, &mut findings);
     }
-
-    apply_required_snippets(
-        &requirements.required_snippets,
+    reject_unsupported_contents(requirements, &mut findings);
+    apply_required_contents(
+        &requirements.contents,
         requirements.exact_contents.is_some(),
         current_bytes,
         &mut expected,
@@ -39,61 +29,123 @@ pub fn reconcile_text_file(
     }
 }
 
-/// Apply an exact-content assertion and report a byte-count mismatch when the
-/// current bytes differ.
+/// Apply the supported exact byte assertion or report an unsupported operation.
 fn apply_exact_contents(
-    assertion: &ScalarAssertion<TextFileContents>,
+    assertion: &aqc_file_engine_core::ResolvedRequirement<
+        ScalarAssertion<TextFileContents>,
+        ScalarAssertion<TextFileContents>,
+    >,
     current_bytes: Option<&[u8]>,
-    attribution: &[(Provenance, ScalarAssertion<TextFileContents>)],
     expected: &mut Vec<u8>,
     findings: &mut Vec<Finding>,
 ) {
-    if let ScalarAssertion::Equals(contents, message) = assertion {
-        *expected = contents.as_bytes().to_vec();
-        if current_bytes != Some(contents.as_bytes()) {
-            findings.push(Finding::Mismatch {
-                key: "exact_contents".to_owned(),
-                current: current_bytes.map(|bytes| format!("{} bytes", bytes.len())),
-                expected: format!("{} bytes", contents.as_bytes().len()),
-                message: message.clone(),
-                severity: Severity::Error,
-                attribution: attribution.iter().map(|(prov, _)| prov.clone()).collect(),
-            });
-        }
+    if assertion
+        .collected
+        .iter()
+        .any(|(_, item)| !matches!(item, ScalarAssertion::Equals(..)))
+    {
+        findings.push(Finding::InvalidRequirements {
+            key: "exact_contents".to_owned(),
+            message: "text exact contents require Equals".to_owned(),
+            contributors: assertion
+                .collected
+                .iter()
+                .map(|(prov, item)| (prov.policy.clone(), item.message().to_owned()))
+                .collect(),
+        });
+        return;
+    }
+    let ScalarAssertion::Equals(contents, message) = &assertion.merged else {
+        findings.push(Finding::InvalidRequirements {
+            key: "exact_contents".to_owned(),
+            message: "text exact contents require Equals".to_owned(),
+            contributors: assertion
+                .collected
+                .iter()
+                .map(|(prov, item)| (prov.policy.clone(), item.message().to_owned()))
+                .collect(),
+        });
+        return;
+    };
+    *expected = contents.as_bytes().to_vec();
+    if current_bytes != Some(contents.as_bytes()) {
+        findings.push(Finding::Mismatch {
+            key: "exact_contents".to_owned(),
+            current: current_bytes.map(|bytes| format!("{} bytes", bytes.len())),
+            expected: format!("{} bytes", contents.as_bytes().len()),
+            message: message.clone(),
+            severity: Severity::Error,
+            attribution: assertion
+                .collected
+                .iter()
+                .map(|(prov, _)| prov.clone())
+                .collect(),
+        });
     }
 }
 
-/// Apply required snippets against current bytes and append missing snippets
-/// when exact-content mode is not active.
-fn apply_required_snippets(
-    snippets: &aqc_file_engine_core::ResolvedItemRequirements<TextSnippet>,
+/// Report item operations that text containment cannot reconcile or initialize.
+fn reject_unsupported_contents(
+    requirements: &ResolvedTextFileRequirements,
+    findings: &mut Vec<Finding>,
+) {
+    for entry in requirements.contents.forbidden.values() {
+        findings.push(Finding::InvalidRequirements {
+            key: "contents".to_owned(),
+            message: "text contained contents do not support forbidden items".to_owned(),
+            contributors: entry
+                .collected
+                .iter()
+                .map(|(prov, message)| (prov.policy.clone(), message.clone()))
+                .collect(),
+        });
+    }
+    if !requirements.contents.closed_by.is_empty() {
+        findings.push(Finding::InvalidRequirements {
+            key: "contents".to_owned(),
+            message: "text contained contents do not support closed collections".to_owned(),
+            contributors: requirements
+                .contents
+                .closed_by
+                .iter()
+                .map(|(prov, message)| (prov.policy.clone(), message.clone()))
+                .collect(),
+        });
+    }
+}
+
+/// Validate required byte sequences and append each missing sequence once.
+fn apply_required_contents(
+    contents: &aqc_file_engine_core::ResolvedItemRequirements<TextFileContents>,
     exact_mode: bool,
     current_bytes: Option<&[u8]>,
     expected: &mut Vec<u8>,
     findings: &mut Vec<Finding>,
 ) {
-    for entry in snippets.required.values() {
-        let snippet = entry.merged.contents.as_bytes();
+    for entry in contents.required.values() {
+        let required = entry.merged.as_bytes();
         let message = entry
             .collected
             .first()
-            .map_or_else(String::new, |(_, (_, msg))| msg.clone());
-        if exact_mode && !contains_bytes(expected, snippet) {
+            .map_or_else(String::new, |(_, (_, message))| message.clone());
+        if exact_mode && !contains_bytes(expected, required) {
             findings.push(Finding::InvalidRequirements {
-                key: format!("required_snippets.{}", entry.merged.id.as_str()),
-                message: "exact contents must contain required snippet".to_owned(),
+                key: "contents".to_owned(),
+                message: "exact contents must contain required contents".to_owned(),
                 contributors: entry
                     .collected
                     .iter()
-                    .map(|(prov, _)| (prov.policy.clone(), message.clone()))
+                    .map(|(prov, (_, contributor_message))| {
+                        (prov.policy.clone(), contributor_message.clone())
+                    })
                     .collect(),
             });
         }
-        if !contains_bytes(current_bytes.unwrap_or_default(), snippet) {
+        if !contains_bytes(current_bytes.unwrap_or_default(), required) {
             findings.push(Finding::Mismatch {
-                key: format!("required_snippets.{}", entry.merged.id.as_str()),
+                key: "contents".to_owned(),
                 current: current_bytes.map(|bytes| format!("{} bytes", bytes.len())),
-                expected: "snippet present".to_owned(),
+                expected: "required contents present".to_owned(),
                 message,
                 severity: Severity::Error,
                 attribution: entry
@@ -102,14 +154,14 @@ fn apply_required_snippets(
                     .map(|(prov, _)| prov.clone())
                     .collect(),
             });
-            if !exact_mode && !contains_bytes(expected, snippet) {
-                expected.extend_from_slice(snippet);
+            if !exact_mode && !contains_bytes(expected, required) {
+                expected.extend_from_slice(required);
             }
         }
     }
 }
 
-/// Return whether `needle` appears as a contiguous byte sequence in `haystack`.
+/// Return whether `needle` occurs as one contiguous byte sequence.
 fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     !needle.is_empty()
         && haystack
