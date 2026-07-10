@@ -1,6 +1,6 @@
 [package]
 name = "aqc-rustfmt-toml-engine"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
@@ -10,7 +10,7 @@ publish = true
 readme = "README.md"
 keywords = ["aqc", "rustfmt", "toml", "guardrails"]
 categories = ["development-tools", "config", "parser-implementations"]
-include = ["src/**", "tests/**", "Cargo.toml", "README.md"]
+include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -81,7 +81,7 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = "0.4.0"
-aqc-toml-engine-core = "0.4.0"
+aqc-file-engine-core = "0.4.1"
+aqc-toml-engine-core = "0.4.1"
 globset = "0.4"
 toml_edit = "0.25"

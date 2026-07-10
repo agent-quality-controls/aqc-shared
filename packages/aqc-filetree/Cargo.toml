@@ -1,6 +1,6 @@
 [package]
 name = "aqc-filetree"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
@@ -10,7 +10,7 @@ publish = true
 readme = "README.md"
 keywords = ["aqc", "filetree", "guardrails", "filesystem"]
 categories = ["development-tools", "filesystem"]
-include = ["src/**", "Cargo.toml", "README.md"]
+include = ["src/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [package.metadata.docs.rs]
 all-features = true

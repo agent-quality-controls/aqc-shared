@@ -83,6 +83,14 @@ deny = [
     { crate = "specular", reason = "AQC shared crates must not depend on product crates" },
     { name = "shackles-core", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakrs-runner", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "aqc-deny-toml-engine", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "aqc-rust-toolchain-toml-engine", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shackles-git-hooks-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakrs-deny-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakrs-deny-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakrs-hooks-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakrs-toolchain-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakrs-toolchain-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
 ]
 
 [[bans.features]]
