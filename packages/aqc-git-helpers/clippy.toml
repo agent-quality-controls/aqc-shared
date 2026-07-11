@@ -14,6 +14,13 @@ allow-unwrap-in-tests = false
 avoid-breaking-exported-api = false
 disallowed-methods = [
   { path = "std::process::exit", reason = "`std::process::exit` skips destructors. Return a `Result` from `main` (or call `std::process::Termination`) so cleanup runs." },
+  {path = "std::process::Command::new", reason = "Only runner or utility boundaries execute commands."},
+  {path = "std::fs::read", reason = "Filesystem access belongs in AQC filesystem utility boundaries."},
+  {path = "std::fs::read_to_string", reason = "Filesystem access belongs in AQC filesystem utility boundaries."},
+  {path = "std::fs::write", reason = "Filesystem access belongs in AQC filesystem utility boundaries."},
+  {path = "std::env::var", reason = "Environment access belongs in explicit runtime boundaries."},
+  {path = "std::fs::metadata", reason = "Filesystem metadata access belongs in AQC filesystem utility boundaries."},
+  {path = "std::fs::symlink_metadata", reason = "Filesystem metadata access belongs in AQC filesystem utility boundaries."},
 ]
 disallowed-macros = [
   { path = "std::dbg", reason = "`dbg!()` is debug noise. Remove before commit; use a logger for permanent diagnostics." },
@@ -21,4 +28,7 @@ disallowed-macros = [
   { path = "std::println", reason = "Direct stdout writes bypass the project's structured-logging facade. Use it instead." },
   { path = "std::todo", reason = "`todo!()` ships a panic. Replace with the actual implementation or a typed error." },
   { path = "std::unimplemented", reason = "Same as `todo!()` -- ships a panic. Replace with concrete code." },
+]
+disallowed-types = [
+    {path = "std::fs::File", reason = "Filesystem handles belong in AQC filesystem utility boundaries."},
 ]

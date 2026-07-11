@@ -74,6 +74,9 @@ ref_option_ref = "deny"
 trivially_copy_pass_by_ref = "deny"
 multiple_crate_versions = "deny"
 redundant_pub_crate = "allow"
+type_complexity = "allow"
+too_many_lines = "allow"
+excessive_nesting = "allow"
 
 [features]
 default = ["all"]

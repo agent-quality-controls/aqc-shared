@@ -10,5 +10,12 @@
     }
   },
   "version": 1,
-  "waivers": []
+  "waivers": [
+    {
+      "subject": "Cargo.toml",
+      "key": "[lints.clippy].trivially_copy_pass_by_ref",
+      "selector": null,
+      "reason": "Public enum accessors keep borrowed receivers for API consistency across toolchain value types."
+    }
+  ]
 }

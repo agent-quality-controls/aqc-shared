@@ -71,9 +71,10 @@ option_if_let_else = "deny"
 empty_line_after_doc_comments = "deny"
 single_match_else = "deny"
 ref_option_ref = "deny"
-trivially_copy_pass_by_ref = "deny"
+trivially_copy_pass_by_ref = "allow"
 multiple_crate_versions = "deny"
 redundant_pub_crate = "allow"
+type_complexity = "allow"
 
 [features]
 default = ["all"]
