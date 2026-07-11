@@ -4,16 +4,17 @@ version = 4
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4f9fd134b591c8dc63684b0d94b823e168c094438d11bfb155b610c674029c1"
+checksum = "d091a9638e5a1146b55dc597b15c538648b2312d40e7234dc69a46e80198b6d1"
 dependencies = [
+ "schemars",
  "serde",
 ]
 
 [[package]]
 name = "aqc-rust-toolchain-toml-engine"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
