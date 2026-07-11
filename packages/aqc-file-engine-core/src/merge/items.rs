@@ -113,7 +113,7 @@ where
             reason: "set-key-disagree".to_owned(),
             contributors: items
                 .iter()
-                .map(|(prov, _)| required_contributor(prov))
+                .map(|(prov, (_, message))| (prov.clone(), message.clone()))
                 .collect(),
         });
         None

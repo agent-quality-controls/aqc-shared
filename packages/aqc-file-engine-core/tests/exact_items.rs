@@ -295,4 +295,11 @@ fn same_identity_value_disagreement_uses_normal_item_composition() {
             .iter()
             .any(|conflict| conflict.key == "items.a" && conflict.reason == "set-key-disagree")
     );
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.contributors
+            == vec![
+                (prov("required"), "a is two".to_owned()),
+                (prov("exact"), "a is one".to_owned()),
+            ]
+    }));
 }
