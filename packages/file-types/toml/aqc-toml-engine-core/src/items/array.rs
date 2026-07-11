@@ -26,12 +26,19 @@ pub fn reconcile_array_items<ItemType>(
         return;
     }
 
-    if requirements.required.is_empty() && support::array_item(doc, field).is_none() {
+    let exact_items_empty = requirements
+        .exact
+        .as_ref()
+        .is_none_or(|exact| exact.items.is_empty());
+    if requirements.required.is_empty()
+        && exact_items_empty
+        && support::array_item(doc, field).is_none()
+    {
         return;
     }
 
     let malformed = support::report_array_shape(doc, field, requirements, findings);
-    if malformed && requirements.required.is_empty() {
+    if malformed && requirements.required.is_empty() && requirements.exact.is_none() {
         return;
     }
 
@@ -95,7 +102,13 @@ fn apply_required_array_items<ItemType>(
     ItemType: TomlArrayItem,
     ItemType::Identity: ToString,
 {
-    for (identity, entry) in &requirements.required {
+    let exact_items = requirements.exact.as_ref().map(|exact| &exact.items);
+    for (identity, entry) in requirements.required.iter().chain(
+        exact_items
+            .into_iter()
+            .flat_map(|items| items.iter())
+            .filter(|(identity, _)| !requirements.required.contains_key(*identity)),
+    ) {
         let attribution = attribution(entry);
         let key = support::item_key::<ItemType>(field, identity);
         let Some(index) = current.get(identity).copied() else {

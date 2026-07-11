@@ -29,7 +29,11 @@ pub fn reconcile_array_table_items<ItemType>(
         return;
     }
 
-    if requirements.required.is_empty() && array_item(doc, field).is_none() {
+    let exact_items_empty = requirements
+        .exact
+        .as_ref()
+        .is_none_or(|exact| exact.items.is_empty());
+    if requirements.required.is_empty() && exact_items_empty && array_item(doc, field).is_none() {
         return;
     }
 
@@ -93,7 +97,13 @@ fn apply_required_array_table_items<ItemType>(
     ItemType: TomlArrayTableItem,
     ItemType::Identity: ToString,
 {
-    for (identity, entry) in &requirements.required {
+    let exact_items = requirements.exact.as_ref().map(|exact| &exact.items);
+    for (identity, entry) in requirements.required.iter().chain(
+        exact_items
+            .into_iter()
+            .flat_map(|items| items.iter())
+            .filter(|(identity, _)| !requirements.required.contains_key(*identity)),
+    ) {
         let attribution = attribution(entry);
         let key = item_key::<ItemType>(field, identity);
         let Some(index) = current.get(identity).copied() else {

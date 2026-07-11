@@ -5,15 +5,100 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    ConfigScalar, Finding, ListRequirements, Provenance, ScalarAssertion, resolve_list,
+    ConfigScalar, FileItemRequirement, Finding, ItemAssertionInput, ItemRequirements,
+    ListRequirements, Provenance, RequiredItemResolution, ScalarAssertion, compose_item_by,
+    resolve_items, resolve_list,
 };
 use aqc_toml_engine_core::{
-    ListFieldKeyStyle, ScalarFieldEdit, parse_or_report, reconcile_list_field, report_list_shape,
-    scalar_field_edit, table_at, table_list_values, write_table_list,
+    ListFieldKeyStyle, ScalarFieldEdit, TomlArrayItem, TomlArrayTableItem, TomlItemError,
+    TomlItemField, parse_or_report, reconcile_array_items, reconcile_array_table_items,
+    reconcile_list_field, report_list_shape, scalar_field_edit, table_at, table_list_values,
+    write_table_list,
 };
-use toml_edit as _;
+use toml_edit::{DocumentMut, Table, TableLike, Value};
 
 type MismatchKeyAndExpected<'a> = (&'a str, &'a str);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TestItem {
+    key: String,
+    value: String,
+}
+
+impl FileItemRequirement for TestItem {
+    type Identity = String;
+
+    fn merge_identity(&self) -> Self::Identity {
+        self.key.clone()
+    }
+
+    fn compose_item(
+        key: &str,
+        items: Vec<ItemAssertionInput<Self>>,
+        conflicts: &mut Vec<aqc_file_engine_core::ConflictEntry>,
+    ) -> Option<RequiredItemResolution<Self>> {
+        compose_item_by(key, items, |item| item.value.clone(), conflicts)
+    }
+}
+
+impl TomlArrayItem for TestItem {
+    fn read_value(value: &Value) -> Result<Self, TomlItemError> {
+        let text = value
+            .as_str()
+            .ok_or_else(|| TomlItemError::new("expected string"))?;
+        let (key, item_value) = text
+            .split_once('=')
+            .ok_or_else(|| TomlItemError::new("expected key=value"))?;
+        Ok(Self {
+            key: key.to_owned(),
+            value: item_value.to_owned(),
+        })
+    }
+
+    fn write_value(&self) -> Value {
+        Value::from(format!("{}={}", self.key, self.value))
+    }
+
+    fn matches_value(current: &Self, required: &Self) -> bool {
+        current == required
+    }
+
+    fn render_value(&self) -> String {
+        format!("{}={}", self.key, self.value)
+    }
+}
+
+impl TomlArrayTableItem for TestItem {
+    fn read_table(table: &dyn TableLike) -> Result<Self, TomlItemError> {
+        let key = table
+            .get("key")
+            .and_then(toml_edit::Item::as_str)
+            .ok_or_else(|| TomlItemError::new("missing key"))?;
+        let value = table
+            .get("value")
+            .and_then(toml_edit::Item::as_str)
+            .ok_or_else(|| TomlItemError::new("missing value"))?;
+        Ok(Self {
+            key: key.to_owned(),
+            value: value.to_owned(),
+        })
+    }
+
+    fn write_table(&self) -> Table {
+        let mut table = Table::new();
+        drop(table.insert("key", toml_edit::value(&self.key)));
+        drop(table.insert("value", toml_edit::value(&self.value)));
+        table
+    }
+
+    fn matches_table(current: &Self, required: &Self) -> bool {
+        current == required
+    }
+
+    fn render_table(&self) -> String {
+        format!("{}={}", self.key, self.value)
+    }
+}
 
 fn provenance() -> Provenance {
     Provenance {
@@ -41,6 +126,68 @@ fn mismatch_key_and_expected(finding: &Finding) -> Option<MismatchKeyAndExpected
         | Finding::ConflictingRequirements { .. }
         | Finding::InternalError { .. } => None,
     }
+}
+
+fn exact_test_requirements() -> aqc_file_engine_core::ResolvedItemRequirements<TestItem> {
+    let mut conflicts = Vec::new();
+    let resolved = resolve_items(
+        "items",
+        vec![(
+            provenance(),
+            ItemRequirements {
+                required: Vec::new(),
+                forbidden: Vec::new(),
+                exact: Some((
+                    vec![TestItem {
+                        key: "a".to_owned(),
+                        value: "1".to_owned(),
+                    }],
+                    "exact item".to_owned(),
+                )),
+            },
+        )],
+        &mut conflicts,
+    );
+    assert!(conflicts.is_empty(), "exact requirements must resolve");
+    resolved
+}
+
+#[test]
+fn exact_array_items_create_missing_members_and_repair_values() {
+    let requirements = exact_test_requirements();
+    let field = TomlItemField::new(&[], "items", "items");
+    let mut missing = DocumentMut::new();
+    let mut findings = Vec::new();
+    reconcile_array_items(&mut missing, field, &requirements, &mut findings);
+    assert_eq!(missing.to_string(), "items = [\"a=1\"]\n");
+    assert_eq!(findings.len(), 1);
+
+    let mut wrong = "items = [\"a=2\"]\n"
+        .parse::<DocumentMut>()
+        .expect("valid TOML");
+    findings.clear();
+    reconcile_array_items(&mut wrong, field, &requirements, &mut findings);
+    assert_eq!(wrong.to_string(), "items = [\"a=1\"]\n");
+    assert_eq!(findings.len(), 1);
+}
+
+#[test]
+fn exact_array_table_items_create_missing_members_and_repair_values() {
+    let requirements = exact_test_requirements();
+    let field = TomlItemField::new(&[], "items", "items");
+    let mut missing = DocumentMut::new();
+    let mut findings = Vec::new();
+    reconcile_array_table_items(&mut missing, field, &requirements, &mut findings);
+    assert!(missing.to_string().contains("value = \"1\""));
+    assert_eq!(findings.len(), 1);
+
+    let mut wrong = "[[items]]\nkey = \"a\"\nvalue = \"2\"\n"
+        .parse::<DocumentMut>()
+        .expect("valid TOML");
+    findings.clear();
+    reconcile_array_table_items(&mut wrong, field, &requirements, &mut findings);
+    assert!(wrong.to_string().contains("value = \"1\""));
+    assert_eq!(findings.len(), 1);
 }
 
 #[test]
