@@ -431,13 +431,9 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
         )
     }));
     assert_eq!(
-        out.findings
-            .iter()
-            .filter(|finding| {
-                matches!(finding, engine_core::Finding::UnwritableRequiredKey { key, .. } if key == "[dependencies].json")
-            })
-            .count(),
-        2
+        out.findings.len(),
+        1,
+        "merge conflicts must stop file reconciliation"
     );
     assert!(!text.contains("json ="));
 }
