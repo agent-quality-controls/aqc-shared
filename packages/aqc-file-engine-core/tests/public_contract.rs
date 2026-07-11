@@ -71,3 +71,13 @@ fn assert_no_path_aware_public_api() {
         "EngineOutput is one byte stream"
     );
 }
+use schemars as _;
+
+#[test]
+fn dotted_version_schema_matches_its_transparent_string_wire_shape() {
+    let schema = schemars::schema_for!(aqc_file_engine_core::DottedVersion);
+    assert_eq!(
+        schema.get("type").and_then(|value| value.as_str()),
+        Some("string")
+    );
+}

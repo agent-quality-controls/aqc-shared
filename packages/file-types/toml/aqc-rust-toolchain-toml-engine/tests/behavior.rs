@@ -315,3 +315,4 @@ fn prov(policy: &str) -> Provenance {
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {
     output.expected_bytes.clone()
 }
+use schemars as _;

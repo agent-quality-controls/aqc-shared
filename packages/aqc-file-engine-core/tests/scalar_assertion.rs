@@ -330,3 +330,4 @@ fn dotted_version_orders_by_numeric_tuple() {
     assert!(DottedVersion::new("1.10") > DottedVersion::new("1.9"));
     assert!(DottedVersion::new("1.85.1") > DottedVersion::new("1.85.0"));
 }
+use schemars as _;

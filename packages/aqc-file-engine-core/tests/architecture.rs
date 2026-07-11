@@ -78,3 +78,4 @@ fn allows_path_shaped_requirement_models() {
         "allows path-shaped requirement models when the file format contains path values"
     );
 }
+use schemars as _;

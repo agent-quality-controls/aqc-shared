@@ -14,10 +14,11 @@ use aqc_file_engine_core::{
     EngineRequirement, ListRequirements, Provenance, ResolvedListRequirements, ResolvedRequirement,
     ScalarAssertion, ScalarValue,
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RustToolchainChannel(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
+pub struct RustToolchainChannel(#[schemars(length(min = 1))] String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RustToolchainValueError {
@@ -26,7 +27,8 @@ pub enum RustToolchainValueError {
     RelativePath { value: PathBuf },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
+#[schemars(rename_all = "lowercase")]
 pub enum RustToolchainProfile {
     #[default]
     Minimal,
