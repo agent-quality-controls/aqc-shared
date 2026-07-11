@@ -1,5 +1,6 @@
 use aqc_file_engine_core::{
-    Engine, EngineOutput, EngineRequirement, FileEngine, Finding, Provenance,
+    ConflictEntry, Engine, EngineOutput, EngineRequirement, FileEngine, Finding, Provenance,
+    merged_reconcile,
 };
 use serde as _;
 
@@ -8,6 +9,19 @@ struct ResolvedRequirements;
 
 #[derive(Debug)]
 struct DummyEngine;
+
+#[derive(Debug, Clone)]
+struct DummyRequirement;
+
+impl EngineRequirement for DummyRequirement {
+    fn engine_id(&self) -> &'static str {
+        "dummy"
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}
 
 impl FileEngine<ResolvedRequirements> for DummyEngine {
     fn reconcile(
@@ -44,6 +58,45 @@ fn engine_reconcile_none_returns_single_byte_output() {
         Vec::<u8>::new(),
         "expected bytes are direct output"
     );
+}
+
+#[test]
+fn merge_conflicts_preserve_current_bytes_and_skip_reconciliation() {
+    let reqs: Vec<(Provenance, Box<dyn EngineRequirement>)> = vec![(
+        Provenance {
+            policy: "policy".to_owned(),
+        },
+        Box::new(DummyRequirement),
+    )];
+    let reconciled = core::cell::Cell::new(false);
+    let output = merged_reconcile(
+        Some(b"current"),
+        &reqs,
+        |_: Vec<(Provenance, DummyRequirement)>| {
+            (
+                ResolvedRequirements,
+                vec![ConflictEntry {
+                    key: "field".to_owned(),
+                    reason: "scalar-disagree".to_owned(),
+                    contributors: Vec::new(),
+                }],
+            )
+        },
+        |_, _| {
+            reconciled.set(true);
+            EngineOutput {
+                expected_bytes: b"changed".to_vec(),
+                findings: Vec::new(),
+            }
+        },
+    );
+
+    assert!(
+        !reconciled.get(),
+        "conflicted requirements must not reconcile"
+    );
+    assert_eq!(output.expected_bytes, b"current");
+    assert_eq!(output.findings.len(), 1);
 }
 
 #[test]

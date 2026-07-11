@@ -81,18 +81,23 @@ where
         };
     }
     let (merged, conflicts) = merge(typed);
-    let mut out = reconcile_one(current_bytes, &merged);
-    for entry in conflicts {
-        let finding = Finding::ConflictingRequirements {
-            key: entry.key,
-            contributors: entry
-                .contributors
-                .into_iter()
-                .map(|(prov, value)| (prov.policy, value))
-                .collect(),
-            reason: entry.reason,
+    if !conflicts.is_empty() {
+        let findings = conflicts
+            .into_iter()
+            .map(|entry| Finding::ConflictingRequirements {
+                key: entry.key,
+                contributors: entry
+                    .contributors
+                    .into_iter()
+                    .map(|(prov, value)| (prov.policy, value))
+                    .collect(),
+                reason: entry.reason,
+            })
+            .collect();
+        return EngineOutput {
+            expected_bytes: current_bytes.map(<[u8]>::to_vec).unwrap_or_default(),
+            findings,
         };
-        out.findings.push(finding);
     }
-    out
+    reconcile_one(current_bytes, &merged)
 }
