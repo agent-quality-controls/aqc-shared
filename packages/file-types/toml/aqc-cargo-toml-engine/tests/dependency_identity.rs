@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 use aqc_toml_engine_core as _;
 #[allow(
     dead_code,
@@ -22,7 +25,7 @@ fn dependency_required_and_forbidden_different_keys_compose() {
         dep_req(KeyedFixture {
             required,
             forbidden,
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(findings.is_empty());
@@ -42,7 +45,7 @@ fn dependency_required_and_forbidden_same_key_conflicts() {
         dep_req(KeyedFixture {
             required,
             forbidden,
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(
@@ -64,7 +67,7 @@ fn required_and_forbidden_different_dependency_identities_coexist() {
             package_requirement("openssl", None),
             "no openssl".to_owned(),
         )],
-        closed: None,
+        exact: None,
     });
     let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
     assert!(conflicts.is_empty());
@@ -83,26 +86,29 @@ fn required_and_forbidden_same_dependency_identity_conflict() {
                 package_requirement("serde_json", None),
                 "no serde".to_owned(),
             )],
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(has_conflict(&findings));
 }
 
 #[test]
-fn closed_collection_rejects_outside_required_identity() {
+fn exact_collection_rejects_outside_required_identity() {
     let closer = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             package_requirement("serde_json", Some("1")),
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: Some("only serde".to_owned()),
+        exact: Some((
+            vec![package_requirement("serde_json", Some("1"))],
+            "only serde".to_owned(),
+        )),
     });
     let outside = dep_item_req(engine_core::ItemRequirements {
         required: vec![(package_requirement("toml", Some("0.8")), "toml".to_owned())],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
         (prov("closer"), closer),
@@ -112,7 +118,7 @@ fn closed_collection_rejects_outside_required_identity() {
         conflict
             .contributors
             .iter()
-            .any(|(p, value)| p.policy == "closer" && value == "closed")
+            .any(|(p, value)| p.policy == "closer" && value == "only serde")
     }));
 }
 
@@ -124,7 +130,7 @@ fn dependency_local_key_requirement_does_not_pass_on_package_only_match() {
             "need rename".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let findings = cargo_findings_with(
         Some(b"[dependencies]\nserde_json = \"1\"\n"),
@@ -143,7 +149,7 @@ fn dependency_package_identity_requirement_passes_under_renamed_key() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let findings = cargo_findings_with(
         Some(b"[dependencies]\njson = { package = \"serde_json\", version = \"1\" }\n"),
@@ -160,7 +166,7 @@ fn dependency_package_identity_forbid_catches_renamed_key() {
             package_requirement("serde_json", None),
             "no serde".to_owned(),
         )],
-        closed: None,
+        exact: None,
     });
     let out = cargo_output(
         Some(b"[dependencies]\njson = { package = \"serde_json\", version = \"1\" }\n"),
@@ -185,7 +191,7 @@ fn local_key_requirement_and_package_identity_forbid_conflict() {
                 package_requirement("serde_json", None),
                 "no serde".to_owned(),
             )],
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(has_conflict(&findings));
@@ -207,7 +213,7 @@ fn same_package_identity_with_different_explicit_file_keys_conflicts() {
                 ),
             ],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(findings.iter().any(|finding| {
@@ -228,7 +234,7 @@ fn package_identity_requirement_checks_all_duplicate_package_entries() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let findings = cargo_findings_with(
         Some(
@@ -255,7 +261,7 @@ fn local_key_json_and_package_identity_json_do_not_collide() {
                 ),
             ],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(!has_conflict(&findings));
@@ -277,7 +283,7 @@ fn invalid_dependency_requirement_conflicts() {
                 "invalid".to_owned(),
             )],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         }),
     )]);
     assert!(has_conflict(&findings));
@@ -294,7 +300,7 @@ fn patch_package_identity_requirement_without_file_key_is_unwritable() {
                 "serde".to_owned(),
             )],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         },
     );
     let findings = cargo_output(None, vec![(prov("p1"), req)]).findings;
@@ -311,7 +317,7 @@ fn package_identity_dependency_is_satisfied_by_plain_key() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let findings = cargo_findings_with(
         Some(b"[dependencies]\nserde_json = \"1\"\n"),
@@ -338,7 +344,7 @@ fn missing_package_identity_dependency_writes_package_name() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
     let text =
@@ -362,7 +368,7 @@ fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reser
             ),
         ],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
     let text =
@@ -382,7 +388,7 @@ fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_diff
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let out = cargo_output(
         Some(b"[dependencies]\nserde_json = { package = \"serde_renamed\", version = \"2\" }\n"),
@@ -411,7 +417,7 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
             ),
         ],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
     let text =
@@ -444,7 +450,7 @@ fn renamed_forbidden_package_reports_one_finding() {
             package_requirement("serde_json", None),
             "no serde".to_owned(),
         )],
-        closed: None,
+        exact: None,
     });
     let findings = cargo_findings_with(
         Some(b"[dependencies]\njson = { package = \"serde_json\", version = \"1\" }\n"),

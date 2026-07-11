@@ -60,18 +60,19 @@ pub(crate) fn apply(
             .unwrap_or_default();
         apply_forbidden(doc, feature, &msg, &attribution, findings);
     }
-    if !merged.closed_by.is_empty() {
-        let attribution = merged
-            .closed_by
+    if let Some(exact) = &merged.exact {
+        let attribution = exact
+            .collected
             .iter()
             .map(|(prov, _)| prov.clone())
             .collect::<Vec<_>>();
-        let allowed = merged
-            .required
-            .values()
-            .map(|entry| entry.merged.file_key.clone())
-            .collect();
-        apply_exact_extras(doc, &allowed, &attribution, findings);
+        let allowed = exact.identities.clone();
+        let message = exact
+            .collected
+            .first()
+            .map(|(_, (_, message))| message.as_str())
+            .unwrap_or_default();
+        apply_exact_extras(doc, &allowed, message, &attribution, findings);
     }
 }
 
@@ -129,10 +130,11 @@ fn apply_forbidden(
     }
 }
 
-/// Drop features not present in the `IsExactly` union.
+/// Drop features not present in the exact collection.
 fn apply_exact_extras(
     doc: &mut DocumentMut,
     allowed: &BTreeSet<String>,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -147,8 +149,8 @@ fn apply_exact_extras(
         findings.push(Finding::Mismatch {
             key: format!("[features].{extra}"),
             current: Some(format!("{current:?}")),
-            expected: "absent (closed table)".to_owned(),
-            message: String::new(),
+            expected: "absent (exact collection)".to_owned(),
+            message: message.to_owned(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });

@@ -207,7 +207,7 @@ pub(super) fn apply_closed(
     requirement: &ResolvedRustToolchainTomlRequirements,
     findings: &mut Vec<file_core::Finding>,
 ) {
-    if requirement.closed_settings.is_empty() {
+    if requirement.exact_settings.is_empty() {
         return;
     }
     let allowed = ["channel", "path", "profile", "components", "targets"]
@@ -223,14 +223,14 @@ pub(super) fn apply_closed(
             findings,
             format!("toolchain.{extra}"),
             table.get(&extra).and_then(toml_core::render_item),
-            "absent because rust-toolchain.toml fields are closed".to_owned(),
+            "absent because rust-toolchain.toml fields are exact".to_owned(),
             requirement
-                .closed_settings
+                .exact_settings
                 .first()
                 .map(|(_, msg)| msg.clone())
                 .unwrap_or_default(),
             &requirement
-                .closed_settings
+                .exact_settings
                 .iter()
                 .map(|(prov, _)| prov.clone())
                 .collect::<Vec<_>>(),
@@ -381,7 +381,7 @@ pub(super) fn requirement_attribution(
         .chain(list_attribution(&requirement.targets))
         .chain(
             requirement
-                .closed_settings
+                .exact_settings
                 .iter()
                 .map(|(prov, _)| prov.clone()),
         )
@@ -394,7 +394,7 @@ pub(super) fn has_requirements(requirement: &ResolvedRustToolchainTomlRequiremen
         || requirement.profile.is_some()
         || !list_is_empty(&requirement.components)
         || !list_is_empty(&requirement.targets)
-        || !requirement.closed_settings.is_empty()
+        || !requirement.exact_settings.is_empty()
 }
 
 pub(super) fn has_path_value_requirement(

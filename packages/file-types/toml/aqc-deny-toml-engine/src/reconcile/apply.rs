@@ -7,7 +7,7 @@ use toml_edit::{DocumentMut, Item};
 use crate::requirement::ResolvedDenyTomlRequirements;
 
 use super::{
-    closed::apply_closed_settings,
+    exact::apply_exact_settings,
     items::apply_items,
     lists::apply_lists,
     scalars::{apply_scalars, touch_core_scalar_helpers},
@@ -24,7 +24,7 @@ pub(crate) fn apply(
     apply_items(doc, requirement, findings);
     apply_scalars(doc, requirement, findings);
     apply_lists(doc, requirement, findings);
-    apply_closed_settings(doc, requirement, findings);
+    apply_exact_settings(doc, requirement, findings);
 }
 
 fn reject_unsupported_source_key(doc: &mut DocumentMut, findings: &mut Vec<Finding>) {

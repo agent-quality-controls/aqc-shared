@@ -18,7 +18,7 @@ use toml_edit as _;
 pub(crate) struct KeyedFixture<Entry> {
     pub(crate) required: BTreeMap<String, (Entry, String)>,
     pub(crate) forbidden: BTreeMap<String, String>,
-    pub(crate) closed: Option<String>,
+    pub(crate) exact: Option<String>,
 }
 
 pub(crate) fn prov(policy: &str) -> engine_core::Provenance {
@@ -119,6 +119,19 @@ pub(crate) fn local_dependency_requirement(
 pub(crate) fn dep_items(
     table: KeyedFixture<cargo::DependencySpec>,
 ) -> engine_core::ItemRequirements<cargo::DependencyRequirement> {
+    let exact = table.exact.map(|message| {
+        (
+            table
+                .required
+                .iter()
+                .map(|(file_key, (value, _))| cargo::DependencyRequirement {
+                    file_key: Some(file_key.clone()),
+                    value: value.clone(),
+                })
+                .collect(),
+            message,
+        )
+    });
     engine_core::ItemRequirements {
         required: table
             .required
@@ -146,13 +159,26 @@ pub(crate) fn dep_items(
                 )
             })
             .collect(),
-        closed: table.closed,
+        exact,
     }
 }
 
-pub(crate) fn keyed_items<Entry: Default>(
+pub(crate) fn keyed_items<Entry: Default + Clone>(
     table: KeyedFixture<Entry>,
 ) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
+    let exact = table.exact.map(|message| {
+        (
+            table
+                .required
+                .iter()
+                .map(|(file_key, (value, _))| engine_core::KeyedItem {
+                    file_key: file_key.clone(),
+                    value: value.clone(),
+                })
+                .collect(),
+            message,
+        )
+    });
     engine_core::ItemRequirements {
         required: table
             .required
@@ -172,7 +198,7 @@ pub(crate) fn keyed_items<Entry: Default>(
                 )
             })
             .collect(),
-        closed: table.closed,
+        exact,
     }
 }
 
@@ -237,12 +263,12 @@ fn common_helpers_compile() {
     let _ = dep_req(KeyedFixture {
         required: BTreeMap::new(),
         forbidden: BTreeMap::new(),
-        closed: None,
+        exact: None,
     });
     let _ = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let _ = dependency_package_glob("*");
     let _ = dependency_package_globs(Vec::new());
@@ -252,12 +278,12 @@ fn common_helpers_compile() {
     let _ = dep_items(KeyedFixture {
         required: BTreeMap::new(),
         forbidden: BTreeMap::new(),
-        closed: None,
+        exact: None,
     });
     let _ = keyed_items::<cargo::DependencySpec>(KeyedFixture {
         required: BTreeMap::new(),
         forbidden: BTreeMap::new(),
-        closed: None,
+        exact: None,
     });
     let _ = cargo_findings(Vec::new());
     let _ = cargo_findings_with(Some(b""), Vec::new());

@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 use aqc_toml_engine_core as _;
 use globset as _;
 use toml_edit as _;
@@ -58,15 +61,21 @@ fn path_globs(globs: Vec<PathGlobInput<'_>>) -> ForbiddenGlobRequirements<Clippy
     }
 }
 
-const fn disallowed_items(
+fn disallowed_items(
     required: Vec<DisallowedRequirementInput>,
     forbidden: Vec<DisallowedRequirementInput>,
-    closed: Option<String>,
+    exact_message: Option<String>,
 ) -> ItemRequirements<DisallowedEntry> {
+    let exact = exact_message.map(|message| {
+        (
+            required.iter().map(|(item, _)| item.clone()).collect(),
+            message,
+        )
+    });
     ItemRequirements {
         required,
         forbidden,
-        closed,
+        exact,
     }
 }
 

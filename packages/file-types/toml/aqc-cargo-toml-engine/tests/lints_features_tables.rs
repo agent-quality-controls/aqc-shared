@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 #![allow(
     clippy::field_reassign_with_default,
     clippy::indexing_slicing,
@@ -30,7 +33,7 @@ fn cargo_lints_required_and_forbidden_different_keys_compose() {
         keyed_items(KeyedFixture {
             required,
             forbidden,
-            closed: None,
+            exact: None,
         }),
     );
     let (_, findings) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
@@ -45,7 +48,7 @@ fn forbidden_cargo_lint_removes_malformed_existing_key() {
         keyed_items(KeyedFixture::<cargo::LintSetting> {
             required: BTreeMap::new(),
             forbidden: BTreeMap::from([("unwrap_used".to_owned(), "no unwrap".to_owned())]),
-            closed: None,
+            exact: None,
         }),
     );
     let out = cargo_output(
@@ -68,7 +71,7 @@ fn cargo_features_use_table_composition_rules() {
     let table: KeyedFixture<cargo::FeatureMembers> = KeyedFixture {
         required,
         forbidden: BTreeMap::new(),
-        closed: None,
+        exact: None,
     };
     let mut req = cargo::CargoTomlRequirements::default();
     req.features = Some(keyed_items(table));
@@ -84,38 +87,38 @@ fn cargo_features_use_table_composition_rules() {
 }
 
 #[test]
-fn table_closed_rejects_outside_required_entry_with_closer_attribution() {
-    let closed = KeyedFixture::<cargo::DependencySpec> {
+fn table_exact_rejects_outside_required_entry_with_exact_attribution() {
+    let exact = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::from([(
             "serde".to_owned(),
             (dep_spec(Some("1")), "serde".to_owned()),
         )]),
         forbidden: BTreeMap::new(),
-        closed: Some("only serde".to_owned()),
+        exact: Some("only serde".to_owned()),
     };
     let outside = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
         forbidden: BTreeMap::new(),
-        closed: None,
+        exact: None,
     };
     let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
-        (prov("closer"), dep_req(closed)),
+        (prov("closer"), dep_req(exact)),
         (prov("outside"), dep_req(outside)),
     ]);
     let contributors = &conflicts[0].contributors;
     assert!(
         contributors
             .iter()
-            .any(|(p, v)| p.policy == "closer" && v == "closed")
+            .any(|(p, v)| p.policy == "closer" && v == "only serde")
     );
 }
 
 #[test]
-fn table_closed_allows_outside_forbidden_entry() {
+fn table_exact_allows_outside_forbidden_entry() {
     let table = KeyedFixture::<cargo::DependencySpec> {
         required: BTreeMap::new(),
         forbidden: BTreeMap::from([("openssl".to_owned(), "forbid".to_owned())]),
-        closed: Some("closed".to_owned()),
+        exact: Some("exact".to_owned()),
     };
     let (_, conflicts) =
         cargo::CargoTomlRequirements::merge(vec![(prov("closer"), dep_req(table))]);
@@ -123,20 +126,20 @@ fn table_closed_allows_outside_forbidden_entry() {
 }
 
 #[test]
-fn table_two_closed_tables_with_different_required_keys_conflict() {
-    let closed = Some("closed".to_owned());
+fn table_two_exact_tables_with_different_required_keys_conflict() {
+    let exact = Some("exact".to_owned());
     let left = KeyedFixture {
         required: BTreeMap::from([(
             "serde".to_owned(),
             (dep_spec(Some("1")), "serde".to_owned()),
         )]),
         forbidden: BTreeMap::new(),
-        closed: closed.clone(),
+        exact: exact.clone(),
     };
     let right = KeyedFixture {
         required: BTreeMap::from([("toml".to_owned(), (dep_spec(Some("1")), "toml".to_owned()))]),
         forbidden: BTreeMap::new(),
-        closed,
+        exact,
     };
     let findings = cargo_findings(vec![
         (prov("p1"), dep_req(left)),
@@ -175,7 +178,7 @@ fn table_same_required_key_compatible_entries_compose() {
             dep_req(KeyedFixture {
                 required: left,
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
         (
@@ -183,7 +186,7 @@ fn table_same_required_key_compatible_entries_compose() {
             dep_req(KeyedFixture {
                 required: right,
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
     ]);
@@ -201,7 +204,7 @@ fn table_same_required_key_incompatible_entries_conflict() {
                     (dep_spec(Some("1")), "one".to_owned()),
                 )]),
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
         (
@@ -212,7 +215,7 @@ fn table_same_required_key_incompatible_entries_conflict() {
                     (dep_spec(Some("2")), "two".to_owned()),
                 )]),
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
     ]);

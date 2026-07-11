@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 use aqc_toml_engine_core as _;
 use serde as _;
 use toml_edit as _;
@@ -225,18 +228,18 @@ fn bans_build_is_valid_when_open() {
 }
 
 #[test]
-fn closed_bans_build_removes_extra() {
+fn exact_bans_build_removes_extra() {
     let output = reconcile(
         "[bans.build]\nunknown = true\nexecutables = \"deny\"\n",
         DenyTomlRequirements {
-            closed_settings: Some("closed".to_owned()),
+            exact_settings: Some("exact".to_owned()),
             ..DenyTomlRequirements::default()
         },
     );
     let expected = expected(&output);
     assert!(
         !expected.contains("unknown"),
-        "closed settings should remove unknown bans.build key"
+        "exact settings should remove unknown bans.build key"
     );
 }
 

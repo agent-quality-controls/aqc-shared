@@ -5,7 +5,7 @@ use aqc_file_engine_core::{
 };
 use toml_edit::DocumentMut;
 
-use super::closed::apply_closed;
+use super::exact::apply_exact;
 use super::ignore::apply_forbidden_ignore_path_globs;
 use super::list::apply_list;
 use super::scalar::apply_scalar;
@@ -36,7 +36,7 @@ pub(crate) fn apply(
         &requirement.ignore_glob_conflicts.path_globs,
         findings,
     );
-    apply_closed(doc, requirement, findings);
+    apply_exact(doc, requirement, findings);
 }
 
 /// Keeps attribution only from scalar assertions that fail the current value.

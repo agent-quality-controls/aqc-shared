@@ -83,7 +83,7 @@ pub struct DenyTomlRequirements {
     pub sources_allow_org_gitlab: ListRequirements,
     pub sources_allow_org_bitbucket: ListRequirements,
     pub sources_unused_allowed_source: Option<ScalarAssertion<value::DenyLintLevel>>,
-    pub closed_settings: Option<String>,
+    pub exact_settings: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -153,7 +153,7 @@ pub struct ResolvedDenyTomlRequirements {
     pub sources_allow_org_gitlab: ResolvedListRequirements,
     pub sources_allow_org_bitbucket: ResolvedListRequirements,
     pub sources_unused_allowed_source: ResolvedScalar<value::DenyLintLevel>,
-    pub closed_settings: Vec<(Provenance, String)>,
+    pub exact_settings: Vec<(Provenance, String)>,
 }
 
 impl EngineRequirement for DenyTomlRequirements {

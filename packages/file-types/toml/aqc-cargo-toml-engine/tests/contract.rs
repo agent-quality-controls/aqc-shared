@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 #![allow(
     clippy::as_conversions,
     clippy::field_reassign_with_default,
@@ -29,11 +32,23 @@ fn output(req: cargo::CargoTomlRequirements, current: Option<&[u8]>) -> engine_c
     cargo::CargoTomlEngine.reconcile(current, &reqs)
 }
 
-fn keyed_items<Entry: Default>(
+fn keyed_items<Entry: Default + Clone>(
     required: BTreeMap<String, (Entry, String)>,
     forbidden: BTreeMap<String, String>,
-    closed: Option<String>,
+    exact_message: Option<String>,
 ) -> engine_core::ItemRequirements<engine_core::KeyedItem<Entry>> {
+    let exact = exact_message.map(|message| {
+        (
+            required
+                .iter()
+                .map(|(file_key, (value, _))| engine_core::KeyedItem {
+                    file_key: file_key.clone(),
+                    value: value.clone(),
+                })
+                .collect(),
+            message,
+        )
+    });
     engine_core::ItemRequirements {
         required: required
             .into_iter()
@@ -51,7 +66,7 @@ fn keyed_items<Entry: Default>(
                 )
             })
             .collect(),
-        closed,
+        exact,
     }
 }
 

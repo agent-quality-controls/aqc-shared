@@ -208,7 +208,7 @@ pub struct RustToolchainTomlRequirements {
     pub profile: Option<ScalarAssertion<RustToolchainProfile>>,
     pub components: ListRequirements,
     pub targets: ListRequirements,
-    pub closed_settings: Option<String>,
+    pub exact_settings: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -230,7 +230,7 @@ pub struct ResolvedRustToolchainTomlRequirements {
     >,
     pub components: ResolvedListRequirements,
     pub targets: ResolvedListRequirements,
-    pub closed_settings: Vec<(Provenance, String)>,
+    pub exact_settings: Vec<(Provenance, String)>,
 }
 
 impl EngineRequirement for RustToolchainTomlRequirements {

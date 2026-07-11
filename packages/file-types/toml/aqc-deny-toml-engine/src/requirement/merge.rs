@@ -412,9 +412,9 @@ impl DenyTomlRequirements {
             |req| req.sources_unused_allowed_source.clone(),
             &mut conflicts,
         );
-        let closed_settings = reqs
+        let exact_settings = reqs
             .into_iter()
-            .filter_map(|(prov, req)| req.closed_settings.map(|message| (prov, message)))
+            .filter_map(|(prov, req)| req.exact_settings.map(|message| (prov, message)))
             .collect();
 
         (
@@ -484,7 +484,7 @@ impl DenyTomlRequirements {
                 sources_allow_org_gitlab,
                 sources_allow_org_bitbucket,
                 sources_unused_allowed_source,
-                closed_settings,
+                exact_settings,
             },
             conflicts,
         )

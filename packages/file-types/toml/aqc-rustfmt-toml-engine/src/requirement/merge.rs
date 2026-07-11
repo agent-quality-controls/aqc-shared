@@ -47,7 +47,7 @@ impl RustfmtTomlRequirements {
         );
 
         let mut lists_by_key: RustfmtListRequirementsByKey = BTreeMap::new();
-        let mut closed_settings = Vec::new();
+        let mut exact_settings = Vec::new();
         for (prov, req) in reqs {
             for (key, list) in req.list_settings {
                 lists_by_key
@@ -55,8 +55,8 @@ impl RustfmtTomlRequirements {
                     .or_default()
                     .push((prov.clone(), list));
             }
-            if let Some(message) = req.closed_settings {
-                closed_settings.push((prov, message));
+            if let Some(message) = req.exact_settings {
+                exact_settings.push((prov, message));
             }
         }
 
@@ -80,7 +80,7 @@ impl RustfmtTomlRequirements {
                 list_settings,
                 forbidden_ignore_path_globs,
                 ignore_glob_conflicts,
-                closed_settings,
+                exact_settings,
             },
             conflicts,
         )

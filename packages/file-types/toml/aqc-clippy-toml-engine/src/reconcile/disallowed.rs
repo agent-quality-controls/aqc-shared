@@ -30,7 +30,7 @@ pub(crate) fn apply(
 ) {
     if merged.required.is_empty()
         && merged.forbidden.is_empty()
-        && merged.closed_by.is_empty()
+        && merged.exact.is_none()
         && globs.globs.is_empty()
     {
         return;

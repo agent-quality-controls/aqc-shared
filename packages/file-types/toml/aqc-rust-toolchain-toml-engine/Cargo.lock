@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d091a9638e5a1146b55dc597b15c538648b2312d40e7234dc69a46e80198b6d1"
+checksum = "72e86eba3d9c4eaefebe6122ff5e3aee16a8c2dfde495d84cc7884c1ad240be0"
 dependencies = [
  "schemars",
  "serde",
@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-rust-toolchain-toml-engine"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
@@ -25,9 +25,9 @@ dependencies = [
 
 [[package]]
 name = "aqc-toml-engine-core"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dbe7ef025971b7166065c0bf6730f32af3bcb04c23ccfc6389b85caf094fceb"
+checksum = "4dc34b2e8a6ab2b83bbf4c688e87181879698a6cd68cc8a94570ce63ec1d2051"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",

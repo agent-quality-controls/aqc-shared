@@ -5,6 +5,7 @@ mod dispatch;
 mod features;
 mod lints;
 mod package_fields;
+mod package_lint_tables;
 mod package_lints;
 mod patch;
 mod profiles;

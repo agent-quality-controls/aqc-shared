@@ -28,6 +28,7 @@ use super::super::{
 #[derive(Debug, Clone, Default)]
 pub struct CargoTomlRequirements {
     pub package_lints: Option<lints::PackageLintsAssertion>,
+    pub package_lint_tables: core_types::ItemRequirements<core_types::KeyedItem<()>>,
     pub workspace_lints:
         BTreeMap<String, core_types::ItemRequirements<core_types::KeyedItem<lints::LintSetting>>>,
     pub package_fields: BTreeMap<String, package::PackageFieldAssertion>,
@@ -56,6 +57,7 @@ pub struct CargoTomlRequirements {
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedCargoTomlRequirements {
     pub package_lints: Option<lints::ResolvedPackageLintsAssertion>,
+    pub package_lint_tables: core_types::ResolvedItemRequirements<core_types::KeyedItem<()>>,
     pub workspace_lints: BTreeMap<String, core_types::ResolvedItemRequirements<core_types::KeyedItem<lints::LintSetting>>>,
     pub package_fields:
         BTreeMap<String, core_types::ResolvedRequirement<package::ResolvedPackageFieldAssertion, package::PackageFieldAssertion>>,

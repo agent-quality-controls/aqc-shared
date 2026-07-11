@@ -16,7 +16,7 @@ pub use aqc_file_engine_core::{
 pub use engine::RustfmtTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    ResolvedRustfmtClosedSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
+    ResolvedRustfmtExactSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
     RustfmtForbiddenIgnoreGlobConflictBlocks, RustfmtIgnorePathGlob, RustfmtListSetting,
     RustfmtScalarRequirements, RustfmtScalarSetting, RustfmtTomlRequirements,
 };

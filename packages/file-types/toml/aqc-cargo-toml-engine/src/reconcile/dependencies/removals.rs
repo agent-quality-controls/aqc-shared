@@ -167,11 +167,12 @@ fn read_package_glob_matches(
         .collect()
 }
 
-/// Drop on-disk entries not allowed by the closed collection.
+/// Drop on-disk entries not allowed by the exact collection.
 pub(super) fn queue_exact_extras(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
     table: Option<&dyn TableLike>,
     allowed: &[DependencyRequirement],
+    message: &str,
     attribution: &[Provenance],
 ) {
     let Some(table) = table else {
@@ -193,8 +194,8 @@ pub(super) fn queue_exact_extras(
             removals,
             extra.clone(),
             current.clone(),
-            "absent (closed collection)",
-            "",
+            "absent (exact collection)",
+            message,
             attribution,
         );
     }

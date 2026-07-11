@@ -35,9 +35,9 @@ impl RustToolchainTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let closed_settings = reqs
+        let exact_settings = reqs
             .into_iter()
-            .filter_map(|(prov, req)| req.closed_settings.map(|message| (prov, message)))
+            .filter_map(|(prov, req)| req.exact_settings.map(|message| (prov, message)))
             .collect();
 
         (
@@ -47,7 +47,7 @@ impl RustToolchainTomlRequirements {
                 profile,
                 components,
                 targets,
-                closed_settings,
+                exact_settings,
             },
             conflicts,
         )

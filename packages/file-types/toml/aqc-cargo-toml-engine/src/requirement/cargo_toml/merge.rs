@@ -17,7 +17,7 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{ConflictEntry, Provenance, resolve_map};
+use aqc_file_engine_core::{ConflictEntry, KeyedItem, Provenance, resolve_items, resolve_map};
 
 use super::super::dependencies::{DependencyPackageGlob, DependencyRequirement, DependencyScope};
 use super::super::lints::PackageLintsAssertion;
@@ -46,6 +46,39 @@ impl CargoTomlRequirements {
                     req.package_lints
                         .clone()
                         .map(|assertion| (prov.clone(), assertion))
+                })
+                .collect(),
+            &mut conflicts,
+        );
+
+        let package_lint_tables = resolve_items(
+            "[lints]",
+            reqs.iter()
+                .map(|(prov, req)| {
+                    let mut tables = req.package_lint_tables.clone();
+                    if let Some(PackageLintsAssertion::Inline(inline)) = &req.package_lints {
+                        for (tool, lint_requirements) in inline {
+                            let message = lint_requirements
+                                .required
+                                .first()
+                                .map(|(_, message)| message.clone())
+                                .or_else(|| {
+                                    lint_requirements
+                                        .exact
+                                        .as_ref()
+                                        .map(|(_, message)| message.clone())
+                                })
+                                .unwrap_or_else(|| "inline package lint table required".to_owned());
+                            tables.required.push((
+                                KeyedItem {
+                                    file_key: tool.clone(),
+                                    value: (),
+                                },
+                                message,
+                            ));
+                        }
+                    }
+                    (prov.clone(), tables)
                 })
                 .collect(),
             &mut conflicts,
@@ -169,6 +202,7 @@ impl CargoTomlRequirements {
 
         let out = ResolvedCargoTomlRequirements {
             package_lints,
+            package_lint_tables,
             workspace_lints,
             package_fields: resolve_map(
                 reqs.iter()

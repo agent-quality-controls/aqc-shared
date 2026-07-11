@@ -153,18 +153,29 @@ pub(crate) fn apply_set(
         glob_conflicts,
         findings,
     );
-    if !merged.closed_by.is_empty() {
-        let allowed = merged
-            .required
+    if let Some(exact) = &merged.exact {
+        let allowed = exact
+            .items
             .values()
             .map(|entry| entry.merged.clone())
             .collect::<Vec<_>>();
-        let attribution = merged
-            .closed_by
+        let attribution = exact
+            .collected
             .iter()
             .map(|(prov, _)| prov.clone())
             .collect::<Vec<_>>();
-        queue_exact_extras(&mut removals, table_at(doc, path), &allowed, &attribution);
+        let message = exact
+            .collected
+            .first()
+            .map(|(_, (_, message))| message.as_str())
+            .unwrap_or_default();
+        queue_exact_extras(
+            &mut removals,
+            table_at(doc, path),
+            &allowed,
+            message,
+            &attribution,
+        );
     }
     remove_dependency_entries_once(doc, path, display_path, removals, findings);
 }

@@ -1,20 +1,20 @@
-//! Closed-settings reconciliation.
+//! Exact-settings reconciliation.
 
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{Finding, Severity};
+use aqc_toml_engine_core::render_item;
 use toml_edit::DocumentMut;
 
 use crate::requirement::ResolvedRustfmtTomlRequirements;
-use aqc_toml_engine_core::render_item;
 
-/// Removes settings not named by a closed requirement set.
-pub(super) fn apply_closed(
+/// Removes settings not named by an exact requirement set.
+pub(super) fn apply_exact(
     doc: &mut DocumentMut,
     requirement: &ResolvedRustfmtTomlRequirements,
     findings: &mut Vec<Finding>,
 ) {
-    if requirement.closed_settings.is_empty() {
+    if requirement.exact_settings.is_empty() {
         return;
     }
     let allowed = requirement
@@ -34,15 +34,15 @@ pub(super) fn apply_closed(
         findings.push(Finding::Mismatch {
             key: extra.clone(),
             current: doc.get(&extra).and_then(render_item),
-            expected: "absent because rustfmt.toml settings are closed".to_owned(),
+            expected: "absent because rustfmt.toml settings are exact".to_owned(),
             message: requirement
-                .closed_settings
+                .exact_settings
                 .first()
                 .map(|(_, msg)| msg.clone())
                 .unwrap_or_default(),
             severity: Severity::Error,
             attribution: requirement
-                .closed_settings
+                .exact_settings
                 .iter()
                 .map(|(prov, _)| prov.clone())
                 .collect(),

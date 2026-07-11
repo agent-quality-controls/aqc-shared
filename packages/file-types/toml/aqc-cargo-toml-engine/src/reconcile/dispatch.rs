@@ -5,8 +5,8 @@ use aqc_file_engine_core::Finding;
 use toml_edit::DocumentMut;
 
 use super::{
-    dependencies, features, lints, package_fields, package_lints, patch, profiles,
-    section_presence, target_tables, workspace_fields,
+    dependencies, features, lints, package_fields, package_lint_tables, package_lints, patch,
+    profiles, section_presence, target_tables, workspace_fields,
 };
 use crate::requirement::ResolvedCargoTomlRequirements;
 
@@ -22,6 +22,7 @@ pub(crate) fn apply(
 ) {
     let ResolvedCargoTomlRequirements {
         package_lints,
+        package_lint_tables,
         workspace_lints,
         package_fields,
         workspace_package_fields,
@@ -42,6 +43,7 @@ pub(crate) fn apply(
     } = requirement;
 
     package_lints::apply(doc, package_lints.as_ref(), findings);
+    package_lint_tables::apply(doc, package_lint_tables, findings);
     lints::apply(doc, lints::LintRoot::Workspace, workspace_lints, findings);
     package_fields::apply(
         doc,

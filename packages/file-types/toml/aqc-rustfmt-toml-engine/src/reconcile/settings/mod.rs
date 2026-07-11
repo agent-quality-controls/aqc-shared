@@ -1,7 +1,7 @@
 //! Reconcile top-level `rustfmt.toml` settings.
 
 mod apply;
-mod closed;
+mod exact;
 mod ignore;
 mod list;
 mod scalar;

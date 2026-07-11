@@ -5,7 +5,7 @@ mod model;
 mod settings;
 
 pub use model::{
-    ResolvedRustfmtClosedSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
+    ResolvedRustfmtExactSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
     RustfmtForbiddenIgnoreGlobConflictBlocks, RustfmtIgnorePathGlob, RustfmtScalarRequirements,
     RustfmtTomlRequirements,
 };

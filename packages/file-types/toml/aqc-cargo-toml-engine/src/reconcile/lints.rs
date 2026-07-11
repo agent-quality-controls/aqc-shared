@@ -130,18 +130,19 @@ fn apply_tool(
             .unwrap_or_default();
         apply_forbidden(doc, root, tool, lint, &message, &attribution, findings);
     }
-    if !merged.closed_by.is_empty() {
-        let allowed = merged
-            .required
-            .values()
-            .map(|entry| entry.merged.file_key.clone())
-            .collect();
-        let attribution = merged
-            .closed_by
+    if let Some(exact) = &merged.exact {
+        let allowed = exact.identities.clone();
+        let attribution = exact
+            .collected
             .iter()
             .map(|(prov, _)| prov.clone())
             .collect::<Vec<_>>();
-        apply_closed_extras(doc, root, tool, &allowed, &attribution, findings);
+        let message = exact
+            .collected
+            .first()
+            .map(|(_, (_, message))| message.as_str())
+            .unwrap_or_default();
+        apply_exact_extras(doc, root, tool, &allowed, message, &attribution, findings);
     }
 }
 
@@ -203,11 +204,12 @@ fn apply_forbidden(
     }
 }
 
-fn apply_closed_extras(
+fn apply_exact_extras(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
     allowed: &BTreeSet<String>,
+    message: &str,
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
@@ -226,8 +228,8 @@ fn apply_closed_extras(
         findings.push(Finding::Mismatch {
             key: format!("[{}.{tool}].{extra}", root.prefix()),
             current,
-            expected: "absent (closed table)".to_owned(),
-            message: String::new(),
+            expected: "absent (exact collection)".to_owned(),
+            message: message.to_owned(),
             severity: Severity::Error,
             attribution: attribution.to_vec(),
         });

@@ -1,4 +1,4 @@
-//! Closed deny.toml settings reconciliation.
+//! Exact deny.toml settings reconciliation.
 
 use std::collections::BTreeSet;
 
@@ -10,12 +10,12 @@ use crate::requirement::ResolvedDenyTomlRequirements;
 
 use super::support::table_path_mut;
 
-pub(super) fn apply_closed_settings(
+pub(super) fn apply_exact_settings(
     doc: &mut DocumentMut,
     requirement: &ResolvedDenyTomlRequirements,
     findings: &mut Vec<Finding>,
 ) {
-    if requirement.closed_settings.is_empty() {
+    if requirement.exact_settings.is_empty() {
         return;
     }
     let allowed_root = BTreeSet::from([
@@ -27,12 +27,12 @@ pub(super) fn apply_closed_settings(
         "sources",
     ]);
     let attribution = requirement
-        .closed_settings
+        .exact_settings
         .iter()
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     let message = requirement
-        .closed_settings
+        .exact_settings
         .first()
         .map(|(_, msg)| msg.clone())
         .unwrap_or_default();
@@ -47,12 +47,12 @@ pub(super) fn apply_closed_settings(
             findings,
             key,
             current,
-            "absent (closed settings)".to_owned(),
+            "absent (exact settings)".to_owned(),
             message.clone(),
             &attribution,
         );
     }
-    close_table(
+    exact_table(
         doc,
         &["bans", "build"],
         &[
@@ -71,7 +71,7 @@ pub(super) fn apply_closed_settings(
     );
 }
 
-fn close_table(
+fn exact_table(
     doc: &mut DocumentMut,
     table_path: &[&str],
     allowed: &[&str],
@@ -94,7 +94,7 @@ fn close_table(
             findings,
             format!("{}.{}", table_path.join("."), key),
             current,
-            "absent (closed settings)".to_owned(),
+            "absent (exact settings)".to_owned(),
             message.to_owned(),
             attribution,
         );

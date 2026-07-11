@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 #![allow(
     clippy::field_reassign_with_default,
     clippy::indexing_slicing,
@@ -339,7 +342,7 @@ fn package_lints_inline_preserves_per_lint_attribution() {
             ),
         )]),
         forbidden: BTreeMap::new(),
-        closed: None,
+        exact: None,
     };
     let mut req = cargo::CargoTomlRequirements::default();
     req.package_lints = Some(cargo::PackageLintsAssertion::Inline(BTreeMap::from([(

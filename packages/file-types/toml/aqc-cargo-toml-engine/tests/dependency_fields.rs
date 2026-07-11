@@ -44,7 +44,7 @@ fn dependency_partial_specs_compose_fieldwise() {
             dep_req(KeyedFixture {
                 required: left,
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
         (
@@ -52,7 +52,7 @@ fn dependency_partial_specs_compose_fieldwise() {
             dep_req(KeyedFixture {
                 required: right,
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
     ]);
@@ -77,7 +77,7 @@ fn dependency_incompatible_same_field_specs_conflict() {
             dep_req(KeyedFixture {
                 required: left,
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
         (
@@ -85,7 +85,7 @@ fn dependency_incompatible_same_field_specs_conflict() {
             dep_req(KeyedFixture {
                 required: right,
                 forbidden: BTreeMap::new(),
-                closed: None,
+                exact: None,
             }),
         ),
     ]);
@@ -118,7 +118,7 @@ fn dependency_each_field_composes_independently() {
         dep_req(KeyedFixture {
             required,
             forbidden: BTreeMap::new(),
-            closed: None,
+            exact: None,
         }),
     )]);
     let spec: &cargo::DependencySpec = &merged.dependencies[&normal_scope()].required

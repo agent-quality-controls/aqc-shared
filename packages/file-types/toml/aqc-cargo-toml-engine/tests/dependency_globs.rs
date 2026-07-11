@@ -1,4 +1,7 @@
-#![allow(clippy::expect_used, reason = "Tests use expect to fail loudly when fixture invariants are broken.")]
+#![allow(
+    clippy::expect_used,
+    reason = "Tests use expect to fail loudly when fixture invariants are broken."
+)]
 #![allow(
     clippy::field_reassign_with_default,
     clippy::indexing_slicing,
@@ -135,7 +138,7 @@ fn dependency_package_identity_forbid_catches_subtable() {
             package_requirement("openssl-sys", None),
             "no openssl".to_owned(),
         )],
-        closed: None,
+        exact: None,
     });
     let out = cargo_output(
         Some(b"[dependencies.openssl]\npackage = \"openssl-sys\"\nversion = \"0.9\"\n"),
@@ -158,7 +161,7 @@ fn required_package_matching_glob_forbid_conflicts() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let (_, conflicts) =
@@ -178,7 +181,7 @@ fn required_package_matching_glob_forbid_does_not_write_dependency() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let out = cargo_output(None, vec![(prov("p1"), exact), (prov("p2"), glob)]);
@@ -196,7 +199,7 @@ fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let out = cargo_output(
@@ -214,14 +217,21 @@ fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
 }
 
 #[test]
-fn required_closed_dependency_matching_glob_forbid_does_not_remove_dependency() {
+fn required_exact_dependency_matching_glob_forbid_does_not_remove_dependency() {
     let exact = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
             local_dependency_requirement("ssl", Some("openssl-sys"), Some("0.9")),
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
-        closed: Some("only declared deps".to_owned()),
+        exact: Some((
+            vec![local_dependency_requirement(
+                "ssl",
+                Some("openssl-sys"),
+                Some("0.9"),
+            )],
+            "only declared deps".to_owned(),
+        )),
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
     let out = cargo_output(
@@ -257,7 +267,7 @@ fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
             package_requirement("openssl-sys", None),
             "exact no openssl".to_owned(),
         )],
-        closed: None,
+        exact: None,
     });
     let _ = req.forbidden_dependency_package_globs.insert(
         normal_scope(),
@@ -283,11 +293,11 @@ fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
 }
 
 #[test]
-fn closed_collection_and_forbidden_glob_remove_dependency_once() {
+fn exact_collection_and_forbidden_glob_remove_dependency_once() {
     let mut req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
-        closed: Some("closed".to_owned()),
+        exact: Some((Vec::new(), "exact".to_owned())),
     });
     let _ = req.forbidden_dependency_package_globs.insert(
         normal_scope(),
@@ -331,7 +341,7 @@ fn patch_package_identity_init_reports_unwritable_required_key() {
                 "serde".to_owned(),
             )],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         },
     );
     let findings = cargo_output(None, vec![(prov("p1"), req)]).findings;
@@ -357,7 +367,7 @@ fn patch_requirement_with_file_key_writes_patch_entry() {
                 "patch serde".to_owned(),
             )],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         },
     );
     let out = cargo_output(None, vec![(prov("p1"), req)]);

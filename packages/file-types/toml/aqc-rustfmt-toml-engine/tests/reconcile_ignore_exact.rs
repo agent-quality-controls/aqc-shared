@@ -89,12 +89,12 @@ fn forbidden_ignore_path_glob_reports_and_normalizes_malformed_ignore_list() {
 }
 
 #[test]
-fn closed_settings_keep_ignore_when_only_glob_rules_manage_it() {
+fn exact_settings_keep_ignore_when_only_glob_rules_manage_it() {
     let output = reconcile_resolved(
         "ignore = [\"src/lib.rs\"]\nunknown = true\n",
         RustfmtTomlRequirements {
             forbidden_ignore_path_globs: ignore_globs(vec![("target/**", "no target ignore")]),
-            closed_settings: Some("closed".to_owned()),
+            exact_settings: Some("exact".to_owned()),
             ..RustfmtTomlRequirements::default()
         },
     );
@@ -111,7 +111,7 @@ fn closed_settings_keep_ignore_when_only_glob_rules_manage_it() {
 }
 
 #[test]
-fn closed_settings_remove_unlisted_keys() {
+fn exact_settings_remove_unlisted_keys() {
     let output = reconcile_resolved(
         "max_width = 100\nunknown = true\n",
         RustfmtTomlRequirements {
@@ -119,7 +119,7 @@ fn closed_settings_remove_unlisted_keys() {
                 RustfmtScalarSetting::MaxWidth,
                 ScalarAssertion::Equals(ConfigScalar::Int(100), "max width".to_owned()),
             )]),
-            closed_settings: Some("closed".to_owned()),
+            exact_settings: Some("exact".to_owned()),
             ..RustfmtTomlRequirements::default()
         },
     );
@@ -130,11 +130,11 @@ fn closed_settings_remove_unlisted_keys() {
         !expected.contains("unknown"),
         "unlisted key should be removed"
     );
-    assert_eq!(output.findings.len(), 1, "closed extra should report");
+    assert_eq!(output.findings.len(), 1, "exact extra should report");
 }
 
 #[test]
-fn closed_settings_keep_allowed_list_keys() {
+fn exact_settings_keep_allowed_list_keys() {
     let output = reconcile_resolved(
         "ignore = [\"target\"]\nunknown = true\n",
         RustfmtTomlRequirements {
@@ -145,7 +145,7 @@ fn closed_settings_keep_allowed_list_keys() {
                     ..ListRequirements::default()
                 },
             )]),
-            closed_settings: Some("closed".to_owned()),
+            exact_settings: Some("exact".to_owned()),
             ..RustfmtTomlRequirements::default()
         },
     );
@@ -159,11 +159,11 @@ fn closed_settings_keep_allowed_list_keys() {
         !expected.contains("unknown"),
         "unlisted key should be removed"
     );
-    assert_eq!(output.findings.len(), 1, "closed extra should report");
+    assert_eq!(output.findings.len(), 1, "exact extra should report");
 }
 
 #[test]
-fn unrelated_settings_are_preserved_when_not_closed() {
+fn unrelated_settings_are_preserved_when_not_exact() {
     let output = reconcile_resolved(
         "max_width = 80\nunknown = true\n",
         RustfmtTomlRequirements {
@@ -178,7 +178,7 @@ fn unrelated_settings_are_preserved_when_not_closed() {
     let expected = String::from_utf8(first_bytes(&output)).unwrap_or_default();
     assert!(
         expected.contains("unknown = true"),
-        "unrelated key should remain when settings are not closed"
+        "unrelated key should remain when settings are not exact"
     );
     assert!(
         expected.contains("max_width = 100"),
