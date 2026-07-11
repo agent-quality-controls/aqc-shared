@@ -21,7 +21,7 @@ pub fn reconcile_array_items<ItemType>(
 {
     if requirements.required.is_empty()
         && requirements.forbidden.is_empty()
-        && requirements.closed_by.is_empty()
+        && requirements.exact.is_none()
     {
         return;
     }
@@ -42,7 +42,7 @@ pub fn reconcile_array_items<ItemType>(
     }
     apply_forbidden_array_items(array, field, requirements, findings);
     if !current.duplicate {
-        apply_closed_array_items(array, field, requirements, findings);
+        apply_exact_array_items(array, field, requirements, findings);
     }
 }
 
@@ -167,7 +167,7 @@ fn apply_forbidden_array_items<ItemType>(
     }
 }
 
-fn apply_closed_array_items<ItemType>(
+fn apply_exact_array_items<ItemType>(
     array: &mut Array,
     field: TomlItemField<'_>,
     requirements: &ResolvedItemRequirements<ItemType>,
@@ -176,14 +176,10 @@ fn apply_closed_array_items<ItemType>(
     ItemType: TomlArrayItem,
     ItemType::Identity: ToString,
 {
-    if requirements.closed_by.is_empty() {
+    let Some(exact) = &requirements.exact else {
         return;
-    }
-    let allowed = requirements
-        .required
-        .keys()
-        .cloned()
-        .collect::<BTreeSet<_>>();
+    };
+    let allowed = &exact.identities;
     for (_, identity) in support::remove_array_items(array, |value| {
         ItemType::read_value(value)
             .ok()
@@ -194,9 +190,9 @@ fn apply_closed_array_items<ItemType>(
             findings,
             support::item_key::<ItemType>(field, &identity),
             Some(identity.to_string()),
-            "absent (closed table)".to_owned(),
-            support::first_closed_message(requirements),
-            &support::closed_attribution(requirements),
+            "absent (exact collection)".to_owned(),
+            support::first_exact_message(requirements),
+            &support::exact_attribution(requirements),
         );
     }
 }

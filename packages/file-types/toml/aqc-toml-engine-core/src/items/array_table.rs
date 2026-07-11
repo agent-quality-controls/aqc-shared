@@ -7,7 +7,7 @@ use toml_edit::{ArrayOfTables, DocumentMut};
 
 use crate::finding::{attribution, push_mismatch};
 use crate::items::support::{
-    CurrentItems, array_item, closed_attribution, ensure_array_table, first_closed_message,
+    CurrentItems, array_item, ensure_array_table, exact_attribution, first_exact_message,
     forbidden_message, item_key, item_message, remove_array_table_items, report_duplicate_identity,
 };
 use crate::items::types::{TomlArrayTableItem, TomlItemField};
@@ -24,7 +24,7 @@ pub fn reconcile_array_table_items<ItemType>(
 {
     if requirements.required.is_empty()
         && requirements.forbidden.is_empty()
-        && requirements.closed_by.is_empty()
+        && requirements.exact.is_none()
     {
         return;
     }
@@ -40,7 +40,7 @@ pub fn reconcile_array_table_items<ItemType>(
     }
     apply_forbidden_array_table_items(array, field, requirements, findings);
     if !current.duplicate {
-        apply_closed_array_table_items(array, field, requirements, findings);
+        apply_exact_array_table_items(array, field, requirements, findings);
     }
 }
 
@@ -164,7 +164,7 @@ fn apply_forbidden_array_table_items<ItemType>(
     }
 }
 
-fn apply_closed_array_table_items<ItemType>(
+fn apply_exact_array_table_items<ItemType>(
     array: &mut ArrayOfTables,
     field: TomlItemField<'_>,
     requirements: &ResolvedItemRequirements<ItemType>,
@@ -173,14 +173,10 @@ fn apply_closed_array_table_items<ItemType>(
     ItemType: TomlArrayTableItem,
     ItemType::Identity: ToString,
 {
-    if requirements.closed_by.is_empty() {
+    let Some(exact) = &requirements.exact else {
         return;
-    }
-    let allowed = requirements
-        .required
-        .keys()
-        .cloned()
-        .collect::<BTreeSet<_>>();
+    };
+    let allowed = &exact.identities;
     for identity in remove_array_table_items(array, |table| {
         ItemType::read_table(table)
             .ok()
@@ -191,9 +187,9 @@ fn apply_closed_array_table_items<ItemType>(
             findings,
             item_key::<ItemType>(field, &identity),
             Some(identity.to_string()),
-            "absent (closed table)".to_owned(),
-            first_closed_message(requirements),
-            &closed_attribution(requirements),
+            "absent (exact collection)".to_owned(),
+            first_exact_message(requirements),
+            &exact_attribution(requirements),
         );
     }
 }

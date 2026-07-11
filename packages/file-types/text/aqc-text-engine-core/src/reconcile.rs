@@ -100,15 +100,14 @@ fn reject_unsupported_contents(
                 .collect(),
         });
     }
-    if !requirements.contents.closed_by.is_empty() {
+    if let Some(exact) = &requirements.contents.exact {
         findings.push(Finding::InvalidRequirements {
             key: "contents".to_owned(),
-            message: "text contained contents do not support closed collections".to_owned(),
-            contributors: requirements
-                .contents
-                .closed_by
+            message: "text contained contents do not support exact collections".to_owned(),
+            contributors: exact
+                .collected
                 .iter()
-                .map(|(prov, message)| (prov.policy.clone(), message.clone()))
+                .map(|(prov, (_, message))| (prov.policy.clone(), message.clone()))
                 .collect(),
         });
     }

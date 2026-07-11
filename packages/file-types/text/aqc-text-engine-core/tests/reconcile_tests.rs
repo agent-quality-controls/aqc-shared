@@ -118,7 +118,7 @@ fn omitted_contents_preserve_each_contributor_message() -> Result<(), String> {
         contents: ItemRequirements {
             required: vec![(required.clone(), message.to_owned())],
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         },
     };
     let (resolved, conflicts) = TextFileRequirements::merge(vec![
@@ -180,7 +180,7 @@ fn item_requirements(value: &str) -> Result<ItemRequirements<TextFileContents>, 
     Ok(ItemRequirements {
         required: vec![(contents(value)?, "contents".to_owned())],
         forbidden: Vec::new(),
-        closed: None,
+        exact: None,
     })
 }
 

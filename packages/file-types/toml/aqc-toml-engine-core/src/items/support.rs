@@ -118,7 +118,7 @@ pub(super) fn report_duplicate_identity<ItemType>(
     ItemType: FileItemRequirement,
     ItemType::Identity: ToString,
 {
-    if requirements.required.is_empty() && requirements.closed_by.is_empty() {
+    if requirements.required.is_empty() && requirements.exact.is_none() {
         return;
     }
     findings.push(Finding::InvalidRequirements {
@@ -188,16 +188,17 @@ pub(super) fn forbidden_message(collected: &[(Provenance, String)]) -> String {
         .unwrap_or_default()
 }
 
-pub(super) fn first_closed_message<ItemType>(
+pub(super) fn first_exact_message<ItemType>(
     requirements: &ResolvedItemRequirements<ItemType>,
 ) -> String
 where
     ItemType: FileItemRequirement,
 {
     requirements
-        .closed_by
-        .first()
-        .map(|(_, msg)| msg.clone())
+        .exact
+        .as_ref()
+        .and_then(|exact| exact.collected.first())
+        .map(|(_, (_, msg))| msg.clone())
         .unwrap_or_default()
 }
 
@@ -212,19 +213,20 @@ where
         .values()
         .flat_map(attribution)
         .chain(requirements.forbidden.values().flat_map(attribution))
-        .chain(closed_attribution(requirements))
+        .chain(exact_attribution(requirements))
         .collect()
 }
 
-pub(super) fn closed_attribution<ItemType>(
+pub(super) fn exact_attribution<ItemType>(
     requirements: &ResolvedItemRequirements<ItemType>,
 ) -> Vec<Provenance>
 where
     ItemType: FileItemRequirement,
 {
     requirements
-        .closed_by
+        .exact
         .iter()
+        .flat_map(|exact| exact.collected.iter())
         .map(|(prov, _)| prov.clone())
         .collect()
 }
@@ -252,7 +254,12 @@ where
                 .values()
                 .flat_map(|resolved| resolved.collected.iter().map(|(_, msg)| msg.as_str())),
         )
-        .chain(requirements.closed_by.iter().map(|(_, msg)| msg.as_str()))
+        .chain(
+            requirements
+                .exact
+                .iter()
+                .flat_map(|exact| exact.collected.iter().map(|(_, (_, msg))| msg.as_str())),
+        )
         .next()
         .unwrap_or_default()
         .to_owned()
