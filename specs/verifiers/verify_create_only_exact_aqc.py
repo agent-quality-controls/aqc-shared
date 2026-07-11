@@ -63,21 +63,26 @@ def workspace_gates(relative: str) -> tuple[bool, str]:
 
 def release_dependency_versions() -> tuple[bool, str]:
     expected = {
-        "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml": "0.5.0",
-        "packages/file-types/text/aqc-text-engine-core/Cargo.toml": "0.5.0",
-        "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml": "0.5.0",
-        "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml": "0.5.0",
-        "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml": "0.5.0",
-        "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml": "0.5.0",
-        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml": "0.5.0",
+        "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml": False,
+        "packages/file-types/text/aqc-text-engine-core/Cargo.toml": False,
+        "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml": True,
+        "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml": True,
+        "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml": True,
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml": True,
+        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml": True,
     }
     failures = []
-    for relative, core_version in expected.items():
+    for relative, requires_toml_core in expected.items():
         text = (ROOT / relative).read_text()
         if "path =" in text:
             failures.append(f"{relative}: path dependency remains")
-        if f'aqc-file-engine-core = "{core_version}"' not in text:
-            failures.append(f"{relative}: aqc-file-engine-core {core_version} not pinned")
+        if 'aqc-file-engine-core = "0.5.2"' not in text:
+            failures.append(f"{relative}: aqc-file-engine-core 0.5.2 not pinned")
+        if requires_toml_core and 'aqc-toml-engine-core = "0.5.1"' not in text:
+            failures.append(f"{relative}: aqc-toml-engine-core 0.5.1 not pinned")
+        lock = (ROOT / relative).with_name("Cargo.lock").read_text()
+        if 'name = "aqc-file-engine-core"\nversion = "0.5.2"' not in lock:
+            failures.append(f"{relative}: lockfile does not resolve aqc-file-engine-core 0.5.2")
     return not failures, "registry dependency versions match release order" if not failures else "; ".join(failures)
 
 

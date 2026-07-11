@@ -159,8 +159,8 @@
         "files": [
           "packages/aqc-file-engine-core/Cargo.toml"
         ],
-        "reason": "Plan: corrected breaking core release version",
-        "required": ["version = \"0.5.1\""],
+        "reason": "Plan: corrected core patch release version",
+        "required": ["version = \"0.5.2\""],
         "forbidden": []
       },
       {
@@ -172,22 +172,22 @@
           "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml"
         ],
-        "reason": "Plan: affected TOML crates advance to 0.5.0",
-        "required": ["version = \"0.5.0\""],
+        "reason": "Plan: affected TOML crates advance to 0.5.1",
+        "required": ["version = \"0.5.1\""],
         "forbidden": []
       },
       {
         "verifier": ["builtin:content"],
         "files": ["packages/file-types/text/aqc-text-engine-core/Cargo.toml"],
-        "reason": "Plan: text core breaking release version",
-        "required": ["version = \"0.4.0\""],
+        "reason": "Plan: text core patch release version",
+        "required": ["version = \"0.4.1\""],
         "forbidden": []
       },
       {
         "verifier": ["builtin:content"],
         "files": ["packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml"],
-        "reason": "Plan: Deny engine breaking release version",
-        "required": ["version = \"0.3.0\""],
+        "reason": "Plan: Deny engine patch release version",
+        "required": ["version = \"0.3.1\""],
         "forbidden": []
       }
     ],
