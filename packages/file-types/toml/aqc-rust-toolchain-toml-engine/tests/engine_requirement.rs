@@ -26,8 +26,8 @@ fn public_toolchain_value_schemas_match_their_wire_values() {
         Some("string")
     );
     assert_eq!(
-        channel.get("minLength").and_then(|value| value.as_u64()),
-        Some(1)
+        channel.get("minLength").map(ToString::to_string).as_deref(),
+        Some("1")
     );
 
     let profile = schemars::schema_for!(RustToolchainProfile);
