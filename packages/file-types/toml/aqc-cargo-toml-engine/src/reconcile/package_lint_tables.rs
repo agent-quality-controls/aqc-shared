@@ -17,8 +17,8 @@ pub(crate) fn apply(
             .flat_map(|items| items.iter())
             .filter(|(tool, _)| !requirements.required.contains_key(*tool)),
     ) {
-        let present = table_ref(doc, "lints")
-            .is_some_and(|table| table.get(tool).is_some_and(Item::is_table_like));
+        let present =
+            table_ref(doc, "lints").is_some_and(|table| table.get(tool).is_some_and(is_lint_table));
         if present {
             continue;
         }
@@ -38,7 +38,7 @@ pub(crate) fn apply(
         .map(|table| {
             table
                 .iter()
-                .filter(|(_, item)| item.is_table_like())
+                .filter(|(_, item)| is_lint_table(item))
                 .map(|(key, _)| key.to_owned())
                 .collect::<Vec<_>>()
         })
@@ -85,6 +85,11 @@ pub(crate) fn apply(
             });
         }
     }
+}
+
+/// Cargo accepts package-local lint groups as standard or inline TOML tables.
+fn is_lint_table(item: &Item) -> bool {
+    item.is_table_like() || item.as_inline_table().is_some()
 }
 
 /// Remove one local lint table while preserving the surrounding `[lints]` table.

@@ -167,13 +167,19 @@
         "verifier": ["builtin:content"],
         "files": [
           "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
-          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml"
         ],
         "reason": "Plan: affected TOML crates advance to 0.5.1",
         "required": ["version = \"0.5.1\""],
+        "forbidden": []
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml"],
+        "reason": "Adversarial fix: Cargo inline lint-table recognition patch release",
+        "required": ["version = \"0.5.2\""],
         "forbidden": []
       },
       {

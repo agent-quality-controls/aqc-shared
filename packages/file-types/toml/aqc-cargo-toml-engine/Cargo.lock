@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-cargo-toml-engine"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",

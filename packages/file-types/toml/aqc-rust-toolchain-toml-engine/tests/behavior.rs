@@ -233,6 +233,32 @@ fn reconcile_canonicalizes_components_and_targets() {
     );
 }
 
+#[test]
+fn exact_settings_reports_and_removes_unknown_toolchain_fields() {
+    let output = reconcile(
+        "[toolchain]\nchannel = \"stable\"\nfuture-setting = true\n",
+        RustToolchainTomlRequirements {
+            channel: Some(ScalarAssertion::Equals(
+                RustToolchainChannel::stable(),
+                "channel".to_owned(),
+            )),
+            exact_settings: Some("exact settings".to_owned()),
+            ..RustToolchainTomlRequirements::default()
+        },
+    );
+    let expected_bytes = first_bytes(&output);
+    let expected = String::from_utf8_lossy(&expected_bytes);
+
+    assert!(!expected.contains("future-setting"));
+    assert!(output.findings.iter().any(|finding| {
+        matches!(
+            finding,
+            Finding::Mismatch { key, message, .. }
+                if key == "toolchain.future-setting" && message == "exact settings"
+        )
+    }));
+}
+
 fn baseline_req() -> RustToolchainTomlRequirements {
     RustToolchainTomlRequirements {
         channel: Some(ScalarAssertion::Equals(

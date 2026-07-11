@@ -96,6 +96,18 @@ fn required_table_accepts_an_existing_table() {
 }
 
 #[test]
+fn required_table_accepts_an_existing_inline_table() {
+    let findings = cargo_findings_with(
+        Some(b"[lints]\nrust = { unsafe_code = \"forbid\" }\n"),
+        vec![(
+            prov("rust"),
+            table_requirements(vec![("rust", "need rust")], Vec::new(), None),
+        )],
+    );
+    assert!(findings.is_empty());
+}
+
+#[test]
 fn forbidden_table_reports_only_the_named_table() {
     let findings = cargo_findings_with(
         Some(b"[lints.rust]\nunsafe_code = \"forbid\"\n[lints.clippy]\nunwrap_used = \"deny\"\n"),
@@ -122,6 +134,20 @@ fn exact_empty_reports_each_local_lint_table_separately() {
     assert_eq!(findings.len(), 2);
     assert_eq!(mismatch_count_for_key(&findings, "[lints.rust]"), 1);
     assert_eq!(mismatch_count_for_key(&findings, "[lints.clippy]"), 1);
+}
+
+#[test]
+fn exact_empty_reports_inline_local_lint_tables() {
+    let findings = cargo_findings_with(
+        Some(b"[lints]\nrust = { unsafe_code = \"forbid\" }\n"),
+        vec![(
+            prov("inherit"),
+            table_requirements(Vec::new(), Vec::new(), Some((Vec::new(), "use workspace"))),
+        )],
+    );
+
+    assert_eq!(findings.len(), 1);
+    assert_eq!(mismatch_count_for_key(&findings, "[lints.rust]"), 1);
 }
 
 #[test]
