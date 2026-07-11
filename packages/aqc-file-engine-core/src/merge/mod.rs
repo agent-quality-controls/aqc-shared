@@ -18,16 +18,17 @@ mod scalar_assertion;
 pub use items::{compose_item_by, resolve_forbidden_globs, resolve_items};
 pub use lists::{render_list_requirement, resolve_exact_list, resolve_list};
 pub use model::{
-    ClosedInput, Collected, ConflictEntry, Contributor, Contributors, ExactInput,
+    Collected, ConflictEntry, Contributor, Contributors, ExactInput, ExactItems, ExactItemsInput,
     FileItemRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements, ForbiddenItemMap,
     ForbiddenItemResolution, GlobAssertion, GlobAssertionGroups, GlobAssertionInput, GlobInput,
     GlobResolutionMap, GroupedAssertions, ItemAssertion, ItemAssertionGroups, ItemAssertionInput,
     ItemInput, ItemRequirementMap, ItemRequirements, KeyedItem, KeyedValueMap, ListExact,
     ListInput, ListRequirements, MapInput, MapInputs, MemberInputs, MessagePair, OptionalInput,
     Provenanced, RequiredItemResolution, Resolve, ResolvedAssertion, ResolvedAssertionOption,
-    ResolvedExactList, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedListRequirements, ResolvedMap, ResolvedRequirement, ResolvedSame, ResolvedSameOption,
-    ResolvedStringMembers, ScalarAssertion, ScalarOperation, ScalarValue, VersionFloor,
+    ResolvedExactItems, ResolvedExactList, ResolvedForbiddenGlobRequirements,
+    ResolvedItemRequirements, ResolvedListRequirements, ResolvedMap, ResolvedRequirement,
+    ResolvedSame, ResolvedSameOption, ResolvedStringMembers, ScalarAssertion, ScalarOperation,
+    ScalarValue, VersionFloor,
 };
 pub use scalar::{
     compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,

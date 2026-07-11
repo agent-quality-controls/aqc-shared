@@ -3,10 +3,11 @@
 use std::collections::BTreeSet;
 
 use super::{
-    ClosedInput, ConflictEntry, Contributor, FileItemRequirement, ForbiddenGlobRequirement,
+    ConflictEntry, Contributor, ExactItemsInput, FileItemRequirement, ForbiddenGlobRequirement,
     ForbiddenItemMap, GlobAssertionGroups, GlobInput, GlobResolutionMap, ItemAssertionGroups,
     ItemAssertionInput, ItemInput, ItemRequirementMap, KeyedItem, RequiredItemResolution,
-    ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedRequirement,
+    ResolvedExactItems, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
+    ResolvedRequirement,
 };
 use crate::types::Provenance;
 
@@ -22,16 +23,30 @@ where
     let mut grouped = ItemGroups::default();
     collect_item_groups(input, &mut grouped);
 
-    let resolved_required = resolve_required_items(key, grouped.required, conflicts);
+    let resolved_required = resolve_required_items(key, grouped.required.clone(), conflicts);
     let resolved_forbidden = resolve_forbidden_items(grouped.forbidden);
 
     report_required_forbidden_conflicts(key, &resolved_required, &resolved_forbidden, conflicts);
-    report_closed_collection_conflicts(key, &grouped.closed_inputs, &resolved_required, conflicts);
+    report_exact_conflicts(
+        key,
+        &grouped.exact_inputs,
+        &resolved_required,
+        &resolved_forbidden,
+        conflicts,
+    );
+
+    let exact = resolve_exact_items(
+        key,
+        grouped.required,
+        grouped.exact_items,
+        &grouped.exact_inputs,
+        conflicts,
+    );
 
     ResolvedItemRequirements {
         required: resolved_required,
         forbidden: resolved_forbidden,
-        closed_by: grouped.closed_by,
+        exact,
     }
 }
 
@@ -129,7 +144,7 @@ where
     }
 }
 
-/// Required, forbidden, and closed inputs grouped by merge identity.
+/// Required, forbidden, and exact inputs grouped by merge identity.
 struct ItemGroups<Item>
 where
     Item: FileItemRequirement,
@@ -138,10 +153,10 @@ where
     required: ItemAssertionGroups<Item>,
     /// Forbidden item assertions by item identity.
     forbidden: ItemAssertionGroups<Item>,
-    /// Policies that closed the collection.
-    closed_by: Vec<Contributor>,
-    /// Closed collection inputs with the allowed required identities.
-    closed_inputs: Vec<ClosedInput<Item>>,
+    /// Exact item assertions by item identity.
+    exact_items: ItemAssertionGroups<Item>,
+    /// Explicit complete collections supplied by policies.
+    exact_inputs: Vec<ExactItemsInput<Item>>,
 }
 
 impl<Item> Default for ItemGroups<Item>
@@ -152,8 +167,8 @@ where
         Self {
             required: ItemAssertionGroups::<Item>::new(),
             forbidden: ItemAssertionGroups::<Item>::new(),
-            closed_by: Vec::new(),
-            closed_inputs: Vec::new(),
+            exact_items: ItemAssertionGroups::<Item>::new(),
+            exact_inputs: Vec::new(),
         }
     }
 }
@@ -164,11 +179,6 @@ where
     Item: FileItemRequirement,
 {
     for (prov, items) in input {
-        let allowed = items
-            .required
-            .iter()
-            .map(|(item, _)| item.merge_identity())
-            .collect::<BTreeSet<_>>();
         for (item, msg) in items.required {
             grouped
                 .required
@@ -183,11 +193,15 @@ where
                 .or_default()
                 .push((prov.clone(), (item, msg)));
         }
-        if let Some(msg) = items.closed {
-            grouped
-                .closed_inputs
-                .push((prov.clone(), msg.clone(), allowed));
-            grouped.closed_by.push((prov, msg));
+        if let Some((exact, msg)) = items.exact {
+            for item in &exact {
+                grouped
+                    .exact_items
+                    .entry(item.merge_identity())
+                    .or_default()
+                    .push((prov.clone(), (item.clone(), msg.clone())));
+            }
+            grouped.exact_inputs.push((prov, (exact, msg)));
         }
     }
 }
@@ -271,22 +285,47 @@ fn report_required_forbidden_conflicts<Item>(
     }
 }
 
-/// Report required items rejected by a closed collection.
-fn report_closed_collection_conflicts<Item>(
+/// Report identity disagreements and exact conflicts with required/forbidden assertions.
+fn report_exact_conflicts<Item>(
     key: &str,
-    closed_inputs: &[ClosedInput<Item>],
+    exact_inputs: &[ExactItemsInput<Item>],
     resolved_required: &ItemRequirementMap<Item>,
+    resolved_forbidden: &ForbiddenItemMap<Item>,
     conflicts: &mut Vec<ConflictEntry>,
 ) where
     Item: FileItemRequirement,
     Item::Identity: ToString,
 {
-    for (closer, _, allowed) in closed_inputs {
+    let identity_sets = exact_inputs
+        .iter()
+        .map(|(_, (items, _))| {
+            items
+                .iter()
+                .map(FileItemRequirement::merge_identity)
+                .collect::<BTreeSet<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    if identity_sets
+        .windows(2)
+        .any(|sets| sets.first() != sets.get(1))
+    {
+        conflicts.push(ConflictEntry {
+            key: key.to_owned(),
+            reason: "exact-item-identities-disagree".to_owned(),
+            contributors: exact_inputs
+                .iter()
+                .map(|(prov, (_, msg))| (prov.clone(), msg.clone()))
+                .collect(),
+        });
+    }
+
+    for ((exact_prov, (_, exact_msg)), allowed) in exact_inputs.iter().zip(&identity_sets) {
         for (identity, req) in resolved_required {
             if allowed.contains(identity) {
                 continue;
             }
-            let mut contributors = vec![(closer.clone(), "closed".to_owned())];
+            let mut contributors = vec![(exact_prov.clone(), exact_msg.clone())];
             contributors.extend(
                 req.collected
                     .iter()
@@ -294,11 +333,59 @@ fn report_closed_collection_conflicts<Item>(
             );
             conflicts.push(ConflictEntry {
                 key: format!("{}.{}", key, identity.to_string()),
-                reason: "closed-collection-rejects-unlisted-required-item".to_owned(),
+                reason: "exact-items-reject-unlisted-required-item".to_owned(),
                 contributors,
             });
         }
+
+        for identity in allowed {
+            if let Some(forbidden) = resolved_forbidden.get(identity) {
+                let mut contributors = vec![(exact_prov.clone(), exact_msg.clone())];
+                contributors.extend(
+                    forbidden
+                        .collected
+                        .iter()
+                        .map(|(prov, _)| forbidden_contributor(prov)),
+                );
+                conflicts.push(ConflictEntry {
+                    key: format!("{}.{}", key, identity.to_string()),
+                    reason: "exact-item-is-forbidden".to_owned(),
+                    contributors,
+                });
+            }
+        }
     }
+}
+
+/// Build resolved exact state from agreeing identities and composed values.
+fn resolve_exact_items<Item>(
+    key: &str,
+    mut required: ItemAssertionGroups<Item>,
+    exact_items: ItemAssertionGroups<Item>,
+    exact_inputs: &[ExactItemsInput<Item>],
+    conflicts: &mut Vec<ConflictEntry>,
+) -> Option<ResolvedExactItems<Item>>
+where
+    Item: FileItemRequirement,
+    Item::Identity: ToString,
+{
+    let (_, (first, _)) = exact_inputs.first()?;
+    let identities = first
+        .iter()
+        .map(FileItemRequirement::merge_identity)
+        .collect::<BTreeSet<_>>();
+    for (identity, assertions) in exact_items {
+        required.entry(identity).or_default().extend(assertions);
+    }
+    let items = resolve_required_items(key, required, conflicts)
+        .into_iter()
+        .filter(|(identity, _)| identities.contains(identity))
+        .collect();
+    Some(ResolvedExactItems {
+        identities,
+        items,
+        collected: exact_inputs.to_vec(),
+    })
 }
 
 /// Render a required-item contributor.

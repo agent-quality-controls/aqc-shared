@@ -34,11 +34,8 @@ pub type ExactInput = Provenanced<ListExact>;
 pub type ResolvedExactList = ResolvedRequirement<Vec<String>, ListExact>;
 pub type ResolvedStringMembers = BTreeMap<String, ResolvedRequirement<(), String>>;
 pub type MemberInputs = BTreeMap<String, Contributors>;
-pub type ClosedInput<Item> = (
-    Provenance,
-    String,
-    BTreeSet<<Item as FileItemRequirement>::Identity>,
-);
+pub type ExactItems<Item> = MessagePair<Vec<Item>>;
+pub type ExactItemsInput<Item> = Provenanced<ExactItems<Item>>;
 pub type MapInput<K, A> = Provenanced<BTreeMap<K, A>>;
 pub type MapInputs<K, A> = Vec<MapInput<K, A>>;
 pub type GroupedAssertions<K, A> = BTreeMap<K, Vec<Provenanced<A>>>;
@@ -151,7 +148,7 @@ pub struct ResolvedRequirement<Merged, A> {
 pub struct ItemRequirements<Item> {
     pub required: Vec<ItemAssertion<Item>>,
     pub forbidden: Vec<ItemAssertion<Item>>,
-    pub closed: Option<String>,
+    pub exact: Option<ExactItems<Item>>,
 }
 
 impl<Item> Default for ItemRequirements<Item> {
@@ -159,9 +156,20 @@ impl<Item> Default for ItemRequirements<Item> {
         Self {
             required: Vec::new(),
             forbidden: Vec::new(),
-            closed: None,
+            exact: None,
         }
     }
+}
+
+/// A composed exact item collection with its complete attribution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedExactItems<Item>
+where
+    Item: FileItemRequirement,
+{
+    pub identities: BTreeSet<Item::Identity>,
+    pub items: ItemRequirementMap<Item>,
+    pub collected: Vec<ExactItemsInput<Item>>,
 }
 
 /// Resolved item requirements with attribution on every member.
@@ -172,7 +180,7 @@ where
 {
     pub required: ItemRequirementMap<Item>,
     pub forbidden: ForbiddenItemMap<Item>,
-    pub closed_by: Contributors,
+    pub exact: Option<ResolvedExactItems<Item>>,
 }
 
 impl<Item> Default for ResolvedItemRequirements<Item>
@@ -183,7 +191,7 @@ where
         Self {
             required: BTreeMap::new(),
             forbidden: BTreeMap::new(),
-            closed_by: Vec::new(),
+            exact: None,
         }
     }
 }
