@@ -159,8 +159,8 @@
         "files": [
           "packages/aqc-file-engine-core/Cargo.toml"
         ],
-        "reason": "Plan: breaking core release version",
-        "required": ["version = \"0.5.0\""],
+        "reason": "Plan: corrected breaking core release version",
+        "required": ["version = \"0.5.1\""],
         "forbidden": []
       },
       {
