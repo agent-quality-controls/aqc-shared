@@ -1,0 +1,84 @@
+#!/bin/sh
+set -eu
+repo="$(git rev-parse --show-toplevel)"
+workspaces="$(mktemp)"
+trap 'rm -f "$workspaces"' EXIT
+
+run_check() {
+  output="$(mktemp)"
+  if "$@" >"$output"; then
+    rm -f "$output"
+    return 0
+  else
+    status=$?
+    cat "$output" >&2
+    rm -f "$output"
+    return "$status"
+  fi
+}
+
+run_check 'shakrs' 'validate' repo --path "$repo"
+run_check 'gitleaks' 'git' '--pre-commit' '--staged' '--no-banner' '--log-level' 'error' '--redact=100' '--report-format' 'json' '--report-path' '-' "$repo"
+
+is_workspace_file() {
+  case "$(basename "$1")" in
+    *.rs|Cargo.toml|shakrs.json|clippy.toml|deny.toml|rust-toolchain.toml|rustfmt.toml|.rustfmt.toml)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+has_workspace_marker() {
+  dir_rel="$1"
+  marker="$2"
+  if [ -n "$dir_rel" ]; then
+    current="$repo/$dir_rel/$marker"
+    committed="$dir_rel/$marker"
+  else
+    current="$repo/$marker"
+    committed="$marker"
+  fi
+  [ -f "$current" ] || git -C "$repo" cat-file -e "HEAD:$committed" 2>/dev/null
+}
+
+record_workspace_for_path() {
+  rel="$1"
+  dir_rel="$(dirname "$rel")"
+  [ "$dir_rel" = . ] && dir_rel=""
+  while :; do
+    if has_workspace_marker "$dir_rel" Cargo.toml && has_workspace_marker "$dir_rel" shakrs.json; then
+      if [ -n "$dir_rel" ]; then
+        printf '%s/%s\n' "$repo" "$dir_rel" >> "$workspaces"
+      else
+        printf '%s\n' "$repo" >> "$workspaces"
+      fi
+      return
+    fi
+    [ -z "$dir_rel" ] && return
+    parent="$(dirname "$dir_rel")"
+    [ "$parent" = . ] && parent=""
+    [ "$parent" = "$dir_rel" ] && return
+    dir_rel="$parent"
+  done
+}
+
+git -C "$repo" -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=ACDM |
+while IFS= read -r rel; do
+  case "$rel" in
+    \"*)
+      printf '%s\n' "Shackles cannot safely route quoted Git path: $rel" >&2
+      exit 1
+      ;;
+  esac
+  if is_workspace_file "$rel"; then
+    record_workspace_for_path "$rel"
+  fi
+done
+
+LC_ALL=C sort -u "$workspaces" |
+while IFS= read -r workspace; do
+  run_check 'shakrs' 'validate' workspace --path "$workspace"
+done

@@ -10,10 +10,12 @@ no-default-features = false
 # ============================================================
 # DEPENDENCY BANS
 # ============================================================
+exclude-dev = false
+exclude-unpublished = false
 [bans]
 multiple-versions = "deny"
-wildcards = "allow"
-allow-wildcard-paths = true
+wildcards = "deny"
+allow-wildcard-paths = false
 highlight = "all"
 
 skip = []
@@ -90,6 +92,10 @@ deny = [
     { name = "shakrs-toolchain-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakrs-toolchain-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
 ]
+multiple-versions-include-dev = true
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow-workspace = false
 
 [[bans.features]]
 name = "tokio"
@@ -99,40 +105,43 @@ allow = ["rt-multi-thread", "macros", "net", "sync", "signal", "bytes", "default
 # ============================================================
 # LICENSE CHECKING
 # ============================================================
+
+[bans.workspace-dependencies]
+duplicates = "deny"
+include-path-dependencies = true
+unused = "deny"
+
 [licenses]
-allow = [
-    "MIT",
-    "Apache-2.0",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-DFS-2016",
-    "Unicode-3.0",
-    "Zlib",
-    "CC0-1.0",
-    "OpenSSL",
-    "BSL-1.0",
-    "MPL-2.0",
-    "CDLA-Permissive-2.0",
-]
+allow = ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "BSL-1.0", "CC0-1.0", "CDLA-Permissive-2.0", "ISC", "MIT", "MPL-2.0", "OpenSSL", "Unicode-3.0", "Unicode-DFS-2016", "Zlib"]
 confidence-threshold = 0.8
+include-dev = true
+include-build = true
+unused-allowed-license = "allow"
+unused-license-exception = "deny"
 
 [licenses.private]
-ignore = true
+ignore = false
 
 # ============================================================
 # SECURITY ADVISORY CHECKING
 # ============================================================
 [advisories]
-unmaintained = "workspace"
+unmaintained = "all"
 yanked = "deny"
 ignore = []
 
 # ============================================================
 # SOURCE RESTRICTIONS
 # ============================================================
+disable-yank-checking = false
+unsound = "all"
+maximum-db-staleness = "P90D"
+unused-ignored-advisory = "deny"
+db-urls = ["https://github.com/RustSec/advisory-db"]
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-registry = ["sparse+https://index.crates.io/"]
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
+required-git-spec = "rev"
+unused-allowed-source = "allow"

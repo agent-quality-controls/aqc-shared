@@ -1,0 +1,14 @@
+{
+  "policies": {
+    "defaultEnabled": true,
+    "overrides": {
+      "shakrs-cargo-policy": { "enabled": true, "params": { "inheritWorkspaceLints": false } },
+      "shakrs-clippy-strict-policy": { "enabled": true, "params": { "targetWorkspace": false } },
+      "shakrs-rustc-strict-policy": { "enabled": true, "params": { "targetWorkspace": false } },
+      "shakrs-rustfmt-policy": { "enabled": true, "params": { "inWorkspacePackage": false } },
+      "shakrs-toolchain-policy": { "enabled": true, "params": { "inWorkspacePackage": false } }
+    }
+  },
+  "version": 1,
+  "waivers": []
+}

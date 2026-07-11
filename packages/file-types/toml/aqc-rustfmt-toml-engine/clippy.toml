@@ -7,4 +7,26 @@ disallowed-methods = [
     { path = "std::fs::read_to_string", reason = "Pure layers receive bytes and data; they do not read files." },
     { path = "std::fs::write", reason = "Pure layers return data; they do not write files." },
     { path = "std::env::var", reason = "Pure layers receive configuration as data; they do not inspect process state." },
+    { path = "std::process::exit", reason = "`std::process::exit` skips destructors. Return a `Result` from `main` (or call `std::process::Termination`) so cleanup runs." },
+]
+msrv = "1.85"
+cognitive-complexity-threshold = 15
+excessive-nesting-threshold = 4
+max-fn-params-bools = 3
+max-struct-bools = 3
+too-many-arguments-threshold = 7
+too-many-lines-threshold = 75
+type-complexity-threshold = 75
+allow-dbg-in-tests = false
+allow-expect-in-tests = true
+allow-panic-in-tests = false
+allow-print-in-tests = false
+allow-unwrap-in-tests = false
+avoid-breaking-exported-api = false
+disallowed-macros = [
+    { path = "std::dbg", reason = "`dbg!()` is debug noise. Remove before commit; use a logger for permanent diagnostics." },
+    { path = "std::eprintln", reason = "Direct stderr writes bypass structured logging." },
+    { path = "std::println", reason = "Direct stdout writes bypass the project's structured-logging facade. Use it instead." },
+    { path = "std::todo", reason = "`todo!()` ships a panic. Replace with the actual implementation or a typed error." },
+    { path = "std::unimplemented", reason = "Same as `todo!()` -- ships a panic. Replace with concrete code." },
 ]
