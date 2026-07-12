@@ -21,6 +21,8 @@ highlight = "all"
 skip = []
 
 deny = [
+    { crate = "shakts-hooks-policy", reason = "Forbidden by Shackles package dependency boundary" },
+    { crate = "shakts", reason = "Forbidden by Shackles package dependency boundary" },
     { crate = "shackles-cli-support", reason = "AQC shared crates must not depend on product crates" },
     { name = "simd-json", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
     { name = "json5", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
