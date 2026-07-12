@@ -1,0 +1,21 @@
+{
+  "version": 4,
+  "requirements": {
+    "content": [
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/**/deny.toml"],
+        "reason": "Every AQC workspace forbids dependencies on all universal Shackles shared packages",
+        "required": [
+          "shackles-json-parser",
+          "shackles-runner",
+          "shackles-cli-support"
+        ],
+        "forbidden": [
+          "shakrs-json-parser",
+          "shakrs-runner"
+        ]
+      }
+    ]
+  }
+}

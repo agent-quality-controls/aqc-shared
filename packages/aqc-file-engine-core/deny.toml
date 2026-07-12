@@ -21,6 +21,7 @@ highlight = "all"
 skip = []
 
 deny = [
+    { crate = "shackles-cli-support", reason = "AQC shared crates must not depend on product crates" },
     { name = "simd-json", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
     { name = "json5", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
     { name = "sonic-rs", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
@@ -70,7 +71,7 @@ deny = [
     { crate = "aqc-rust-syntax", reason = "Forbidden by AQC package dependency boundary" },
     { crate = "shakrs", reason = "AQC shared crates must not depend on product crates" },
     { crate = "shakrs-core", reason = "AQC shared crates must not depend on product crates" },
-    { crate = "shakrs-json-parser", reason = "AQC shared crates must not depend on product crates" },
+    { crate = "shackles-json-parser", reason = "AQC shared crates must not depend on product crates" },
     { crate = "shakrs-cargo-adapter", reason = "AQC shared crates must not depend on product crates" },
     { crate = "shakrs-clippy-adapter", reason = "AQC shared crates must not depend on product crates" },
     { crate = "shakrs-rustc-adapter", reason = "AQC shared crates must not depend on product crates" },
@@ -84,7 +85,7 @@ deny = [
     { crate = "g3rs-core", reason = "AQC shared crates must not depend on product crates" },
     { crate = "specular", reason = "AQC shared crates must not depend on product crates" },
     { name = "shackles-core", wrappers = [], reason = "Forbidden by package dependency boundary" },
-    { name = "shakrs-runner", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shackles-runner", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "aqc-deny-toml-engine", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "aqc-rust-toolchain-toml-engine", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shackles-git-hooks-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
