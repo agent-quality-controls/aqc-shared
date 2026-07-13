@@ -262,7 +262,7 @@ fn push_dependency_glob_conflicts(
         DependencyScope,
         aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    conflicts: &mut Vec<ConflictEntry>,
+    conflicts: &mut Vec<aqc_file_engine_core::ConflictEntry>,
 ) {
     for (scope, globs) in forbidden_globs {
         let Some(merged) = dependencies.get(scope) else {
@@ -281,7 +281,7 @@ fn push_patch_glob_conflicts(
         String,
         aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    conflicts: &mut Vec<ConflictEntry>,
+    conflicts: &mut Vec<aqc_file_engine_core::ConflictEntry>,
 ) {
     for (registry, globs) in forbidden_globs {
         let Some(merged) = dependencies.get(registry) else {
@@ -301,7 +301,7 @@ fn push_workspace_glob_conflicts(
     forbidden_globs: Option<
         &aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    conflicts: &mut Vec<ConflictEntry>,
+    conflicts: &mut Vec<aqc_file_engine_core::ConflictEntry>,
 ) {
     let Some(merged) = dependencies else {
         return;
