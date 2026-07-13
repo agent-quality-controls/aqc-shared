@@ -79,6 +79,8 @@ def merge_contracts() -> tuple[bool, str]:
         "Fn(Vec<(Provenance,Requirements)>)->Result<ResolvedRequirements,Vec<ConflictEntry>>",
         "matchmerge(typed)", "Ok(resolved)=>reconcile_one(current_bytes,&resolved)", "Err(conflicts)=>EngineOutput",
         "expected_bytes:current_bytes.unwrap_or_default().to_vec()",
+        "iftyped.len()!=reqs.len()",
+        "Finding::InternalError",
     ):
         if token not in normalized:
             errors.append(f"core dispatch missing {token}")

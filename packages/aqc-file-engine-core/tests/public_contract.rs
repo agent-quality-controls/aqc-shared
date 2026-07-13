@@ -14,7 +14,20 @@ struct DummyEngine;
 #[derive(Debug, Clone)]
 struct DummyRequirement;
 
+#[derive(Debug, Clone)]
+struct ImpostorRequirement;
+
 impl EngineRequirement for DummyRequirement {
+    fn engine_id(&self) -> &'static str {
+        "dummy"
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}
+
+impl EngineRequirement for ImpostorRequirement {
     fn engine_id(&self) -> &'static str {
         "dummy"
     }
@@ -144,6 +157,66 @@ fn no_matching_requirements_preserve_bytes_without_merge_or_reconcile() {
     assert!(!reconciled.get(), "empty requirements must not reconcile");
     assert_eq!(output.expected_bytes, b"current");
     assert!(output.findings.is_empty());
+}
+
+#[test]
+fn wrong_requirement_type_fails_closed_without_merge_or_reconcile() {
+    let merged = Cell::new(false);
+    let reconciled = Cell::new(false);
+    let reqs: Vec<(Provenance, Box<dyn EngineRequirement>)> = vec![(
+        provenance("policy"),
+        Box::new(ImpostorRequirement),
+    )];
+    let output = merged_reconcile::<DummyRequirement, ResolvedRequirements, _, _>(
+        Some(b"current"),
+        &reqs,
+        |_| {
+            merged.set(true);
+            Ok(ResolvedRequirements)
+        },
+        |_, _| {
+            reconciled.set(true);
+            EngineOutput {
+                expected_bytes: Vec::new(),
+                findings: Vec::new(),
+            }
+        },
+    );
+
+    assert!(!merged.get(), "wrong requirement type must not merge");
+    assert!(!reconciled.get(), "wrong requirement type must not reconcile");
+    assert_eq!(output.expected_bytes, b"current");
+    assert!(matches!(output.findings.as_slice(), [Finding::InternalError { .. }]));
+}
+
+#[test]
+fn one_wrong_requirement_prevents_valid_requirements_from_reconciling() {
+    let merged = Cell::new(false);
+    let reconciled = Cell::new(false);
+    let reqs: Vec<(Provenance, Box<dyn EngineRequirement>)> = vec![
+        (provenance("valid"), Box::new(DummyRequirement)),
+        (provenance("impostor"), Box::new(ImpostorRequirement)),
+    ];
+    let output = merged_reconcile::<DummyRequirement, ResolvedRequirements, _, _>(
+        None,
+        &reqs,
+        |_| {
+            merged.set(true);
+            Ok(ResolvedRequirements)
+        },
+        |_, _| {
+            reconciled.set(true);
+            EngineOutput {
+                expected_bytes: b"changed".to_vec(),
+                findings: Vec::new(),
+            }
+        },
+    );
+
+    assert!(!merged.get(), "mixed requirement types must not merge");
+    assert!(!reconciled.get(), "mixed requirement types must not reconcile");
+    assert!(output.expected_bytes.is_empty());
+    assert!(matches!(output.findings.as_slice(), [Finding::InternalError { .. }]));
 }
 
 #[test]

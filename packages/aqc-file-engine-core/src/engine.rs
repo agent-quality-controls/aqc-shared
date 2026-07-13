@@ -74,6 +74,17 @@ where
                 .map(|req| (prov.clone(), req.clone()))
         })
         .collect();
+    if typed.len() != reqs.len() {
+        return EngineOutput {
+            expected_bytes: current_bytes.unwrap_or_default().to_vec(),
+            findings: vec![Finding::InternalError {
+                message: format!(
+                    "engine received a requirement incompatible with {}",
+                    core::any::type_name::<Requirements>()
+                ),
+            }],
+        };
+    }
     if typed.is_empty() {
         return EngineOutput {
             expected_bytes: current_bytes.unwrap_or_default().to_vec(),

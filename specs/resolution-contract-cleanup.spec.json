@@ -28,7 +28,7 @@
         "verifier": ["builtin:content"],
         "files": ["packages/aqc-file-engine-core/src/engine.rs"],
         "reason": "Core dispatch accepts Result and separates reconciliation from conflict output",
-        "required": ["Result<ResolvedRequirements, Vec<ConflictEntry>>", "match merge(typed)", "Ok(resolved)", "Err(conflicts)"],
+        "required": ["Result<ResolvedRequirements, Vec<ConflictEntry>>", "typed.len() != reqs.len()", "Finding::InternalError", "match merge(typed)", "Ok(resolved)", "Err(conflicts)"],
         "forbidden": ["let (merged, conflicts) = merge(typed)", "reconcile_one(current_bytes, &merged)"]
       },
       {
