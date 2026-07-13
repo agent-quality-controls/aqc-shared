@@ -105,3 +105,9 @@ rule = "g3rs-code/too-many-use-imports"
 subject = "src/merge/items.rs"
 selector = "top-level-use-imports"
 reason = "The item merge module composes the complete shared item vocabulary in one cohesive implementation."
+
+[[waivers]]
+rule = "g3rs-code/too-many-use-imports"
+subject = "src/merge/mod.rs"
+selector = "top-level-use-imports"
+reason = "The merge module is the required public facade for the complete universal merge vocabulary."

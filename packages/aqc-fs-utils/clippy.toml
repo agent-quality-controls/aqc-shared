@@ -14,6 +14,7 @@ allow-unwrap-in-tests = false
 avoid-breaking-exported-api = false
 disallowed-methods = [
   { path = "std::process::exit", reason = "`std::process::exit` skips destructors. Return a `Result` from `main` (or call `std::process::Termination`) so cleanup runs." },
+  { path = "std::process::abort", reason = "`std::process::abort` terminates without cleanup. Return a typed error and let the process exit normally." },
   {path = "std::process::Command::new", reason = "Only runner or utility boundaries execute commands."},
   {path = "std::fs::read", reason = "Filesystem access belongs in AQC filesystem utility boundaries."},
   {path = "std::fs::read_to_string", reason = "Filesystem access belongs in AQC filesystem utility boundaries."},

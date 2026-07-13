@@ -14,6 +14,48 @@ test = false
 release = false
 
 [[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:missing_docs_in_private_items"
+reason = "Private syntax helpers are documented at module and public API boundaries."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:module_name_repetitions"
+reason = "Canonical Rust syntax type names retain their domain vocabulary."
+
+[[waivers]]
+rule = "g3rs-deny/advisories-baseline"
+subject = "deny.toml"
+selector = "title:advisories-unmaintained-has-wrong-value"
+reason = "A universal library audits unmaintained dependencies across its complete dependency graph."
+
+[[waivers]]
+rule = "g3rs-deny/allow-wildcard-paths"
+subject = "deny.toml"
+selector = "title:allow-wildcard-paths-must-be-true"
+reason = "Published AQC crates forbid wildcard path dependencies."
+
+[[waivers]]
+rule = "g3rs-deny/license-allow-baseline"
+subject = "deny.toml"
+selector = "title:licenses-private-ignore-must-be-true"
+reason = "Published AQC crates audit private-package licenses."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:canonical-registry-missing"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:unexpected-registry-allowed"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
+
+[[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "src/model.rs"
 selector = "struct:RustFileSyntax"
