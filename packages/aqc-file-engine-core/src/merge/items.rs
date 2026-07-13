@@ -11,6 +11,24 @@ use super::{
 };
 use crate::types::Provenance;
 
+/// Every positively asserted item, whether supplied through `required` or
+/// through a complete `exact` collection, with each identity returned once.
+pub fn asserted_items<Item>(
+    resolved: &ResolvedItemRequirements<Item>,
+) -> impl Iterator<Item = (&Item::Identity, &RequiredItemResolution<Item>)>
+where
+    Item: FileItemRequirement,
+{
+    let exact = resolved.exact.as_ref();
+    resolved
+        .required
+        .iter()
+        .filter(move |(identity, _)| {
+            exact.is_none_or(|complete| !complete.identities.contains(*identity))
+        })
+        .chain(exact.into_iter().flat_map(|complete| complete.items.iter()))
+}
+
 pub fn resolve_items<Item>(
     key: &str,
     input: Vec<ItemInput<Item>>,

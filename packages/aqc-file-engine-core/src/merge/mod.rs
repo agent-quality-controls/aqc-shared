@@ -15,7 +15,7 @@ mod scalar;
 /// Generic scalar assertion merge implementation.
 mod scalar_assertion;
 
-pub use items::{compose_item_by, resolve_forbidden_globs, resolve_items};
+pub use items::{asserted_items, compose_item_by, resolve_forbidden_globs, resolve_items};
 pub use lists::{render_list_requirement, resolve_exact_list, resolve_list};
 pub use model::{
     Collected, ConflictEntry, Contributor, Contributors, ExactInput, ExactItems, ExactItemsInput,

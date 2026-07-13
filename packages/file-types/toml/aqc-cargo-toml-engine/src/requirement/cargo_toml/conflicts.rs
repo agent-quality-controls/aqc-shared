@@ -115,7 +115,7 @@ pub(super) fn push_dependency_package_glob_conflicts(
             continue;
         };
         let matcher = compiled_glob.compile_matcher();
-        for (_, requirement) in merged.asserted_items() {
+        for (_, requirement) in aqc_file_engine_core::asserted_items(merged) {
             let Some(package) = required_dependency_package(&requirement.merged) else {
                 continue;
             };

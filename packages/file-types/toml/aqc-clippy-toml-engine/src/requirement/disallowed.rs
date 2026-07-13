@@ -66,7 +66,7 @@ pub(crate) fn push_clippy_path_glob_conflicts(
             continue;
         };
         let matcher = globset.compile_matcher();
-        for (required_path, requirement) in merged.asserted_items() {
+        for (required_path, requirement) in aqc_file_engine_core::asserted_items(merged) {
             if !matcher.is_match(required_path) {
                 continue;
             }
