@@ -163,10 +163,8 @@ fn no_matching_requirements_preserve_bytes_without_merge_or_reconcile() {
 fn wrong_requirement_type_fails_closed_without_merge_or_reconcile() {
     let merged = Cell::new(false);
     let reconciled = Cell::new(false);
-    let reqs: Vec<(Provenance, Box<dyn EngineRequirement>)> = vec![(
-        provenance("policy"),
-        Box::new(ImpostorRequirement),
-    )];
+    let reqs: Vec<(Provenance, Box<dyn EngineRequirement>)> =
+        vec![(provenance("policy"), Box::new(ImpostorRequirement))];
     let output = merged_reconcile::<DummyRequirement, ResolvedRequirements, _, _>(
         Some(b"current"),
         &reqs,
@@ -184,9 +182,15 @@ fn wrong_requirement_type_fails_closed_without_merge_or_reconcile() {
     );
 
     assert!(!merged.get(), "wrong requirement type must not merge");
-    assert!(!reconciled.get(), "wrong requirement type must not reconcile");
+    assert!(
+        !reconciled.get(),
+        "wrong requirement type must not reconcile"
+    );
     assert_eq!(output.expected_bytes, b"current");
-    assert!(matches!(output.findings.as_slice(), [Finding::InternalError { .. }]));
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::InternalError { .. }]
+    ));
 }
 
 #[test]
@@ -214,9 +218,15 @@ fn one_wrong_requirement_prevents_valid_requirements_from_reconciling() {
     );
 
     assert!(!merged.get(), "mixed requirement types must not merge");
-    assert!(!reconciled.get(), "mixed requirement types must not reconcile");
+    assert!(
+        !reconciled.get(),
+        "mixed requirement types must not reconcile"
+    );
     assert!(output.expected_bytes.is_empty());
-    assert!(matches!(output.findings.as_slice(), [Finding::InternalError { .. }]));
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::InternalError { .. }]
+    ));
 }
 
 #[test]
