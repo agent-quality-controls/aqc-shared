@@ -143,8 +143,8 @@ fn cargo_field_wrappers_reject_invalid_scalar_operations() {
         )),
     );
 
-    let (_edition_merged, edition_conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov(), edition_req)]);
+    let edition_conflicts = cargo::CargoTomlRequirements::merge(vec![(prov(), edition_req)])
+        .expect_err("unsupported edition assertion should conflict");
     assert!(
         edition_conflicts
             .iter()
@@ -159,8 +159,9 @@ fn cargo_field_wrappers_reject_invalid_scalar_operations() {
             "rust version".to_owned(),
         )),
     );
-    let (_rust_version_merged, rust_version_conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov(), rust_version_req)]);
+    let rust_version_conflicts =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), rust_version_req)])
+            .expect_err("unsupported rust-version assertion should conflict");
     assert!(
         rust_version_conflicts
             .iter()
@@ -175,8 +176,9 @@ fn cargo_field_wrappers_reject_invalid_scalar_operations() {
             "members".to_owned(),
         )),
     );
-    let (_workspace_members_merged, workspace_members_conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov(), workspace_members_req)]);
+    let workspace_members_conflicts =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), workspace_members_req)])
+            .expect_err("unsupported workspace members assertion should conflict");
     assert!(
         workspace_members_conflicts
             .iter()
@@ -195,8 +197,9 @@ fn cargo_field_wrappers_reject_invalid_scalar_operations() {
             "feature".to_owned(),
         )),
     );
-    let (_target_fields_merged, target_fields_conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov(), target_fields_req)]);
+    let target_fields_conflicts =
+        cargo::CargoTomlRequirements::merge(vec![(prov(), target_fields_req)])
+            .expect_err("unsupported target assertions should conflict");
     assert_eq!(
         target_fields_conflicts
             .iter()
@@ -257,7 +260,8 @@ fn cargo_field_wrappers_reject_more_invalid_domain_shapes() {
         )),
     );
 
-    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![(prov(), req)])
+        .expect_err("unsupported assertions should conflict");
     assert_eq!(
         conflicts
             .iter()
@@ -277,8 +281,8 @@ fn cargo_package_workspace_inheritance_is_allowed_for_named_fields() {
         );
     }
 
-    let (_merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov(), req)]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov(), req)])
+        .expect("supported workspace inheritance should merge");
 }
 
 #[test]

@@ -164,12 +164,26 @@ fn required_package_matching_glob_forbid_conflicts() {
         exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
-    let (_, conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), glob)]);
-    assert!(
-        conflicts.iter().any(|conflict| {
-            conflict.reason == "dependency-package-glob-forbids-required-package"
-        })
+    let conflicts =
+        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), glob)])
+            .expect_err("forbidden package glob should conflict with required package");
+    assert_eq!(conflicts.len(), 1);
+    let conflict = &conflicts[0];
+    assert_eq!(conflict.key, "[dependencies].openssl-sys");
+    assert_eq!(
+        conflict.reason,
+        "dependency-package-glob-forbids-required-package"
+    );
+    assert_eq!(
+        conflict
+            .contributors
+            .iter()
+            .map(|(source, value)| (source.policy.as_str(), value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("p1", "required package openssl-sys"),
+            ("p2", "forbidden package glob openssl-*")
+        ]
     );
 }
 
@@ -252,10 +266,9 @@ fn required_exact_dependency_matching_glob_forbid_does_not_remove_dependency() {
 fn same_forbidden_package_glob_dedupes_attribution() {
     let left = dep_glob_req(vec![("openssl-*", "left")]);
     let right = dep_glob_req(vec![("openssl-*", "right")]);
-    let (merged, conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    assert!(conflicts.is_empty());
-    let glob = &merged.forbidden_dependency_package_globs[&normal_scope()].globs["openssl-*"];
+    let merged = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)])
+        .expect("matching forbidden package globs should merge");
+    let glob = &merged.forbidden_dependency_package_globs()[&normal_scope()].globs["openssl-*"];
     assert_eq!(glob.collected.len(), 2);
 }
 

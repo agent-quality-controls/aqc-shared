@@ -13,7 +13,6 @@ use aqc_toml_engine_core::{list_values, report_list_shape_with_message, write_li
 pub(super) fn apply_forbidden_ignore_path_globs(
     doc: &mut DocumentMut,
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
-    blocked_globs: &BTreeSet<String>,
     findings: &mut Vec<Finding>,
 ) {
     if globs.globs.is_empty() {
@@ -23,10 +22,7 @@ pub(super) fn apply_forbidden_ignore_path_globs(
         let values = list_values(doc, "ignore");
         write_list(doc, "ignore", &values);
     }
-    for (glob_identity, entry) in &globs.globs {
-        if blocked_globs.contains(glob_identity) {
-            continue;
-        }
+    for entry in globs.globs.values() {
         let glob = &entry.merged;
         let attribution = entry
             .collected

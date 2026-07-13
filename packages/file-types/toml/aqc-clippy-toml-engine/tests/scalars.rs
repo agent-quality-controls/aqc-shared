@@ -54,11 +54,10 @@ fn clippy_thresholds_compose_per_key() {
         )]),
         ..ClippyTomlRequirements::default()
     };
-    let (merged, conflicts) =
-        ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    assert!(conflicts.is_empty());
+    let merged = ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)])
+        .expect("compatible thresholds should merge");
     let threshold = merged
-        .thresholds
+        .thresholds()
         .get("too-many-lines-threshold")
         .expect("merged clippy requirements should contain too-many-lines-threshold");
     assert!(matches!(threshold.merged, ScalarAssertion::AtMost(80, _)));
@@ -103,11 +102,10 @@ fn clippy_threshold_range_bounds_compose() {
         )]),
         ..ClippyTomlRequirements::default()
     };
-    let (merged, conflicts) =
-        ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    assert!(conflicts.is_empty());
+    let merged = ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)])
+        .expect("compatible threshold bounds should merge");
     let threshold = merged
-        .thresholds
+        .thresholds()
         .get("too-many-lines-threshold")
         .expect("merged clippy requirements should contain too-many-lines-threshold");
     assert!(matches!(
@@ -132,13 +130,14 @@ fn clippy_msrv_keeps_strongest_floor() {
         )),
         ..ClippyTomlRequirements::default()
     };
-    let (merged, conflicts) =
-        ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+    let merged = ClippyTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)])
+        .expect("compatible msrv floors should merge");
     let msrv = merged
-        .msrv
+        .msrv()
+        .as_ref()
         .expect("merged clippy requirements should contain an msrv assertion")
-        .merged;
-    assert!(conflicts.is_empty());
+        .merged
+        .clone();
     assert!(matches!(
         msrv,
         ScalarAssertion::AtLeast(ref version, _) if version.as_str() == "1.85"
@@ -166,13 +165,13 @@ fn clippy_requirements_use_core_scalar_assertions() {
         )]),
         ..ClippyTomlRequirements::default()
     };
-    let (merged, conflicts) = ClippyTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let merged = ClippyTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("supported scalar requirements should merge");
 
-    assert!(conflicts.is_empty());
-    assert!(merged.msrv.is_some());
-    assert!(merged.thresholds.contains_key("too-many-lines-threshold"));
-    assert!(merged.bools.contains_key("allow-dbg-in-tests"));
-    assert!(merged.enums.contains_key("mode"));
+    assert!(merged.msrv().is_some());
+    assert!(merged.thresholds().contains_key("too-many-lines-threshold"));
+    assert!(merged.bools().contains_key("allow-dbg-in-tests"));
+    assert!(merged.enums().contains_key("mode"));
 }
 
 #[test]
@@ -193,11 +192,9 @@ fn clippy_rejects_scalar_operations_outside_field_family() {
         )]),
         ..ClippyTomlRequirements::default()
     };
-    let (merged, conflicts) = ClippyTomlRequirements::merge(vec![(prov("p1"), req)]);
+    let conflicts = ClippyTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect_err("unsupported scalar operations should conflict");
 
-    assert!(merged.msrv.is_none());
-    assert!(merged.thresholds.is_empty());
-    assert!(merged.bools.is_empty());
     assert_eq!(
         conflicts
             .iter()
@@ -245,16 +242,8 @@ fn clippy_scalar_family_validation_covers_all_families() {
         ..ClippyTomlRequirements::default()
     };
 
-    let (merged, conflicts) = ClippyTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(merged.msrv.is_none());
-    assert!(merged.thresholds.contains_key("too-many-lines-threshold"));
-    assert!(
-        merged
-            .bools
-            .contains_key("allow-mixed-uninlined-format-args")
-    );
-    assert!(merged.enums.contains_key("enum-present"));
-    assert!(merged.enums.contains_key("enum-absent"));
+    let conflicts = ClippyTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect_err("unsupported scalar families should conflict");
     assert_eq!(
         conflicts
             .iter()
@@ -287,14 +276,14 @@ fn clippy_scalar_implication_cases_compose() {
         "disallowed-names".to_owned(),
         ScalarAssertion::Present("present".to_owned()),
     );
-    let (merged, conflicts) = ClippyTomlRequirements::merge(vec![
+    let merged = ClippyTomlRequirements::merge(vec![
         (prov("p1"), left),
         (prov("p2"), right),
         (prov("p3"), third),
-    ]);
-    assert!(conflicts.is_empty());
+    ])
+    .expect("compatible scalar implications should merge");
     let names = merged
-        .enums
+        .enums()
         .get("disallowed-names")
         .expect("merged clippy requirements should contain disallowed-names");
     assert!(matches!(

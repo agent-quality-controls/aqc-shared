@@ -212,25 +212,67 @@ pub struct RustToolchainTomlRequirements {
 }
 
 #[derive(Debug, Clone, Default)]
+#[rustfmt::skip]
 pub struct ResolvedRustToolchainTomlRequirements {
-    pub channel: Option<
-        ResolvedRequirement<
+    pub(crate) channel: Option<ResolvedRequirement<ScalarAssertion<RustToolchainChannel>, ScalarAssertion<RustToolchainChannel>>>,
+    pub(crate) path: Option<ResolvedRequirement<ScalarAssertion<RustToolchainPath>, ScalarAssertion<RustToolchainPath>>>,
+    pub(crate) profile: Option<ResolvedRequirement<ScalarAssertion<RustToolchainProfile>, ScalarAssertion<RustToolchainProfile>>>,
+    pub(crate) components: ResolvedListRequirements,
+    pub(crate) targets: ResolvedListRequirements,
+    pub(crate) exact_settings: Vec<(Provenance, String)>,
+}
+
+impl ResolvedRustToolchainTomlRequirements {
+    #[must_use]
+    pub const fn channel(
+        &self,
+    ) -> Option<
+        &ResolvedRequirement<
             ScalarAssertion<RustToolchainChannel>,
             ScalarAssertion<RustToolchainChannel>,
         >,
-    >,
-    pub path: Option<
-        ResolvedRequirement<ScalarAssertion<RustToolchainPath>, ScalarAssertion<RustToolchainPath>>,
-    >,
-    pub profile: Option<
-        ResolvedRequirement<
+    > {
+        self.channel.as_ref()
+    }
+
+    #[must_use]
+    pub const fn path(
+        &self,
+    ) -> Option<
+        &ResolvedRequirement<
+            ScalarAssertion<RustToolchainPath>,
+            ScalarAssertion<RustToolchainPath>,
+        >,
+    > {
+        self.path.as_ref()
+    }
+
+    #[must_use]
+    pub const fn profile(
+        &self,
+    ) -> Option<
+        &ResolvedRequirement<
             ScalarAssertion<RustToolchainProfile>,
             ScalarAssertion<RustToolchainProfile>,
         >,
-    >,
-    pub components: ResolvedListRequirements,
-    pub targets: ResolvedListRequirements,
-    pub exact_settings: Vec<(Provenance, String)>,
+    > {
+        self.profile.as_ref()
+    }
+
+    #[must_use]
+    pub const fn components(&self) -> &ResolvedListRequirements {
+        &self.components
+    }
+
+    #[must_use]
+    pub const fn targets(&self) -> &ResolvedListRequirements {
+        &self.targets
+    }
+
+    #[must_use]
+    pub fn exact_settings(&self) -> &[(Provenance, String)] {
+        &self.exact_settings
+    }
 }
 
 impl EngineRequirement for RustToolchainTomlRequirements {

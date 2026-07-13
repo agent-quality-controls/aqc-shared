@@ -135,6 +135,49 @@ fn forbidden_disallowed_path_glob_conflict_does_not_remove_required_entry() {
 }
 
 #[test]
+fn disallowed_path_glob_conflict_preserves_key_reason_and_contributors() {
+    let required = ClippyTomlRequirements {
+        disallowed_methods: disallowed_items(
+            vec![(forbid("std::env::set_var"), "keep env".to_owned())],
+            Vec::new(),
+            None,
+        ),
+        ..ClippyTomlRequirements::default()
+    };
+    let forbidden = ClippyTomlRequirements {
+        forbidden_disallowed_method_path_globs: path_globs(vec![("std::env::*", "no env methods")]),
+        ..ClippyTomlRequirements::default()
+    };
+
+    let conflicts = ClippyTomlRequirements::merge(vec![
+        (prov("required-policy"), required),
+        (prov("forbidden-policy"), forbidden),
+    ])
+    .expect_err("forbidden path glob should conflict with required path");
+
+    assert_eq!(conflicts.len(), 1);
+    let Some(conflict) = conflicts.first() else {
+        return;
+    };
+    assert_eq!(conflict.key, "disallowed-methods.std::env::set_var");
+    assert_eq!(
+        conflict.reason,
+        "disallowed-method-path-glob-forbids-required-path"
+    );
+    assert_eq!(
+        conflict
+            .contributors
+            .iter()
+            .map(|(source, value)| (source.policy.as_str(), value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("required-policy", "required"),
+            ("forbidden-policy", "forbidden")
+        ]
+    );
+}
+
+#[test]
 fn invalid_forbidden_disallowed_path_glob_reports_invalid_requirements() {
     let req = ClippyTomlRequirements {
         forbidden_disallowed_method_path_globs: path_globs(vec![("[", "bad glob")]),
@@ -164,8 +207,8 @@ fn clippy_disallowed_required_and_forbidden_different_keys_compose() {
         disallowed_methods: table,
         ..ClippyTomlRequirements::default()
     };
-    let (_, findings) = ClippyTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(findings.is_empty());
+    let _resolved = ClippyTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("different disallowed identities should merge");
 }
 
 #[test]

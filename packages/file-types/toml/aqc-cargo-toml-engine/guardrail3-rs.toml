@@ -15,6 +15,91 @@ deps = false
 test = false
 release = false
 
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:missing_docs_in_private_items"
+reason = "Private implementation details are documented at module and public-contract boundaries."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:module_name_repetitions"
+reason = "Canonical public requirement names retain the engine vocabulary."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:type_complexity"
+reason = "Explicit generic requirement contracts preserve their type relationships."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:type_complexity"
+reason = "Explicit generic requirement contracts preserve their type relationships."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:excessive_nesting"
+reason = "Cargo requirement reconciliation follows the nested structure of manifest sections."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:excessive_nesting"
+reason = "Cargo requirement reconciliation follows the nested structure of manifest sections."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:too_many_lines"
+reason = "Cargo aggregate reconciliation intentionally covers every managed manifest section in one operation."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:too_many_lines"
+reason = "Cargo aggregate reconciliation intentionally covers every managed manifest section in one operation."
+
+[[waivers]]
+rule = "g3rs-deny/deprecated-advisories"
+subject = "deny.toml"
+selector = "title:deprecated-advisory-field-unsound"
+reason = "This published workspace retains its stricter cargo-deny source shape."
+
+[[waivers]]
+rule = "g3rs-deny/advisories-baseline"
+subject = "deny.toml"
+selector = "title:advisories-unmaintained-has-wrong-value"
+reason = "A universal library audits unmaintained dependencies across its complete dependency graph."
+
+[[waivers]]
+rule = "g3rs-deny/allow-wildcard-paths"
+subject = "deny.toml"
+selector = "title:allow-wildcard-paths-must-be-true"
+reason = "Published AQC crates forbid wildcard path dependencies."
+
+[[waivers]]
+rule = "g3rs-deny/license-allow-baseline"
+subject = "deny.toml"
+selector = "title:licenses-private-ignore-must-be-true"
+reason = "Published AQC crates audit private-package licenses."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:canonical-registry-missing"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:unexpected-registry-allowed"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
+
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"
 subject = "src/requirement/cargo_toml/model.rs"
@@ -22,22 +107,10 @@ selector = "struct:CargoTomlRequirements"
 reason = "Declarative requirement struct; bulk-form field-per-target is the API."
 
 [[waivers]]
-rule = "g3rs-code/public-struct-named-fields"
-subject = "src/requirement/cargo_toml/model.rs"
-selector = "struct:ResolvedCargoTomlRequirements"
-reason = "Resolved aggregate returned by merge; fields mirror the requirement sections and are consumed as data."
-
-[[waivers]]
 rule = "g3rs-code/large-type-inventory"
 subject = "src/requirement/cargo_toml/model.rs"
 selector = "struct:ResolvedCargoTomlRequirements"
 reason = "Resolved Cargo requirement aggregate; field-per-Cargo-section is the public data model."
-
-[[waivers]]
-rule = "g3rs-code/public-struct-named-fields"
-subject = "src/requirement/cargo_toml/model.rs"
-selector = "struct:DependencyForbiddenGlobConflictBlocks"
-reason = "Resolved conflict aggregate returned by merge; fields name the blocked required dependencies and glob requirements."
 
 [[waivers]]
 rule = "g3rs-code/public-struct-named-fields"

@@ -341,13 +341,13 @@ fn scalar_req() -> DenyTomlRequirements {
 }
 
 fn reconcile(current: &str, req: DenyTomlRequirements) -> aqc_file_engine_core::EngineOutput {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(
+    let resolved = DenyTomlRequirements::merge(vec![(
         Provenance {
             policy: "test".to_owned(),
         },
         req,
-    )]);
-    assert!(conflicts.is_empty(), "fixture must merge: {conflicts:?}");
+    )])
+    .expect("fixture must merge");
     <DenyTomlEngine as FileEngine<ResolvedDenyTomlRequirements>>::reconcile(
         Some(current.as_bytes()),
         &resolved,

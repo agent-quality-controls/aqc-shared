@@ -18,7 +18,7 @@ type IgnoreGlobCases<'a> = Vec<(&'a str, &'a str)>;
 
 #[test]
 fn merge_keeps_equal_scalar_requirements() {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![
+    let resolved = RustfmtTomlRequirements::merge(vec![
         (
             Provenance {
                 policy: "left".to_owned(),
@@ -37,12 +37,12 @@ fn merge_keeps_equal_scalar_requirements() {
                 "right".to_owned(),
             )),
         ),
-    ]);
+    ])
+    .expect("equal settings must merge cleanly");
 
-    assert!(conflicts.is_empty(), "equal settings must merge cleanly");
     assert!(
         resolved
-            .scalar_settings
+            .scalar_settings()
             .contains_key(&RustfmtScalarSetting::Edition),
         "merged edition requirement must be retained"
     );
@@ -50,7 +50,7 @@ fn merge_keeps_equal_scalar_requirements() {
 
 #[test]
 fn merge_reports_conflicting_scalar_requirements() {
-    let (_resolved, conflicts) = RustfmtTomlRequirements::merge(vec![
+    let conflicts = RustfmtTomlRequirements::merge(vec![
         (
             Provenance {
                 policy: "left".to_owned(),
@@ -69,7 +69,8 @@ fn merge_reports_conflicting_scalar_requirements() {
                 "right".to_owned(),
             )),
         ),
-    ]);
+    ])
+    .expect_err("conflicting edition must not expose a resolved root");
 
     assert_eq!(
         conflicts.len(),
@@ -84,7 +85,7 @@ fn merge_reports_conflicting_scalar_requirements() {
 
 #[test]
 fn rustfmt_requirements_use_core_scalar_assertions() {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![(
+    let resolved = RustfmtTomlRequirements::merge(vec![(
         Provenance {
             policy: "policy".to_owned(),
         },
@@ -92,19 +93,19 @@ fn rustfmt_requirements_use_core_scalar_assertions() {
             ConfigScalar::Str("2024".to_owned()),
             "edition".to_owned(),
         )),
-    )]);
+    )])
+    .expect("supported scalar assertion must merge");
 
-    assert!(conflicts.is_empty());
     assert!(
         resolved
-            .scalar_settings
+            .scalar_settings()
             .contains_key(&RustfmtScalarSetting::Edition)
     );
 }
 
 #[test]
 fn rustfmt_rejects_scalar_operations_outside_setting_type() {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![(
+    let conflicts = RustfmtTomlRequirements::merge(vec![(
         Provenance {
             policy: "policy".to_owned(),
         },
@@ -134,9 +135,9 @@ fn rustfmt_rejects_scalar_operations_outside_setting_type() {
             ]),
             ..RustfmtTomlRequirements::default()
         },
-    )]);
+    )])
+    .expect_err("unsupported scalar operations must not expose a resolved root");
 
-    assert!(resolved.scalar_settings.is_empty());
     assert_eq!(
         conflicts
             .iter()
@@ -152,7 +153,46 @@ fn rustfmt_rejects_scalar_operations_outside_setting_type() {
     reason = "Exhaustive rustfmt scalar-kind test covers bool, int, text, and unsupported operations."
 )]
 fn rustfmt_scalar_setting_kind_validation_covers_all_kinds() {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![(
+    let valid = RustfmtTomlRequirements::merge(vec![(
+        Provenance {
+            policy: "valid".to_owned(),
+        },
+        RustfmtTomlRequirements {
+            scalar_settings: BTreeMap::from([
+                (
+                    RustfmtScalarSetting::UseTryShorthand,
+                    ScalarAssertion::Present("bool present".to_owned()),
+                ),
+                (
+                    RustfmtScalarSetting::FnCallWidth,
+                    ScalarAssertion::Absent("int absent".to_owned()),
+                ),
+                (
+                    RustfmtScalarSetting::Version,
+                    ScalarAssertion::Present("text present".to_owned()),
+                ),
+            ]),
+            ..RustfmtTomlRequirements::default()
+        },
+    )])
+    .expect("supported scalar operations must merge");
+    assert!(
+        valid
+            .scalar_settings()
+            .contains_key(&RustfmtScalarSetting::UseTryShorthand)
+    );
+    assert!(
+        valid
+            .scalar_settings()
+            .contains_key(&RustfmtScalarSetting::FnCallWidth)
+    );
+    assert!(
+        valid
+            .scalar_settings()
+            .contains_key(&RustfmtScalarSetting::Version)
+    );
+
+    let conflicts = RustfmtTomlRequirements::merge(vec![(
         Provenance {
             policy: "policy".to_owned(),
         },
@@ -191,38 +231,11 @@ fn rustfmt_scalar_setting_kind_validation_covers_all_kinds() {
                         "range".to_owned(),
                     ),
                 ),
-                (
-                    RustfmtScalarSetting::UseTryShorthand,
-                    ScalarAssertion::Present("bool present".to_owned()),
-                ),
-                (
-                    RustfmtScalarSetting::FnCallWidth,
-                    ScalarAssertion::Absent("int absent".to_owned()),
-                ),
-                (
-                    RustfmtScalarSetting::Version,
-                    ScalarAssertion::Present("text present".to_owned()),
-                ),
             ]),
             ..RustfmtTomlRequirements::default()
         },
-    )]);
-
-    assert!(
-        resolved
-            .scalar_settings
-            .contains_key(&RustfmtScalarSetting::UseTryShorthand)
-    );
-    assert!(
-        resolved
-            .scalar_settings
-            .contains_key(&RustfmtScalarSetting::FnCallWidth)
-    );
-    assert!(
-        resolved
-            .scalar_settings
-            .contains_key(&RustfmtScalarSetting::Version)
-    );
+    )])
+    .expect_err("invalid scalar kinds must not expose a resolved root");
     assert_eq!(
         conflicts
             .iter()
@@ -234,7 +247,7 @@ fn rustfmt_scalar_setting_kind_validation_covers_all_kinds() {
 
 #[test]
 fn forbidden_ignore_path_globs_dedupe_attribution() {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![
+    let resolved = RustfmtTomlRequirements::merge(vec![
         (
             Provenance {
                 policy: "left".to_owned(),
@@ -247,12 +260,12 @@ fn forbidden_ignore_path_globs_dedupe_attribution() {
             },
             ignore_globs(vec![("target/**", "right")]),
         ),
-    ]);
+    ])
+    .expect("same glob should merge cleanly");
 
-    assert!(conflicts.is_empty(), "same glob should merge cleanly");
     assert_eq!(
         resolved
-            .forbidden_ignore_path_globs
+            .forbidden_ignore_path_globs()
             .globs
             .get("target/**")
             .expect("merged forbidden glob should exist")
@@ -265,7 +278,7 @@ fn forbidden_ignore_path_globs_dedupe_attribution() {
 
 #[test]
 fn forbidden_ignore_path_glob_conflicts_with_required_ignore_path() {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![
+    let conflicts = RustfmtTomlRequirements::merge(vec![
         (
             Provenance {
                 policy: "required".to_owned(),
@@ -290,20 +303,30 @@ fn forbidden_ignore_path_glob_conflicts_with_required_ignore_path() {
             },
             ignore_globs(vec![("target/**", "do not ignore target")]),
         ),
-    ]);
+    ])
+    .expect_err("required path matched by a forbidden glob must fail resolution");
 
-    assert!(
-        conflicts
-            .iter()
-            .any(|conflict| conflict.reason == "ignore-path-glob-forbids-required-path"),
-        "required ignore entry matching glob should conflict"
-    );
-    assert!(
-        resolved
-            .ignore_glob_conflicts
-            .path_globs
-            .contains("target/**"),
-        "conflicting glob should be blocked during reconcile"
+    let conflict = conflicts
+        .iter()
+        .find(|conflict| conflict.reason == "ignore-path-glob-forbids-required-path")
+        .expect("required ignore entry matching glob should conflict");
+    assert_eq!(conflict.key, "ignore.target/generated");
+    assert_eq!(
+        conflict.contributors,
+        vec![
+            (
+                Provenance {
+                    policy: "required".to_owned(),
+                },
+                "required".to_owned(),
+            ),
+            (
+                Provenance {
+                    policy: "forbid".to_owned(),
+                },
+                "forbidden".to_owned(),
+            ),
+        ]
     );
 }
 

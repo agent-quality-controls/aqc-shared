@@ -55,14 +55,14 @@ fn raw() -> DenyTomlRequirements {
 }
 
 fn resolved() -> ResolvedDenyTomlRequirements {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(
+    let result = DenyTomlRequirements::merge(vec![(
         Provenance {
             policy: "test".to_owned(),
         },
         raw(),
     )]);
-    assert!(conflicts.is_empty(), "baseline must merge: {conflicts:?}");
-    resolved
+    assert!(result.is_ok(), "baseline must merge");
+    result.unwrap_or_default()
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {

@@ -7,14 +7,18 @@ use aqc_file_engine_core::{
 use super::{ResolvedTextFileRequirements, TextFileRequirements};
 
 impl TextFileRequirements {
-    #[must_use]
+    /// Merges all text-file requirements into one resolved requirement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns every conflict when the input requirements cannot be composed.
     #[allow(
         clippy::needless_pass_by_value,
         reason = "merged_reconcile passes owned typed requirements to every engine merge function."
     )]
     pub fn merge(
         reqs: Vec<(Provenance, Self)>,
-    ) -> (ResolvedTextFileRequirements, Vec<ConflictEntry>) {
+    ) -> Result<ResolvedTextFileRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
         let exact_contents = resolve_optional_scalar(
             "exact_contents",
@@ -29,13 +33,15 @@ impl TextFileRequirements {
                 .collect(),
             &mut conflicts,
         );
-        (
-            ResolvedTextFileRequirements {
-                exact_contents,
-                contents,
-            },
-            conflicts,
-        )
+        let resolved = ResolvedTextFileRequirements {
+            exact_contents,
+            contents,
+        };
+        if conflicts.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(conflicts)
+        }
     }
 }
 

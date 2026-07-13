@@ -158,8 +158,8 @@ fn target_table_list_fields_use_unified_list_rules() {
         .insert("required-features".to_owned(), field);
     let mut req = cargo::CargoTomlRequirements::default();
     req.targets = targets;
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("compatible target list requirement should merge");
 }
 
 #[test]
@@ -183,14 +183,14 @@ fn scalar_implication_cases_compose() {
     let _ = right.package_fields.insert("edition".to_owned(), one);
     let mut third = cargo::CargoTomlRequirements::default();
     let _ = third.package_fields.insert("edition".to_owned(), present);
-    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let merged = cargo::CargoTomlRequirements::merge(vec![
         (prov("p1"), left),
         (prov("p2"), right),
         (prov("p3"), third),
-    ]);
-    assert!(conflicts.is_empty());
+    ])
+    .expect("compatible scalar implications should merge");
     assert!(matches!(
-        merged.package_fields["edition"].merged,
+        merged.package_fields()["edition"].merged,
         cargo::ResolvedPackageFieldAssertion::Scalar(engine_core::ScalarAssertion::Equals(engine_core::ConfigScalar::Str(ref value), _)) if value == "2021"
     ));
 }
@@ -261,11 +261,10 @@ fn workspace_inheritance_composes_with_present() {
         "version".to_owned(),
         cargo::PackageFieldAssertion::InheritsWorkspace("inherit".to_owned()),
     );
-    let (merged, conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
-    assert!(conflicts.is_empty());
+    let merged = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)])
+        .expect("workspace inheritance should compose with presence");
     assert!(matches!(
-        merged.package_fields["version"].merged,
+        merged.package_fields()["version"].merged,
         cargo::ResolvedPackageFieldAssertion::InheritsWorkspace(ref msg) if msg == "inherit"
     ));
 }
@@ -316,15 +315,14 @@ fn cargo_at_least_version_keeps_strongest_floor() {
             "new".to_owned(),
         )),
     );
-    let (merged, conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)]);
+    let merged = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), left), (prov("p2"), right)])
+        .expect("compatible ordered versions should merge");
     let cargo::ResolvedPackageFieldAssertion::OrderedVersion(
         engine_core::ScalarAssertion::AtLeast(version, _),
-    ) = &merged.package_fields["rust-version"].merged
+    ) = &merged.package_fields()["rust-version"].merged
     else {
         panic!("expected OrderedVersion AtLeast");
     };
-    assert!(conflicts.is_empty());
     assert_eq!(version.as_str(), "1.85");
 }
 

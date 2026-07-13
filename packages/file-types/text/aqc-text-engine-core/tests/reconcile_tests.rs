@@ -90,14 +90,11 @@ fn unsupported_exact_operation_is_not_hidden_by_equals() -> Result<(), String> {
         exact_contents: Some(ScalarAssertion::Present("present".to_owned())),
         contents: ItemRequirements::default(),
     };
-    let (resolved, conflicts) = TextFileRequirements::merge(vec![
+    let resolved = TextFileRequirements::merge(vec![
         (provenance("first"), first),
         (provenance("second"), second),
-    ]);
-    assert!(
-        conflicts.is_empty(),
-        "compatible scalar assertions must merge"
-    );
+    ])
+    .expect("compatible scalar assertions must merge");
 
     let output = reconcile_text_file(Some(contents.as_bytes()), &resolved);
     assert!(
@@ -121,11 +118,11 @@ fn omitted_contents_preserve_each_contributor_message() -> Result<(), String> {
             exact: None,
         },
     };
-    let (resolved, conflicts) = TextFileRequirements::merge(vec![
+    let resolved = TextFileRequirements::merge(vec![
         (provenance("first"), make("first message")),
         (provenance("second"), make("second message")),
-    ]);
-    assert!(conflicts.is_empty(), "matching requirements must merge");
+    ])
+    .expect("matching requirements must merge");
 
     let output = reconcile_text_file(Some(exact.as_bytes()), &resolved);
     let contributors = output.findings.iter().find_map(|finding| {
@@ -153,9 +150,9 @@ fn reconcile(
     requirements: TextFileRequirements,
     current: Option<&[u8]>,
 ) -> aqc_file_engine_core::EngineOutput {
-    let (resolved, conflicts) =
-        TextFileRequirements::merge(vec![(provenance("policy"), requirements)]);
-    assert!(conflicts.is_empty(), "Test requirements must resolve.");
+    let result = TextFileRequirements::merge(vec![(provenance("policy"), requirements)]);
+    assert!(result.is_ok(), "test requirements must resolve");
+    let resolved = result.unwrap_or_default();
     reconcile_text_file(current, &resolved)
 }
 

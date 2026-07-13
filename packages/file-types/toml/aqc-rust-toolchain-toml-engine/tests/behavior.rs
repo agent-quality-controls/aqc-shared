@@ -12,10 +12,11 @@ use toml_edit as _;
 #[test]
 fn merge_rejects_conflicting_channels() {
     let channel = "channel";
-    let (_resolved, conflicts) = RustToolchainTomlRequirements::merge(vec![
+    let conflicts = RustToolchainTomlRequirements::merge(vec![
         (prov("a"), req_channel("stable")),
         (prov("b"), req_channel("nightly")),
-    ]);
+    ])
+    .expect_err("conflicting channels must not expose a resolved root");
 
     let conflict = conflicts
         .iter()
@@ -325,8 +326,9 @@ fn reconcile_bytes(
     current: Option<&[u8]>,
     req: RustToolchainTomlRequirements,
 ) -> aqc_file_engine_core::EngineOutput {
-    let (resolved, conflicts) = RustToolchainTomlRequirements::merge(vec![(prov("test"), req)]);
-    assert!(conflicts.is_empty(), "test requirement must merge");
+    let result = RustToolchainTomlRequirements::merge(vec![(prov("test"), req)]);
+    assert!(result.is_ok(), "test requirement must merge");
+    let resolved = result.unwrap_or_default();
     <RustToolchainTomlEngine as FileEngine<ResolvedRustToolchainTomlRequirements>>::reconcile(
         current, &resolved,
     )

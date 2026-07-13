@@ -22,8 +22,6 @@ pub type CargoTomlRequirements = requirement::CargoTomlRequirements;
 #[cfg(feature = "api")]
 pub use requirement::cargo_lint_table_requirements;
 #[cfg(feature = "api")]
-pub type DependencyForbiddenGlobConflictBlocks = requirement::DependencyForbiddenGlobConflictBlocks;
-#[cfg(feature = "api")]
 pub type DependencyIdentity = requirement::DependencyIdentity;
 #[cfg(feature = "api")]
 pub type DependencyKind = requirement::DependencyKind;

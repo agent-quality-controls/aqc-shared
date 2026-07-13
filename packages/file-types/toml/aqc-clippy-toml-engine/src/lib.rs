@@ -20,8 +20,7 @@ pub use aqc_file_engine_core::{
 pub use engine::ClippyTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, ClippyTomlRequirements, DisallowedEntry,
-    ResolvedClippyTomlRequirements,
+    ClippyPathGlob, ClippyTomlRequirements, DisallowedEntry, ResolvedClippyTomlRequirements,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value

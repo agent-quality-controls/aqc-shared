@@ -17,26 +17,28 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{ConflictEntry, KeyedItem, Provenance, resolve_items, resolve_map};
+use aqc_file_engine_core::{KeyedItem, Provenance, resolve_items, resolve_map};
 
 use super::super::dependencies::{DependencyPackageGlob, DependencyRequirement, DependencyScope};
 use super::super::lints::PackageLintsAssertion;
 use super::super::sections::ManifestSection;
 use super::super::targets::TargetRequirements;
 use super::conflicts::{push_dependency_identity_overlaps, push_dependency_package_glob_conflicts};
-use super::model::{
-    CargoTomlRequirements, DependencyForbiddenGlobConflictBlocks, ResolvedCargoTomlRequirements,
-};
+use super::model::{CargoTomlRequirements, ResolvedCargoTomlRequirements};
 use super::resolve::{
     resolve_forbidden_glob_map, resolve_item_map, resolve_maybe_forbidden_globs,
     resolve_maybe_items, resolve_profile_map,
 };
 
 impl CargoTomlRequirements {
-    #[must_use]
+    /// Merges all Cargo TOML requirements into one resolved requirement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns every conflict when the input requirements cannot be composed.
     pub fn merge(
         reqs: Vec<(Provenance, CargoTomlRequirements)>,
-    ) -> (ResolvedCargoTomlRequirements, Vec<ConflictEntry>) {
+    ) -> Result<ResolvedCargoTomlRequirements, Vec<aqc_file_engine_core::ConflictEntry>> {
         let mut conflicts = Vec::new();
 
         let package_lints = PackageLintsAssertion::resolve(
@@ -110,7 +112,7 @@ impl CargoTomlRequirements {
             DependencyScope::table_path,
             &mut conflicts,
         );
-        let dependency_glob_conflicts = collect_dependency_glob_conflicts(
+        push_dependency_glob_conflicts(
             &dependencies,
             &forbidden_dependency_package_globs,
             &mut conflicts,
@@ -143,7 +145,7 @@ impl CargoTomlRequirements {
             |registry| format!("[patch.{registry}]"),
             &mut conflicts,
         );
-        let patch_dependency_glob_conflicts = collect_patch_glob_conflicts(
+        push_patch_glob_conflicts(
             &patch,
             &forbidden_patch_dependency_package_globs,
             &mut conflicts,
@@ -186,7 +188,7 @@ impl CargoTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let workspace_dependency_glob_conflicts = collect_workspace_glob_conflicts(
+        push_workspace_glob_conflicts(
             workspace_dependencies.as_ref(),
             forbidden_workspace_dependency_package_globs.as_ref(),
             &mut conflicts,
@@ -200,7 +202,7 @@ impl CargoTomlRequirements {
             &mut conflicts,
         );
 
-        let out = ResolvedCargoTomlRequirements {
+        let resolved = ResolvedCargoTomlRequirements {
             package_lints,
             package_lint_tables,
             workspace_lints,
@@ -234,23 +236,24 @@ impl CargoTomlRequirements {
             ),
             dependencies,
             forbidden_dependency_package_globs,
-            dependency_glob_conflicts,
             workspace_dependencies,
             forbidden_workspace_dependency_package_globs,
-            workspace_dependency_glob_conflicts,
             features,
             profiles,
             targets,
             patch,
             forbidden_patch_dependency_package_globs,
-            patch_dependency_glob_conflicts,
         };
 
-        (out, conflicts)
+        if conflicts.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(conflicts)
+        }
     }
 }
 
-fn collect_dependency_glob_conflicts(
+fn push_dependency_glob_conflicts(
     dependencies: &BTreeMap<
         DependencyScope,
         aqc_file_engine_core::ResolvedItemRequirements<DependencyRequirement>,
@@ -260,22 +263,16 @@ fn collect_dependency_glob_conflicts(
         aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
     conflicts: &mut Vec<ConflictEntry>,
-) -> BTreeMap<DependencyScope, DependencyForbiddenGlobConflictBlocks> {
-    let mut blocks_by_key = BTreeMap::new();
+) {
     for (scope, globs) in forbidden_globs {
         let Some(merged) = dependencies.get(scope) else {
             continue;
         };
-        let blocks =
-            push_dependency_package_glob_conflicts(&scope.table_path(), merged, globs, conflicts);
-        if !blocks.is_empty() {
-            let _ = blocks_by_key.insert(scope.clone(), blocks);
-        }
+        push_dependency_package_glob_conflicts(&scope.table_path(), merged, globs, conflicts);
     }
-    blocks_by_key
 }
 
-fn collect_patch_glob_conflicts(
+fn push_patch_glob_conflicts(
     dependencies: &BTreeMap<
         String,
         aqc_file_engine_core::ResolvedItemRequirements<DependencyRequirement>,
@@ -285,37 +282,32 @@ fn collect_patch_glob_conflicts(
         aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
     conflicts: &mut Vec<ConflictEntry>,
-) -> BTreeMap<String, DependencyForbiddenGlobConflictBlocks> {
-    let mut blocks_by_key = BTreeMap::new();
+) {
     for (registry, globs) in forbidden_globs {
         let Some(merged) = dependencies.get(registry) else {
             continue;
         };
-        let blocks = push_dependency_package_glob_conflicts(
+        push_dependency_package_glob_conflicts(
             &format!("[patch.{registry}]"),
             merged,
             globs,
             conflicts,
         );
-        if !blocks.is_empty() {
-            let _ = blocks_by_key.insert(registry.clone(), blocks);
-        }
     }
-    blocks_by_key
 }
 
-fn collect_workspace_glob_conflicts(
+fn push_workspace_glob_conflicts(
     dependencies: Option<&aqc_file_engine_core::ResolvedItemRequirements<DependencyRequirement>>,
     forbidden_globs: Option<
         &aqc_file_engine_core::ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
     conflicts: &mut Vec<ConflictEntry>,
-) -> DependencyForbiddenGlobConflictBlocks {
+) {
     let Some(merged) = dependencies else {
-        return DependencyForbiddenGlobConflictBlocks::default();
+        return;
     };
     let Some(globs) = forbidden_globs else {
-        return DependencyForbiddenGlobConflictBlocks::default();
+        return;
     };
-    push_dependency_package_glob_conflicts("[workspace.dependencies]", merged, globs, conflicts)
+    push_dependency_package_glob_conflicts("[workspace.dependencies]", merged, globs, conflicts);
 }

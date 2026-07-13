@@ -22,8 +22,6 @@ use globset::GlobBuilder;
 use super::super::dependencies::{
     DependencyIdentity, DependencyPackageGlob, DependencyRequirement,
 };
-use super::model::DependencyForbiddenGlobConflictBlocks;
-
 pub(super) fn push_dependency_identity_overlaps(
     key: &str,
     merged: &ResolvedItemRequirements<DependencyRequirement>,
@@ -108,9 +106,8 @@ pub(super) fn push_dependency_package_glob_conflicts(
     merged: &ResolvedItemRequirements<DependencyRequirement>,
     globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> DependencyForbiddenGlobConflictBlocks {
-    let mut blocks = DependencyForbiddenGlobConflictBlocks::default();
-    for (glob_identity, glob) in &globs.globs {
+) {
+    for glob in globs.globs.values() {
         let Ok(compiled_glob) = GlobBuilder::new(&glob.merged.glob)
             .literal_separator(true)
             .build()
@@ -118,7 +115,7 @@ pub(super) fn push_dependency_package_glob_conflicts(
             continue;
         };
         let matcher = compiled_glob.compile_matcher();
-        for (requirement_identity, requirement) in &merged.required {
+        for requirement in merged.required.values() {
             let Some(package) = required_dependency_package(&requirement.merged) else {
                 continue;
             };
@@ -141,11 +138,8 @@ pub(super) fn push_dependency_package_glob_conflicts(
                 reason: "dependency-package-glob-forbids-required-package".to_owned(),
                 contributors,
             });
-            let _ = blocks.required.insert(requirement_identity.clone());
-            let _ = blocks.package_globs.insert(glob_identity.clone());
         }
     }
-    blocks
 }
 
 fn required_dependency_package(requirement: &DependencyRequirement) -> Option<String> {

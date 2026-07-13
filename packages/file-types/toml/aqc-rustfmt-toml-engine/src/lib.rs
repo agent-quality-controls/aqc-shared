@@ -17,8 +17,8 @@ pub use engine::RustfmtTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
     ResolvedRustfmtExactSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
-    RustfmtForbiddenIgnoreGlobConflictBlocks, RustfmtIgnorePathGlob, RustfmtListSetting,
-    RustfmtScalarRequirements, RustfmtScalarSetting, RustfmtTomlRequirements,
+    RustfmtIgnorePathGlob, RustfmtListSetting, RustfmtScalarRequirements, RustfmtScalarSetting,
+    RustfmtTomlRequirements,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value

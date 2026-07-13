@@ -21,10 +21,14 @@ use super::{
 };
 
 impl ClippyTomlRequirements {
-    #[must_use]
+    /// Merges all Clippy TOML requirements into one resolved requirement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns every conflict when the input requirements cannot be composed.
     pub fn merge(
         reqs: Vec<(Provenance, ClippyTomlRequirements)>,
-    ) -> (ResolvedClippyTomlRequirements, Vec<ConflictEntry>) {
+    ) -> Result<ResolvedClippyTomlRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
         let disallowed_methods = resolve_items(
             "disallowed-methods",
@@ -45,7 +49,7 @@ impl ClippyTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let disallowed_method_glob_conflicts = push_clippy_path_glob_conflicts(
+        push_clippy_path_glob_conflicts(
             "disallowed-methods",
             "disallowed-method-path-glob-forbids-required-path",
             &disallowed_methods,
@@ -72,7 +76,7 @@ impl ClippyTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let disallowed_type_glob_conflicts = push_clippy_path_glob_conflicts(
+        push_clippy_path_glob_conflicts(
             "disallowed-types",
             "disallowed-type-path-glob-forbids-required-path",
             &disallowed_types,
@@ -99,7 +103,7 @@ impl ClippyTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let disallowed_macro_glob_conflicts = push_clippy_path_glob_conflicts(
+        push_clippy_path_glob_conflicts(
             "disallowed-macros",
             "disallowed-macro-path-glob-forbids-required-path",
             &disallowed_macros,
@@ -107,7 +111,7 @@ impl ClippyTomlRequirements {
             &mut conflicts,
         );
 
-        let out = ResolvedClippyTomlRequirements {
+        let resolved = ResolvedClippyTomlRequirements {
             msrv: resolve_validated_optional(
                 "msrv",
                 reqs.iter()
@@ -128,13 +132,10 @@ impl ClippyTomlRequirements {
             ),
             disallowed_methods,
             forbidden_disallowed_method_path_globs,
-            disallowed_method_glob_conflicts,
             disallowed_types,
             forbidden_disallowed_type_path_globs,
-            disallowed_type_glob_conflicts,
             disallowed_macros,
             forbidden_disallowed_macro_path_globs,
-            disallowed_macro_glob_conflicts,
             bools: resolve_validated_map(
                 reqs.iter()
                     .map(|(prov, req)| (prov.clone(), req.bools.clone()))
@@ -154,7 +155,11 @@ impl ClippyTomlRequirements {
                 &mut conflicts,
             ),
         };
-        (out, conflicts)
+        if conflicts.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(conflicts)
+        }
     }
 }
 

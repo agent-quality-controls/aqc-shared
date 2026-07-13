@@ -5,6 +5,4 @@ mod merge;
 mod model;
 mod resolve;
 
-pub use model::{
-    CargoTomlRequirements, DependencyForbiddenGlobConflictBlocks, ResolvedCargoTomlRequirements,
-};
+pub use model::{CargoTomlRequirements, ResolvedCargoTomlRequirements};

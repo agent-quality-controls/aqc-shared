@@ -101,11 +101,15 @@ def root_contracts() -> tuple[bool, str]:
             if visibility != "pub(crate)":
                 errors.append(f"{name}.{field}: visibility is {visibility}")
             getter = re.compile(
-                rf"#\[must_use\]\s*pub\s+fn\s+{re.escape(field)}\s*\(\s*&self\s*\)\s*->\s*&\s*(.*?)\s*\{{\s*&self\.{re.escape(field)}\s*\}}",
+                rf"#\[must_use\]\s*pub\s+(?:const\s+)?fn\s+{re.escape(field)}\s*\(\s*&self\s*,?\s*\)\s*->\s*(.*?)\s*\{{\s*(.*?)\s*\}}",
                 re.S,
             ).search(source)
-            if not getter or re.sub(r"\s+", "", getter.group(1)) != field_type:
-                errors.append(f"{name}.{field}: missing exact borrowed #[must_use] getter")
+            if not getter:
+                errors.append(f"{name}.{field}: missing immutable #[must_use] getter")
+                continue
+            body = re.sub(r"\s+", "", getter.group(2))
+            if body not in {f"&self.{field}", f"self.{field}.as_ref()"}:
+                errors.append(f"{name}.{field}: getter does not return a borrowed field view")
         prefix = source[: source.find(f"pub struct {name}")]
         derive = re.findall(r"#\[derive\(([^]]+)\)\]", prefix)[-1:]
         if not derive or not {"Clone", "Debug", "Default"}.issubset(set(re.findall(r"\w+", derive[0]))):

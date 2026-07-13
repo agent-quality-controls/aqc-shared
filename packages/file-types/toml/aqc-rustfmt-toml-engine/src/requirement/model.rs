@@ -6,7 +6,7 @@
 )]
 
 use core::any::Any;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, EngineRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements,
@@ -38,11 +38,34 @@ pub struct RustfmtTomlRequirements {
 
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedRustfmtTomlRequirements {
-    pub scalar_settings: ResolvedRustfmtScalarSettings,
-    pub list_settings: BTreeMap<RustfmtListSetting, ResolvedListRequirements>,
-    pub forbidden_ignore_path_globs: ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
-    pub ignore_glob_conflicts: RustfmtForbiddenIgnoreGlobConflictBlocks,
-    pub exact_settings: ResolvedRustfmtExactSettings,
+    pub(crate) scalar_settings: ResolvedRustfmtScalarSettings,
+    pub(crate) list_settings: BTreeMap<RustfmtListSetting, ResolvedListRequirements>,
+    pub(crate) forbidden_ignore_path_globs:
+        ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
+    pub(crate) exact_settings: ResolvedRustfmtExactSettings,
+}
+
+impl ResolvedRustfmtTomlRequirements {
+    #[must_use]
+    pub const fn scalar_settings(&self) -> &ResolvedRustfmtScalarSettings {
+        &self.scalar_settings
+    }
+
+    #[must_use]
+    pub const fn list_settings(&self) -> &BTreeMap<RustfmtListSetting, ResolvedListRequirements> {
+        &self.list_settings
+    }
+
+    #[rustfmt::skip]
+    #[must_use]
+    pub const fn forbidden_ignore_path_globs(&self) -> &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob> {
+        &self.forbidden_ignore_path_globs
+    }
+
+    #[must_use]
+    pub const fn exact_settings(&self) -> &ResolvedRustfmtExactSettings {
+        &self.exact_settings
+    }
 }
 
 impl EngineRequirement for RustfmtTomlRequirements {
@@ -71,13 +94,4 @@ impl ForbiddenGlobRequirement for RustfmtIgnorePathGlob {
     fn render(&self) -> String {
         self.glob.clone()
     }
-}
-
-/// Required `ignore` values and forbidden `ignore` globs that conflict.
-#[derive(Debug, Clone, Default)]
-pub struct RustfmtForbiddenIgnoreGlobConflictBlocks {
-    /// Required `ignore` values blocked during reconciliation.
-    pub required: BTreeSet<String>,
-    /// Forbidden `ignore` globs blocked during reconciliation.
-    pub path_globs: BTreeSet<String>,
 }

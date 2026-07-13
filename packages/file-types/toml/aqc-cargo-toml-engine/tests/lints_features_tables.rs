@@ -36,8 +36,8 @@ fn cargo_lints_required_and_forbidden_different_keys_compose() {
             exact: None,
         }),
     );
-    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(findings.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("different lint identities should merge");
 }
 
 #[test]
@@ -75,11 +75,12 @@ fn cargo_features_use_table_composition_rules() {
     };
     let mut req = cargo::CargoTomlRequirements::default();
     req.features = Some(keyed_items(table));
-    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(conflicts.is_empty());
+    let merged = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("feature requirement should merge");
     assert!(
         merged
-            .features
+            .features()
+            .as_ref()
             .expect("features")
             .required
             .contains_key("default")
@@ -101,10 +102,11 @@ fn table_exact_rejects_outside_required_entry_with_exact_attribution() {
         forbidden: BTreeMap::new(),
         exact: None,
     };
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![
         (prov("closer"), dep_req(exact)),
         (prov("outside"), dep_req(outside)),
-    ]);
+    ])
+    .expect_err("required item outside exact set should conflict");
     let contributors = &conflicts[0].contributors;
     assert!(
         contributors
@@ -120,9 +122,8 @@ fn table_exact_allows_outside_forbidden_entry() {
         forbidden: BTreeMap::from([("openssl".to_owned(), "forbid".to_owned())]),
         exact: Some("exact".to_owned()),
     };
-    let (_, conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov("closer"), dep_req(table))]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("closer"), dep_req(table))])
+        .expect("forbidden item outside exact set should merge");
 }
 
 #[test]
@@ -172,7 +173,7 @@ fn table_same_required_key_compatible_entries_compose() {
             "features".to_owned(),
         ),
     );
-    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("p1"),
             dep_req(KeyedFixture {
@@ -189,8 +190,8 @@ fn table_same_required_key_compatible_entries_compose() {
                 exact: None,
             }),
         ),
-    ]);
-    assert!(findings.is_empty());
+    ])
+    .expect("compatible dependency features should merge");
 }
 
 #[test]
@@ -238,8 +239,8 @@ fn list_contains_and_excludes_different_items_compose() {
         "keywords".to_owned(),
         cargo::PackageFieldAssertion::List(list),
     );
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("compatible list requirements should merge");
 }
 
 #[test]
@@ -279,8 +280,8 @@ fn list_contains_and_exact_compose_when_exact_contains_item() {
         "keywords".to_owned(),
         cargo::PackageFieldAssertion::List(list),
     );
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("compatible exact list should merge");
 }
 
 #[test]
@@ -295,8 +296,8 @@ fn list_excludes_and_exact_compose_when_exact_omits_item() {
         "keywords".to_owned(),
         cargo::PackageFieldAssertion::List(list),
     );
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("excluded item omitted by exact list should merge");
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {

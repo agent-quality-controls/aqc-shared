@@ -17,7 +17,7 @@
 )]
 
 use core::any::Any;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use aqc_file_engine_core as core_types;
 
@@ -56,44 +56,171 @@ pub struct CargoTomlRequirements {
 #[rustfmt::skip]
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedCargoTomlRequirements {
-    pub package_lints: Option<lints::ResolvedPackageLintsAssertion>,
-    pub package_lint_tables: core_types::ResolvedItemRequirements<core_types::KeyedItem<()>>,
-    pub workspace_lints: BTreeMap<String, core_types::ResolvedItemRequirements<core_types::KeyedItem<lints::LintSetting>>>,
-    pub package_fields:
+    pub(crate) package_lints: Option<lints::ResolvedPackageLintsAssertion>,
+    pub(crate) package_lint_tables: core_types::ResolvedItemRequirements<core_types::KeyedItem<()>>,
+    pub(crate) workspace_lints: BTreeMap<String, core_types::ResolvedItemRequirements<core_types::KeyedItem<lints::LintSetting>>>,
+    pub(crate) package_fields:
         BTreeMap<String, core_types::ResolvedRequirement<package::ResolvedPackageFieldAssertion, package::PackageFieldAssertion>>,
-    pub workspace_package_fields:
+    pub(crate) workspace_package_fields:
         BTreeMap<String, core_types::ResolvedRequirement<package::ResolvedPackageFieldAssertion, package::PackageFieldAssertion>>,
-    pub workspace_fields:
+    pub(crate) workspace_fields:
         BTreeMap<String, core_types::ResolvedRequirement<workspace::ResolvedWorkspaceFieldAssertion, workspace::WorkspaceFieldAssertion>>,
-    pub section_presence: BTreeMap<sections::ManifestSection, core_types::ResolvedRequirement<sections::SectionPresenceAssertion, sections::SectionPresenceAssertion>>,
-    pub dependencies: BTreeMap<deps::DependencyScope, core_types::ResolvedItemRequirements<deps::DependencyRequirement>>,
-    pub forbidden_dependency_package_globs:
+    pub(crate) section_presence: BTreeMap<sections::ManifestSection, core_types::ResolvedRequirement<sections::SectionPresenceAssertion, sections::SectionPresenceAssertion>>,
+    pub(crate) dependencies: BTreeMap<deps::DependencyScope, core_types::ResolvedItemRequirements<deps::DependencyRequirement>>,
+    pub(crate) forbidden_dependency_package_globs:
         BTreeMap<deps::DependencyScope, core_types::ResolvedForbiddenGlobRequirements<deps::DependencyPackageGlob>>,
-    pub dependency_glob_conflicts:
-        BTreeMap<deps::DependencyScope, DependencyForbiddenGlobConflictBlocks>,
-    pub workspace_dependencies: Option<core_types::ResolvedItemRequirements<deps::DependencyRequirement>>,
-    pub forbidden_workspace_dependency_package_globs:
+    pub(crate) workspace_dependencies: Option<core_types::ResolvedItemRequirements<deps::DependencyRequirement>>,
+    pub(crate) forbidden_workspace_dependency_package_globs:
         Option<core_types::ResolvedForbiddenGlobRequirements<deps::DependencyPackageGlob>>,
-    pub workspace_dependency_glob_conflicts: DependencyForbiddenGlobConflictBlocks,
-    pub features: Option<core_types::ResolvedItemRequirements<core_types::KeyedItem<features::FeatureMembers>>>,
-    pub profiles: BTreeMap<String, profiles::ResolvedProfileRequirements>,
-    pub targets: targets::ResolvedTargetRequirements,
-    pub patch: BTreeMap<String, core_types::ResolvedItemRequirements<deps::DependencyRequirement>>,
-    pub forbidden_patch_dependency_package_globs:
+    pub(crate) features: Option<core_types::ResolvedItemRequirements<core_types::KeyedItem<features::FeatureMembers>>>,
+    pub(crate) profiles: BTreeMap<String, profiles::ResolvedProfileRequirements>,
+    pub(crate) targets: targets::ResolvedTargetRequirements,
+    pub(crate) patch: BTreeMap<String, core_types::ResolvedItemRequirements<deps::DependencyRequirement>>,
+    pub(crate) forbidden_patch_dependency_package_globs:
         BTreeMap<String, core_types::ResolvedForbiddenGlobRequirements<deps::DependencyPackageGlob>>,
-    pub patch_dependency_glob_conflicts:
-        BTreeMap<String, DependencyForbiddenGlobConflictBlocks>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct DependencyForbiddenGlobConflictBlocks {
-    pub required: BTreeSet<deps::DependencyIdentity>,
-    pub package_globs: BTreeSet<String>,
-}
+impl ResolvedCargoTomlRequirements {
+    #[must_use]
+    pub const fn package_lints(&self) -> Option<&lints::ResolvedPackageLintsAssertion> {
+        self.package_lints.as_ref()
+    }
 
-impl DependencyForbiddenGlobConflictBlocks {
-    pub(super) fn is_empty(&self) -> bool {
-        self.required.is_empty() && self.package_globs.is_empty()
+    #[must_use]
+    pub const fn package_lint_tables(
+        &self,
+    ) -> &core_types::ResolvedItemRequirements<core_types::KeyedItem<()>> {
+        &self.package_lint_tables
+    }
+
+    #[must_use]
+    pub const fn workspace_lints(
+        &self,
+    ) -> &BTreeMap<
+        String,
+        core_types::ResolvedItemRequirements<core_types::KeyedItem<lints::LintSetting>>,
+    > {
+        &self.workspace_lints
+    }
+
+    #[must_use]
+    pub const fn package_fields(
+        &self,
+    ) -> &BTreeMap<
+        String,
+        core_types::ResolvedRequirement<
+            package::ResolvedPackageFieldAssertion,
+            package::PackageFieldAssertion,
+        >,
+    > {
+        &self.package_fields
+    }
+
+    #[must_use]
+    pub const fn workspace_package_fields(
+        &self,
+    ) -> &BTreeMap<
+        String,
+        core_types::ResolvedRequirement<
+            package::ResolvedPackageFieldAssertion,
+            package::PackageFieldAssertion,
+        >,
+    > {
+        &self.workspace_package_fields
+    }
+
+    #[must_use]
+    pub const fn workspace_fields(
+        &self,
+    ) -> &BTreeMap<
+        String,
+        core_types::ResolvedRequirement<
+            workspace::ResolvedWorkspaceFieldAssertion,
+            workspace::WorkspaceFieldAssertion,
+        >,
+    > {
+        &self.workspace_fields
+    }
+
+    #[must_use]
+    pub const fn section_presence(
+        &self,
+    ) -> &BTreeMap<
+        sections::ManifestSection,
+        core_types::ResolvedRequirement<
+            sections::SectionPresenceAssertion,
+            sections::SectionPresenceAssertion,
+        >,
+    > {
+        &self.section_presence
+    }
+
+    #[must_use]
+    pub const fn dependencies(
+        &self,
+    ) -> &BTreeMap<
+        deps::DependencyScope,
+        core_types::ResolvedItemRequirements<deps::DependencyRequirement>,
+    > {
+        &self.dependencies
+    }
+
+    #[must_use]
+    pub const fn forbidden_dependency_package_globs(
+        &self,
+    ) -> &BTreeMap<
+        deps::DependencyScope,
+        core_types::ResolvedForbiddenGlobRequirements<deps::DependencyPackageGlob>,
+    > {
+        &self.forbidden_dependency_package_globs
+    }
+
+    #[must_use]
+    pub const fn workspace_dependencies(
+        &self,
+    ) -> Option<&core_types::ResolvedItemRequirements<deps::DependencyRequirement>> {
+        self.workspace_dependencies.as_ref()
+    }
+
+    #[must_use]
+    pub const fn forbidden_workspace_dependency_package_globs(
+        &self,
+    ) -> Option<&core_types::ResolvedForbiddenGlobRequirements<deps::DependencyPackageGlob>> {
+        self.forbidden_workspace_dependency_package_globs.as_ref()
+    }
+
+    #[must_use]
+    pub const fn features(
+        &self,
+    ) -> Option<
+        &core_types::ResolvedItemRequirements<core_types::KeyedItem<features::FeatureMembers>>,
+    > {
+        self.features.as_ref()
+    }
+
+    #[must_use]
+    pub const fn profiles(&self) -> &BTreeMap<String, profiles::ResolvedProfileRequirements> {
+        &self.profiles
+    }
+
+    #[must_use]
+    pub const fn targets(&self) -> &targets::ResolvedTargetRequirements {
+        &self.targets
+    }
+
+    #[must_use]
+    pub const fn patch(
+        &self,
+    ) -> &BTreeMap<String, core_types::ResolvedItemRequirements<deps::DependencyRequirement>> {
+        &self.patch
+    }
+
+    #[must_use]
+    pub const fn forbidden_patch_dependency_package_globs(
+        &self,
+    ) -> &BTreeMap<String, core_types::ResolvedForbiddenGlobRequirements<deps::DependencyPackageGlob>>
+    {
+        &self.forbidden_patch_dependency_package_globs
     }
 }
 

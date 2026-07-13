@@ -182,11 +182,11 @@ fn scalar_under_lints_is_not_a_package_lint_table_identity() {
 
 #[test]
 fn inline_lint_requirement_implies_required_table_presence() {
-    let (resolved, conflicts) =
-        cargo::CargoTomlRequirements::merge(vec![(prov("inline"), inline_requirement("rust"))]);
+    let resolved =
+        cargo::CargoTomlRequirements::merge(vec![(prov("inline"), inline_requirement("rust"))])
+            .expect("inline lint requirement should merge");
 
-    assert!(conflicts.is_empty());
-    assert!(resolved.package_lint_tables.required.contains_key("rust"));
+    assert!(resolved.package_lint_tables().required.contains_key("rust"));
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn inline_lint_requirement_accepts_existing_table_and_content() {
 
 #[test]
 fn exact_empty_conflicts_with_inline_implied_table_presence() {
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("inherit"),
             table_requirements(
@@ -210,7 +210,8 @@ fn exact_empty_conflicts_with_inline_implied_table_presence() {
             ),
         ),
         (prov("inline"), inline_requirement("rust")),
-    ]);
+    ])
+    .expect_err("inline table outside exact set should conflict");
 
     assert!(conflicts.iter().any(|conflict| {
         conflict.key == "[lints].rust"
@@ -228,13 +229,14 @@ fn exact_empty_conflicts_with_inline_implied_table_presence() {
 
 #[test]
 fn forbidden_table_conflicts_with_inline_implied_table_presence() {
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("forbid"),
             table_requirements(Vec::new(), vec![("rust", "no rust")], None),
         ),
         (prov("inline"), inline_requirement("rust")),
-    ]);
+    ])
+    .expect_err("required inline table should conflict with forbidden table");
 
     assert!(
         conflicts
@@ -246,19 +248,19 @@ fn forbidden_table_conflicts_with_inline_implied_table_presence() {
 
 #[test]
 fn matching_exact_and_inline_requirements_compose() {
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("exact"),
             table_requirements(Vec::new(), Vec::new(), Some((vec!["rust"], "rust only"))),
         ),
         (prov("inline"), inline_requirement("rust")),
-    ]);
-    assert!(conflicts.is_empty());
+    ])
+    .expect("matching exact and inline table requirements should merge");
 }
 
 #[test]
 fn agreeing_exact_table_sets_merge_independent_of_order() {
-    let (resolved, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let resolved = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("left"),
             table_requirements(
@@ -275,13 +277,14 @@ fn agreeing_exact_table_sets_merge_independent_of_order() {
                 Some((vec!["clippy", "rust"], "right exact")),
             ),
         ),
-    ]);
+    ])
+    .expect("agreeing exact table sets should merge");
 
-    assert!(conflicts.is_empty());
     assert_eq!(
         resolved
-            .package_lint_tables
+            .package_lint_tables()
             .exact
+            .as_ref()
             .expect("exact tables should resolve")
             .identities,
         BTreeSet::from(["clippy".to_owned(), "rust".to_owned()])
@@ -290,7 +293,7 @@ fn agreeing_exact_table_sets_merge_independent_of_order() {
 
 #[test]
 fn differing_exact_table_sets_conflict() {
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("left"),
             table_requirements(Vec::new(), Vec::new(), Some((vec!["rust"], "rust only"))),
@@ -303,7 +306,8 @@ fn differing_exact_table_sets_conflict() {
                 Some((vec!["clippy"], "clippy only")),
             ),
         ),
-    ]);
+    ])
+    .expect_err("different exact table sets should conflict");
 
     assert!(conflicts.iter().any(|conflict| {
         conflict.key == "[lints]" && conflict.reason == "exact-item-identities-disagree"
@@ -319,9 +323,9 @@ fn inheritance_does_not_itself_imply_a_local_table_requirement() {
         )),
         ..Default::default()
     };
-    let (resolved, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("inherit"), req)]);
+    let resolved = cargo::CargoTomlRequirements::merge(vec![(prov("inherit"), req)])
+        .expect("package lint inheritance should merge");
 
-    assert!(conflicts.is_empty());
-    assert!(resolved.package_lint_tables.required.is_empty());
-    assert!(resolved.package_lint_tables.exact.is_none());
+    assert!(resolved.package_lint_tables().required.is_empty());
+    assert!(resolved.package_lint_tables().exact.is_none());
 }

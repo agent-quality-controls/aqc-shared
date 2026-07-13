@@ -16,9 +16,7 @@ mod sections;
 mod targets;
 mod workspace;
 
-pub use cargo_toml::{
-    CargoTomlRequirements, DependencyForbiddenGlobConflictBlocks, ResolvedCargoTomlRequirements,
-};
+pub use cargo_toml::{CargoTomlRequirements, ResolvedCargoTomlRequirements};
 pub use dependencies::DependencyIdentity;
 pub use dependencies::DependencyKind;
 pub use dependencies::DependencyPackageGlob;

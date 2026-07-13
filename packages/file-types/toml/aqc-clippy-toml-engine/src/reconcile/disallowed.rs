@@ -18,14 +18,13 @@ use aqc_toml_engine_core::{
 use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{Array, DocumentMut, InlineTable, Value};
 
-use crate::requirement::{ClippyForbiddenGlobConflictBlocks, ClippyPathGlob, DisallowedEntry};
+use crate::requirement::{ClippyPathGlob, DisallowedEntry};
 
 pub(crate) fn apply(
     doc: &mut DocumentMut,
     table_key: &str,
     merged: &ResolvedItemRequirements<DisallowedEntry>,
     globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
-    glob_conflicts: &ClippyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
     if merged.required.is_empty()
@@ -64,20 +63,16 @@ pub(crate) fn apply(
         }
         return;
     };
-    apply_forbidden_path_globs(table_key, array, globs, glob_conflicts, findings);
+    apply_forbidden_path_globs(table_key, array, globs, findings);
 }
 
 fn apply_forbidden_path_globs(
     table_key: &str,
     array: &mut Array,
     globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
-    glob_conflicts: &ClippyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
-    for (glob_identity, entry) in &globs.globs {
-        if glob_conflicts.path_globs.contains(glob_identity) {
-            continue;
-        }
+    for entry in globs.globs.values() {
         let glob = &entry.merged;
         let attribution = entry
             .collected

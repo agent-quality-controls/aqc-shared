@@ -9,6 +9,7 @@ use core::any::Any;
 use core::cmp::Ordering;
 use core::fmt;
 
+use aqc_file_engine_core::merge::ResolvedAssertionOption;
 use aqc_file_engine_core::{
     ConflictEntry, EngineRequirement, FileItemRequirement, ItemAssertionInput, ItemRequirements,
     RequiredItemResolution, ResolvedItemRequirements, ResolvedRequirement, ScalarAssertion,
@@ -39,11 +40,25 @@ pub struct TextFileRequirements {
 /// Resolved requirements for a generic text byte stream.
 pub struct ResolvedTextFileRequirements {
     /// Resolved exact file contents assertion.
-    pub exact_contents: Option<
-        ResolvedRequirement<ScalarAssertion<TextFileContents>, ScalarAssertion<TextFileContents>>,
-    >,
+    pub(crate) exact_contents: ResolvedAssertionOption<ScalarAssertion<TextFileContents>>,
     /// Resolved contained byte assertions.
-    pub contents: ResolvedItemRequirements<TextFileContents>,
+    pub(crate) contents: ResolvedItemRequirements<TextFileContents>,
+}
+
+impl ResolvedTextFileRequirements {
+    #[must_use]
+    pub const fn exact_contents(
+        &self,
+    ) -> Option<
+        &ResolvedRequirement<ScalarAssertion<TextFileContents>, ScalarAssertion<TextFileContents>>,
+    > {
+        self.exact_contents.as_ref()
+    }
+
+    #[must_use]
+    pub const fn contents(&self) -> &ResolvedItemRequirements<TextFileContents> {
+        &self.contents
+    }
 }
 
 impl EngineRequirement for TextFileRequirements {

@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-cargo-toml-engine"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
@@ -23,9 +23,9 @@ dependencies = [
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9abe905745b35705b52c3584ba4173111e0d82ff2aea13406c1067f7ebe49790"
+checksum = "aba8b4c543a1468658111a47ae9e885d4aa2df63c8105254e83890b100305c40"
 dependencies = [
  "schemars",
  "serde",
@@ -33,9 +33,9 @@ dependencies = [
 
 [[package]]
 name = "aqc-toml-engine-core"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "564233eb3290532a833fbc5fab91e4cab30400bdc39b9d9a418e1fe6ee87a861"
+checksum = "1f3b1e159af946157458dddc081afdba78c12e287de89cfbf048590d47601249"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",
@@ -309,6 +309,6 @@ dependencies = [
 
 [[package]]
 name = "zmij"
-version = "1.0.21"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"

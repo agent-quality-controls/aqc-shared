@@ -17,10 +17,7 @@ use super::removals::{
 };
 use super::required::{apply_required, required_file_keys};
 
-use crate::requirement::{
-    DependencyForbiddenGlobConflictBlocks, DependencyPackageGlob, DependencyRequirement,
-    DependencyScope,
-};
+use crate::requirement::{DependencyPackageGlob, DependencyRequirement, DependencyScope};
 use aqc_toml_engine_core::table_at;
 
 /// Extra generability rule for a dependency-shaped table.
@@ -42,24 +39,18 @@ pub(crate) fn apply(
         DependencyScope,
         ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
     >,
-    glob_conflicts_by_scope: &BTreeMap<DependencyScope, DependencyForbiddenGlobConflictBlocks>,
     findings: &mut Vec<Finding>,
 ) {
     let empty_items = ResolvedItemRequirements::default();
     let empty_globs = ResolvedForbiddenGlobRequirements::default();
-    let empty_conflicts = DependencyForbiddenGlobConflictBlocks::default();
     let scopes = merged_by_scope
         .keys()
         .chain(globs_by_scope.keys())
-        .chain(glob_conflicts_by_scope.keys())
         .collect::<BTreeSet<_>>();
     for scope in scopes {
         let path = scope_path(scope);
         let merged = merged_by_scope.get(scope).unwrap_or(&empty_items);
         let globs = globs_by_scope.get(scope).unwrap_or(&empty_globs);
-        let glob_conflicts = glob_conflicts_by_scope
-            .get(scope)
-            .unwrap_or(&empty_conflicts);
         apply_set(
             doc,
             &path,
@@ -67,7 +58,6 @@ pub(crate) fn apply(
             SetRule::Standard,
             merged,
             globs,
-            glob_conflicts,
             findings,
         );
     }
@@ -94,14 +84,10 @@ pub(crate) fn apply_set(
     rule: SetRule,
     merged: &ResolvedItemRequirements<DependencyRequirement>,
     globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
-    glob_conflicts: &DependencyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
     let required_file_keys = required_file_keys(merged);
-    for (identity, entry) in &merged.required {
-        if glob_conflicts.required.contains(identity) {
-            continue;
-        }
+    for entry in merged.required.values() {
         let attribution = entry
             .collected
             .iter()
@@ -150,7 +136,6 @@ pub(crate) fn apply_set(
         table_at(doc, path),
         display_path,
         globs,
-        glob_conflicts,
         findings,
     );
     if let Some(exact) = &merged.exact {

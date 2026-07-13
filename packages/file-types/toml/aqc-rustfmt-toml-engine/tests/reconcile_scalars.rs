@@ -43,16 +43,14 @@ fn missing_file_writes_scalar() {
         )]),
         ..RustfmtTomlRequirements::default()
     };
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![(
+    let result = RustfmtTomlRequirements::merge(vec![(
         Provenance {
             policy: "test".to_owned(),
         },
         req,
     )]);
-    assert!(
-        conflicts.is_empty(),
-        "single requirement should not conflict: {conflicts:?}"
-    );
+    assert!(result.is_ok(), "single requirement should not conflict");
+    let resolved = result.unwrap_or_default();
 
     let output = <RustfmtTomlEngine as FileEngine<ResolvedRustfmtTomlRequirements>>::reconcile(
         None, &resolved,
@@ -195,16 +193,14 @@ fn reconcile_resolved(
     current: &str,
     req: RustfmtTomlRequirements,
 ) -> aqc_file_engine_core::EngineOutput {
-    let (resolved, conflicts) = RustfmtTomlRequirements::merge(vec![(
+    let result = RustfmtTomlRequirements::merge(vec![(
         Provenance {
             policy: "test".to_owned(),
         },
         req,
     )]);
-    assert!(
-        conflicts.is_empty(),
-        "single requirement should not conflict: {conflicts:?}"
-    );
+    assert!(result.is_ok(), "single requirement should not conflict");
+    let resolved = result.unwrap_or_default();
     <RustfmtTomlEngine as FileEngine<ResolvedRustfmtTomlRequirements>>::reconcile(
         Some(current.as_bytes()),
         &resolved,

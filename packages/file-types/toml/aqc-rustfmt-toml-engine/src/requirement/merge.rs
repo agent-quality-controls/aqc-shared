@@ -9,16 +9,12 @@ use aqc_file_engine_core::{
 use globset::GlobBuilder;
 
 use super::{
-    ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
-    RustfmtForbiddenIgnoreGlobConflictBlocks, RustfmtIgnorePathGlob, RustfmtListSetting,
-    RustfmtScalarRequirements, RustfmtScalarSetting, RustfmtTomlRequirements,
+    ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements, RustfmtIgnorePathGlob,
+    RustfmtListSetting, RustfmtScalarRequirements, RustfmtScalarSetting, RustfmtTomlRequirements,
 };
 
 /// Raw rustfmt requirement inputs grouped with provenance.
 type RustfmtRequirementInput = Vec<(Provenance, RustfmtTomlRequirements)>;
-
-/// Result of merging rustfmt requirements.
-type RustfmtMergeOutput = (ResolvedRustfmtTomlRequirements, Vec<ConflictEntry>);
 
 /// List setting requirements grouped by rustfmt list setting.
 type RustfmtListRequirementsByKey =
@@ -29,8 +25,18 @@ type RustfmtScalarRequirementInput = Vec<(Provenance, RustfmtScalarRequirements)
 type RustfmtScalarAssertionsByKey =
     BTreeMap<RustfmtScalarSetting, Vec<(Provenance, ScalarAssertion<ConfigScalar>)>>;
 impl RustfmtTomlRequirements {
-    #[must_use]
-    pub fn merge(reqs: RustfmtRequirementInput) -> RustfmtMergeOutput {
+    /// Merges all rustfmt TOML requirements into one resolved requirement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns every conflict when the input requirements cannot be composed.
+    #[allow(
+        clippy::type_complexity,
+        reason = "The explicit result names the resolved root and complete conflict collection."
+    )]
+    pub fn merge(
+        reqs: RustfmtRequirementInput,
+    ) -> Result<ResolvedRustfmtTomlRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
         let scalar_settings = resolve_scalar_settings(
             reqs.iter()
@@ -67,23 +73,22 @@ impl RustfmtTomlRequirements {
                 aqc_file_engine_core::resolve_list(key.file_key(), lists, &mut conflicts),
             );
         }
-        let ignore_glob_conflicts = list_settings.get(&RustfmtListSetting::Ignore).map_or_else(
-            RustfmtForbiddenIgnoreGlobConflictBlocks::default,
-            |ignore| {
-                push_ignore_glob_conflicts(ignore, &forbidden_ignore_path_globs, &mut conflicts)
-            },
-        );
+        if let Some(ignore) = list_settings.get(&RustfmtListSetting::Ignore) {
+            push_ignore_glob_conflicts(ignore, &forbidden_ignore_path_globs, &mut conflicts);
+        }
 
-        (
-            ResolvedRustfmtTomlRequirements {
-                scalar_settings,
-                list_settings,
-                forbidden_ignore_path_globs,
-                ignore_glob_conflicts,
-                exact_settings,
-            },
-            conflicts,
-        )
+        let resolved = ResolvedRustfmtTomlRequirements {
+            scalar_settings,
+            list_settings,
+            forbidden_ignore_path_globs,
+            exact_settings,
+        };
+
+        if conflicts.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(conflicts)
+        }
     }
 }
 
@@ -131,9 +136,8 @@ fn push_ignore_glob_conflicts(
     ignore: &ResolvedListRequirements,
     globs: &ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> RustfmtForbiddenIgnoreGlobConflictBlocks {
-    let mut blocks = RustfmtForbiddenIgnoreGlobConflictBlocks::default();
-    for (glob_identity, glob) in &globs.globs {
+) {
+    for glob in globs.globs.values() {
         let Ok(compiled) = GlobBuilder::new(&glob.merged.glob).build() else {
             continue;
         };
@@ -174,9 +178,6 @@ fn push_ignore_glob_conflicts(
                 reason: "ignore-path-glob-forbids-required-path".to_owned(),
                 contributors,
             });
-            let _ = blocks.required.insert(path);
-            let _ = blocks.path_globs.insert(glob_identity.clone());
         }
     }
-    blocks
 }

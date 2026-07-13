@@ -38,7 +38,7 @@ fn dependency_partial_specs_compose_fieldwise() {
             "f".to_owned(),
         ),
     );
-    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let merged = cargo::CargoTomlRequirements::merge(vec![
         (
             prov("p1"),
             dep_req(KeyedFixture {
@@ -55,12 +55,12 @@ fn dependency_partial_specs_compose_fieldwise() {
                 exact: None,
             }),
         ),
-    ]);
-    let spec: &cargo::DependencySpec = &merged.dependencies[&normal_scope()].required
+    ])
+    .expect("compatible dependency fields should merge");
+    let spec: &cargo::DependencySpec = &merged.dependencies()[&normal_scope()].required
         [&cargo::DependencyIdentity::LocalKey("serde".to_owned())]
         .merged
         .value;
-    assert!(conflicts.is_empty());
     assert_eq!(spec.version.as_deref(), Some("1"));
     assert!(spec.features.contains("derive"));
 }
@@ -113,19 +113,19 @@ fn dependency_each_field_composes_independently() {
             "attrs".to_owned(),
         ),
     );
-    let (merged, conflicts) = cargo::CargoTomlRequirements::merge(vec![(
+    let merged = cargo::CargoTomlRequirements::merge(vec![(
         prov("p1"),
         dep_req(KeyedFixture {
             required,
             forbidden: BTreeMap::new(),
             exact: None,
         }),
-    )]);
-    let spec: &cargo::DependencySpec = &merged.dependencies[&normal_scope()].required
+    )])
+    .expect("dependency attributes should merge");
+    let spec: &cargo::DependencySpec = &merged.dependencies()[&normal_scope()].required
         [&cargo::DependencyIdentity::Package("serde-renamed".to_owned())]
         .merged
         .value;
-    assert!(conflicts.is_empty());
     assert_eq!(spec.default_features, Some(false));
     assert_eq!(spec.optional, Some(true));
     assert_eq!(spec.registry.as_deref(), Some("crates-io"));

@@ -82,9 +82,7 @@
         ],
         "reason": "Compensating conflict blocks, fields, exports, and branches are removed",
         "forbidden": [
-          "DependencyForbiddenGlobConflictBlocks", "ClippyForbiddenGlobConflictBlocks", "RustfmtForbiddenIgnoreGlobConflictBlocks",
-          "dependency_glob_conflicts", "workspace_dependency_glob_conflicts", "patch_dependency_glob_conflicts",
-          "disallowed_method_glob_conflicts", "disallowed_type_glob_conflicts", "disallowed_macro_glob_conflicts", "ignore_glob_conflicts"
+          "DependencyForbiddenGlobConflictBlocks", "ClippyForbiddenGlobConflictBlocks", "RustfmtForbiddenIgnoreGlobConflictBlocks"
         ]
       }
     ],

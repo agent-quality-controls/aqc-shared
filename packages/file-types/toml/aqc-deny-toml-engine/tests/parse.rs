@@ -59,7 +59,7 @@ fn reconcile(current: &str) -> aqc_file_engine_core::EngineOutput {
 }
 
 fn resolved() -> ResolvedDenyTomlRequirements {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(
+    let result = DenyTomlRequirements::merge(vec![(
         Provenance {
             policy: "test".to_owned(),
         },
@@ -71,8 +71,8 @@ fn resolved() -> ResolvedDenyTomlRequirements {
             ..DenyTomlRequirements::default()
         },
     )]);
-    assert!(conflicts.is_empty(), "parse fixture must merge");
-    resolved
+    assert!(result.is_ok(), "parse fixture must merge");
+    result.unwrap_or_default()
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {

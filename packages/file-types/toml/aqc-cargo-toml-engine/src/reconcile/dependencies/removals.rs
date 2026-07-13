@@ -19,10 +19,7 @@ use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{DocumentMut, TableLike};
 
 use super::spec_io::{effective_package, find_all_by_package, read_spec};
-use crate::requirement::{
-    DependencyForbiddenGlobConflictBlocks, DependencyPackageGlob, DependencyRequirement,
-    DependencySpec,
-};
+use crate::requirement::{DependencyPackageGlob, DependencyRequirement, DependencySpec};
 use aqc_toml_engine_core::table_at_mut;
 
 #[derive(Debug)]
@@ -92,13 +89,9 @@ pub(super) fn apply_package_glob_forbids(
     table: Option<&dyn TableLike>,
     display_path: &str,
     globs: &ResolvedForbiddenGlobRequirements<DependencyPackageGlob>,
-    glob_conflicts: &DependencyForbiddenGlobConflictBlocks,
     findings: &mut Vec<Finding>,
 ) {
-    for (glob_identity, entry) in &globs.globs {
-        if glob_conflicts.package_globs.contains(glob_identity) {
-            continue;
-        }
+    for entry in globs.globs.values() {
         let glob = &entry.merged;
         let attribution = entry
             .collected

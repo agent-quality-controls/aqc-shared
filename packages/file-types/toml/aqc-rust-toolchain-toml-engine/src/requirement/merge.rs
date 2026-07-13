@@ -10,11 +10,16 @@ use super::{
 };
 
 type RustToolchainRequirementInput = Vec<(Provenance, RustToolchainTomlRequirements)>;
-type RustToolchainMergeOutput = (ResolvedRustToolchainTomlRequirements, Vec<ConflictEntry>);
 
 impl RustToolchainTomlRequirements {
-    #[must_use]
-    pub fn merge(reqs: RustToolchainRequirementInput) -> RustToolchainMergeOutput {
+    /// Merges all rust-toolchain TOML requirements into one resolved requirement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns every conflict when the input requirements cannot be composed.
+    pub fn merge(
+        reqs: RustToolchainRequirementInput,
+    ) -> Result<ResolvedRustToolchainTomlRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
         let channel =
             resolve_optional_scalar("toolchain.channel", &reqs, field_channel, &mut conflicts);
@@ -40,17 +45,20 @@ impl RustToolchainTomlRequirements {
             .filter_map(|(prov, req)| req.exact_settings.map(|message| (prov, message)))
             .collect();
 
-        (
-            ResolvedRustToolchainTomlRequirements {
-                channel,
-                path,
-                profile,
-                components,
-                targets,
-                exact_settings,
-            },
-            conflicts,
-        )
+        let resolved = ResolvedRustToolchainTomlRequirements {
+            channel,
+            path,
+            profile,
+            components,
+            targets,
+            exact_settings,
+        };
+
+        if conflicts.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(conflicts)
+        }
     }
 }
 

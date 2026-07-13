@@ -30,12 +30,7 @@ pub(crate) fn apply(
     for (setting, resolved) in &requirement.list_settings {
         apply_list(doc, setting.file_key(), resolved, findings);
     }
-    apply_forbidden_ignore_path_globs(
-        doc,
-        &requirement.forbidden_ignore_path_globs,
-        &requirement.ignore_glob_conflicts.path_globs,
-        findings,
-    );
+    apply_forbidden_ignore_path_globs(doc, &requirement.forbidden_ignore_path_globs, findings);
     apply_exact(doc, requirement, findings);
 }
 

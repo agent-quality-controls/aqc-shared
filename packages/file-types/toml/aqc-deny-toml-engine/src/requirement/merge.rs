@@ -6,15 +6,20 @@ use super::merge_helpers::{item, list, report_feature_overlaps, scalar};
 use super::{DenyTomlRequirements, ResolvedDenyTomlRequirements};
 
 type DenyRequirementInput = Vec<(Provenance, DenyTomlRequirements)>;
-type DenyMergeOutput = (ResolvedDenyTomlRequirements, Vec<ConflictEntry>);
 
 impl DenyTomlRequirements {
-    #[must_use]
+    /// Merges all deny TOML requirements into one resolved requirement set.
+    ///
+    /// # Errors
+    ///
+    /// Returns every conflict when the input requirements cannot be composed.
     #[expect(
         clippy::too_many_lines,
         reason = "The merge surface intentionally mirrors every managed deny.toml field."
     )]
-    pub fn merge(reqs: DenyRequirementInput) -> DenyMergeOutput {
+    pub fn merge(
+        reqs: DenyRequirementInput,
+    ) -> Result<ResolvedDenyTomlRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
         let _ = ScalarAssertion::<bool>::Present(String::new()).operation();
 
@@ -417,76 +422,79 @@ impl DenyTomlRequirements {
             .filter_map(|(prov, req)| req.exact_settings.map(|message| (prov, message)))
             .collect();
 
-        (
-            ResolvedDenyTomlRequirements {
-                graph_targets,
-                graph_exclude,
-                graph_exclude_dev,
-                graph_exclude_unpublished,
-                graph_all_features,
-                graph_no_default_features,
-                graph_features,
-                output_feature_depth,
-                advisories_version,
-                advisories_db_path,
-                advisories_db_urls,
-                advisories_yanked,
-                advisories_disable_yank_checking,
-                advisories_ignore,
-                advisories_unmaintained,
-                advisories_unsound,
-                advisories_maximum_db_staleness,
-                advisories_git_fetch_with_cli,
-                advisories_unused_ignored_advisory,
-                licenses_version,
-                licenses_include_dev,
-                licenses_include_build,
-                licenses_allow,
-                licenses_exceptions,
-                licenses_confidence_threshold,
-                licenses_clarify,
-                licenses_private_ignore,
-                licenses_private_registries,
-                licenses_private_ignore_sources,
-                licenses_unused_allowed_license,
-                licenses_unused_license_exception,
-                bans_multiple_versions,
-                bans_multiple_versions_include_dev,
-                bans_wildcards,
-                bans_allow_wildcard_paths,
-                bans_highlight,
-                bans_workspace_default_features,
-                bans_external_default_features,
-                bans_allow,
-                bans_allow_workspace,
-                bans_deny,
-                bans_features,
-                bans_skip,
-                bans_skip_tree,
-                bans_workspace_dependencies_duplicates,
-                bans_workspace_dependencies_include_path_dependencies,
-                bans_workspace_dependencies_unused,
-                bans_build_executables,
-                bans_build_interpreted,
-                bans_build_script_extensions,
-                bans_build_enable_builtin_globs,
-                bans_build_globs,
-                bans_build_include_dependencies,
-                bans_build_include_workspace,
-                bans_build_include_archives,
-                sources_unknown_registry,
-                sources_unknown_git,
-                sources_required_git_spec,
-                sources_allow_git,
-                sources_private,
-                sources_allow_registry,
-                sources_allow_org_github,
-                sources_allow_org_gitlab,
-                sources_allow_org_bitbucket,
-                sources_unused_allowed_source,
-                exact_settings,
-            },
-            conflicts,
-        )
+        let resolved = ResolvedDenyTomlRequirements {
+            graph_targets,
+            graph_exclude,
+            graph_exclude_dev,
+            graph_exclude_unpublished,
+            graph_all_features,
+            graph_no_default_features,
+            graph_features,
+            output_feature_depth,
+            advisories_version,
+            advisories_db_path,
+            advisories_db_urls,
+            advisories_yanked,
+            advisories_disable_yank_checking,
+            advisories_ignore,
+            advisories_unmaintained,
+            advisories_unsound,
+            advisories_maximum_db_staleness,
+            advisories_git_fetch_with_cli,
+            advisories_unused_ignored_advisory,
+            licenses_version,
+            licenses_include_dev,
+            licenses_include_build,
+            licenses_allow,
+            licenses_exceptions,
+            licenses_confidence_threshold,
+            licenses_clarify,
+            licenses_private_ignore,
+            licenses_private_registries,
+            licenses_private_ignore_sources,
+            licenses_unused_allowed_license,
+            licenses_unused_license_exception,
+            bans_multiple_versions,
+            bans_multiple_versions_include_dev,
+            bans_wildcards,
+            bans_allow_wildcard_paths,
+            bans_highlight,
+            bans_workspace_default_features,
+            bans_external_default_features,
+            bans_allow,
+            bans_allow_workspace,
+            bans_deny,
+            bans_features,
+            bans_skip,
+            bans_skip_tree,
+            bans_workspace_dependencies_duplicates,
+            bans_workspace_dependencies_include_path_dependencies,
+            bans_workspace_dependencies_unused,
+            bans_build_executables,
+            bans_build_interpreted,
+            bans_build_script_extensions,
+            bans_build_enable_builtin_globs,
+            bans_build_globs,
+            bans_build_include_dependencies,
+            bans_build_include_workspace,
+            bans_build_include_archives,
+            sources_unknown_registry,
+            sources_unknown_git,
+            sources_required_git_spec,
+            sources_allow_git,
+            sources_private,
+            sources_allow_registry,
+            sources_allow_org_github,
+            sources_allow_org_gitlab,
+            sources_allow_org_bitbucket,
+            sources_unused_allowed_source,
+            exact_settings,
+        };
+
+        if conflicts.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(conflicts)
+        }
     }
 }

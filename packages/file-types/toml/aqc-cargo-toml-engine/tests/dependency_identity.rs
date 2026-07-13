@@ -20,15 +20,15 @@ fn dependency_required_and_forbidden_different_keys_compose() {
     );
     let mut forbidden = BTreeMap::new();
     let _ = forbidden.insert("openssl".to_owned(), "no openssl".to_owned());
-    let (_, findings) = cargo::CargoTomlRequirements::merge(vec![(
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(
         prov("p1"),
         dep_req(KeyedFixture {
             required,
             forbidden,
             exact: None,
         }),
-    )]);
-    assert!(findings.is_empty());
+    )])
+    .expect("different dependency identities should merge");
 }
 
 #[test]
@@ -69,8 +69,8 @@ fn required_and_forbidden_different_dependency_identities_coexist() {
         )],
         exact: None,
     });
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)]);
-    assert!(conflicts.is_empty());
+    let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
+        .expect("different package identities should merge");
 }
 
 #[test]
@@ -110,10 +110,11 @@ fn exact_collection_rejects_outside_required_identity() {
         forbidden: Vec::new(),
         exact: None,
     });
-    let (_, conflicts) = cargo::CargoTomlRequirements::merge(vec![
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![
         (prov("closer"), closer),
         (prov("outside"), outside),
-    ]);
+    ])
+    .expect_err("required package outside exact set should conflict");
     assert!(conflicts.iter().any(|conflict| {
         conflict
             .contributors

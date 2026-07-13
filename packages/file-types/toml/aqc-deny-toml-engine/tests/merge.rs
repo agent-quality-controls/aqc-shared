@@ -16,7 +16,7 @@ use aqc_file_engine_core::{ItemRequirements, ListRequirements, Provenance, Scala
 
 #[test]
 fn conflicting_requirements_report_conflict() {
-    let (_resolved, conflicts) = DenyTomlRequirements::merge(vec![
+    let conflicts = DenyTomlRequirements::merge(vec![
         (
             provenance("left"),
             DenyTomlRequirements {
@@ -37,23 +37,21 @@ fn conflicting_requirements_report_conflict() {
                 ..DenyTomlRequirements::default()
             },
         ),
-    ]);
+    ])
+    .expect_err("conflicting scalar requirements must not expose a resolved root");
     assert_eq!(conflicts.len(), 1, "scalar conflict should be reported");
 }
 
 #[test]
 fn uses_core_scalar_merge() {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(provenance("p"), scalar_req())]);
-    assert!(
-        conflicts.is_empty(),
-        "scalar merge should use core behavior"
-    );
-    assert!(resolved.bans_multiple_versions.is_some());
+    let resolved = DenyTomlRequirements::merge(vec![(provenance("p"), scalar_req())])
+        .expect("scalar merge should use core behavior");
+    assert!(resolved.bans_multiple_versions().is_some());
 }
 
 #[test]
 fn confidence_threshold_uses_core_ordered_scalar_merge() {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![
+    let resolved = DenyTomlRequirements::merge(vec![
         (
             provenance("left"),
             DenyTomlRequirements {
@@ -76,14 +74,12 @@ fn confidence_threshold_uses_core_ordered_scalar_merge() {
                 ..DenyTomlRequirements::default()
             },
         ),
-    ]);
-    assert!(
-        conflicts.is_empty(),
-        "ordered confidence thresholds should merge"
-    );
+    ])
+    .expect("ordered confidence thresholds should merge");
     assert!(matches!(
-        resolved
-            .licenses_confidence_threshold
+        &resolved
+            .licenses_confidence_threshold()
+            .as_ref()
             .expect("resolved confidence threshold should exist")
             .merged,
         ScalarAssertion::AtLeast(value, _) if value.as_str() == "0.9"
@@ -92,7 +88,7 @@ fn confidence_threshold_uses_core_ordered_scalar_merge() {
 
 #[test]
 fn uses_core_list_merge() {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(
+    let resolved = DenyTomlRequirements::merge(vec![(
         provenance("p"),
         DenyTomlRequirements {
             graph_features: ListRequirements {
@@ -101,16 +97,16 @@ fn uses_core_list_merge() {
             },
             ..DenyTomlRequirements::default()
         },
-    )]);
-    assert!(conflicts.is_empty(), "list merge should use core behavior");
-    assert!(resolved.graph_features.contains.contains_key("all"));
+    )])
+    .expect("list merge should use core behavior");
+    assert!(resolved.graph_features().contains.contains_key("all"));
 }
 
 #[test]
 fn uses_core_item_merge() {
     let target = DenyGraphTargetSpec::new("x86_64-unknown-linux-gnu")
         .expect("test target triple should construct a graph target requirement");
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(
+    let resolved = DenyTomlRequirements::merge(vec![(
         provenance("p"),
         DenyTomlRequirements {
             graph_targets: ItemRequirements {
@@ -119,11 +115,11 @@ fn uses_core_item_merge() {
             },
             ..DenyTomlRequirements::default()
         },
-    )]);
-    assert!(conflicts.is_empty(), "item merge should use core behavior");
+    )])
+    .expect("item merge should use core behavior");
     assert!(
         resolved
-            .graph_targets
+            .graph_targets()
             .required
             .contains_key("x86_64-unknown-linux-gnu")
     );
@@ -147,13 +143,15 @@ fn feature_allow_deny_overlap_is_invalid() {
 
 #[test]
 fn list_order_is_ignored() {
-    let (resolved, conflicts) = DenyTomlRequirements::merge(vec![(provenance("p"), exact_list())]);
-    assert!(
-        conflicts.is_empty(),
-        "single exact list should not conflict"
-    );
+    let resolved = DenyTomlRequirements::merge(vec![(provenance("p"), exact_list())])
+        .expect("single exact list should not conflict");
     assert_eq!(
-        resolved.graph_features.exact.expect("exact").merged,
+        resolved
+            .graph_features()
+            .exact
+            .as_ref()
+            .expect("exact")
+            .merged,
         vec!["a".to_owned(), "b".to_owned()]
     );
 }

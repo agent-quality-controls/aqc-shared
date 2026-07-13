@@ -8,8 +8,6 @@
     )
 )]
 
-use std::collections::BTreeSet;
-
 use aqc_file_engine_core::{
     ConflictEntry, FileItemRequirement, ForbiddenGlobRequirement, Provenance,
     ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedRequirement,
@@ -40,12 +38,6 @@ impl ForbiddenGlobRequirement for ClippyPathGlob {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ClippyForbiddenGlobConflictBlocks {
-    pub required: BTreeSet<String>,
-    pub path_globs: BTreeSet<String>,
-}
-
 impl FileItemRequirement for DisallowedEntry {
     type Identity = String;
 
@@ -68,9 +60,8 @@ pub(crate) fn push_clippy_path_glob_conflicts(
     merged: &ResolvedItemRequirements<DisallowedEntry>,
     globs: &ResolvedForbiddenGlobRequirements<ClippyPathGlob>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> ClippyForbiddenGlobConflictBlocks {
-    let mut blocks = ClippyForbiddenGlobConflictBlocks::default();
-    for (glob_identity, glob) in &globs.globs {
+) {
+    for glob in globs.globs.values() {
         let Ok(globset) = GlobBuilder::new(&glob.merged.glob).build() else {
             continue;
         };
@@ -94,9 +85,6 @@ pub(crate) fn push_clippy_path_glob_conflicts(
                 reason: reason.to_owned(),
                 contributors,
             });
-            let _ = blocks.required.insert(required_path.clone());
-            let _ = blocks.path_globs.insert(glob_identity.clone());
         }
     }
-    blocks
 }
