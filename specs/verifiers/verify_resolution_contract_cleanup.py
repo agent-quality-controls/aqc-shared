@@ -174,6 +174,8 @@ def dependency_contracts() -> tuple[bool, str]:
             declared = value if isinstance(value, str) else (value or {}).get("version")
             if not permits_patch(declared, core_version):
                 errors.append(f"{package}: file-engine core {declared} does not permit {core_version}")
+            if package in {"aqc-cargo-toml-engine", "aqc-clippy-toml-engine"} and declared != core_version:
+                errors.append(f"{package}: file-engine core minimum {declared} must equal API generation {core_version}")
         if package.endswith("-toml-engine") and package != "aqc-toml-engine-core":
             value = dependencies.get("aqc-toml-engine-core")
             declared = value if isinstance(value, str) else (value or {}).get("version")

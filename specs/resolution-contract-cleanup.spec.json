@@ -212,6 +212,7 @@
           ["cargo", "test", "--locked", "--manifest-path", "packages/aqc-file-engine-core/Cargo.toml", "--test", "public_contract"],
           ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/text/aqc-text-engine-core/Cargo.toml", "--test", "merge_tests"],
           ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml", "--test", "dependency_globs"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml", "--test", "dependency_identity"],
           ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml", "--test", "merge"],
           ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml", "--test", "merge"],
           ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml", "--test", "behavior"],

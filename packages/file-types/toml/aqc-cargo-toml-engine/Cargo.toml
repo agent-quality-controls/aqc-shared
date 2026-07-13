@@ -1,6 +1,6 @@
 [package]
 name = "aqc-cargo-toml-engine"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
@@ -84,7 +84,7 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = "0.6.0"
+aqc-file-engine-core = "0.6.3"
 aqc-toml-engine-core = "0.6.0"
 globset = "0.4"
 toml_edit = "0.25"

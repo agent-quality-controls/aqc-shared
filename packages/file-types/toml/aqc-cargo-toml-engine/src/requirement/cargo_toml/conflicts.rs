@@ -29,7 +29,7 @@ pub(super) fn push_dependency_identity_overlaps(
 ) {
     push_dependency_file_key_package_conflicts(key, merged, conflicts);
 
-    for (identity, requirement) in &merged.required {
+    for (identity, requirement) in aqc_file_engine_core::asserted_items(merged) {
         if matches!(identity, DependencyIdentity::Invalid) {
             conflicts.push(ConflictEntry {
                 key: format!("{key}.<invalid>"),
@@ -64,7 +64,7 @@ fn push_dependency_file_key_package_conflicts(
 ) {
     let mut packages_by_key: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut contributors_by_key: BTreeMap<String, Vec<(Provenance, String)>> = BTreeMap::new();
-    for requirement in merged.required.values() {
+    for (_, requirement) in aqc_file_engine_core::asserted_items(merged) {
         let Some(file_key) = requirement.merged.file_key.as_ref() else {
             continue;
         };

@@ -124,6 +124,54 @@ fn exact_collection_rejects_outside_required_identity() {
 }
 
 #[test]
+fn exact_collection_rejects_dependency_without_identity() {
+    let requirement = dep_item_req(engine_core::ItemRequirements {
+        required: Vec::new(),
+        forbidden: Vec::new(),
+        exact: Some((
+            vec![cargo::DependencyRequirement {
+                file_key: None,
+                value: cargo::DependencySpec::default(),
+            }],
+            "exact dependencies".to_owned(),
+        )),
+    });
+
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![(prov("policy"), requirement)])
+        .expect_err("an exact dependency must have a file key or package identity");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.reason == "invalid-dependency-requirement")
+    );
+}
+
+#[test]
+fn exact_collection_rejects_two_packages_using_one_file_key() {
+    let requirement = dep_item_req(engine_core::ItemRequirements {
+        required: Vec::new(),
+        forbidden: Vec::new(),
+        exact: Some((
+            vec![
+                local_dependency_requirement("json", Some("serde_json"), Some("1")),
+                local_dependency_requirement("json", Some("json5"), Some("0.4")),
+            ],
+            "exact dependencies".to_owned(),
+        )),
+    });
+
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![(prov("policy"), requirement)])
+        .expect_err("one dependency key cannot address two packages");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.reason == "dependency-file-key-package-conflict")
+    );
+}
+
+#[test]
 fn dependency_local_key_requirement_does_not_pass_on_package_only_match() {
     let req = dep_item_req(engine_core::ItemRequirements {
         required: vec![(
