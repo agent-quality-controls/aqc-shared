@@ -178,6 +178,30 @@ fn disallowed_path_glob_conflict_preserves_key_reason_and_contributors() {
 }
 
 #[test]
+fn exact_only_disallowed_path_matching_glob_conflicts() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ItemRequirements {
+            required: Vec::new(),
+            forbidden: Vec::new(),
+            exact: Some((
+                vec![forbid("std::env::set_var")],
+                "exact methods".to_owned(),
+            )),
+        },
+        forbidden_disallowed_method_path_globs: path_globs(vec![(
+            "std::env::*",
+            "no env methods",
+        )]),
+        ..ClippyTomlRequirements::default()
+    };
+
+    let conflicts = ClippyTomlRequirements::merge(vec![(prov("policy"), req)])
+        .expect_err("forbidden path glob should conflict with exact-only method");
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].key, "disallowed-methods.std::env::set_var");
+}
+
+#[test]
 fn invalid_forbidden_disallowed_path_glob_reports_invalid_requirements() {
     let req = ClippyTomlRequirements {
         forbidden_disallowed_method_path_globs: path_globs(vec![("[", "bad glob")]),

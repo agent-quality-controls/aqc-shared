@@ -196,6 +196,25 @@ where
     }
 }
 
+impl<Item> ResolvedItemRequirements<Item>
+where
+    Item: FileItemRequirement,
+{
+    /// Every positively asserted item, whether supplied through `required` or
+    /// through a complete `exact` collection, with each identity returned once.
+    pub fn asserted_items(
+        &self,
+    ) -> impl Iterator<Item = (&Item::Identity, &RequiredItemResolution<Item>)> {
+        let exact = self.exact.as_ref();
+        self.required
+            .iter()
+            .filter(move |(identity, _)| {
+                exact.is_none_or(|resolved| !resolved.identities.contains(*identity))
+            })
+            .chain(exact.into_iter().flat_map(|resolved| resolved.items.iter()))
+    }
+}
+
 /// A file-item requirement that can identify and compose matching policy input.
 pub trait FileItemRequirement: Sized + Clone {
     type Identity: Ord + Clone + std::fmt::Debug;

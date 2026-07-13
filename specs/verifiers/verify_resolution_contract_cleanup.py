@@ -40,6 +40,19 @@ def balanced_body(source: str, declaration: str) -> str | None:
     return None
 
 
+def balanced_bodies(source: str, declaration: str) -> list[str]:
+    bodies = []
+    offset = 0
+    while match := re.search(declaration + r"[^\{]*\{", source[offset:], re.S):
+        declaration_start = offset + match.start()
+        body = balanced_body(source[declaration_start:], declaration)
+        if body is None:
+            break
+        bodies.append(body)
+        offset = declaration_start + match.end()
+    return bodies
+
+
 def split_fields(body: str) -> dict[str, tuple[str, str]]:
     body = re.sub(r"(?m)^\s*///.*$", "", body)
     fields: dict[str, tuple[str, str]] = {}
@@ -118,8 +131,11 @@ def root_contracts() -> tuple[bool, str]:
         derive = re.findall(r"#\[derive\(([^]]+)\)\]", prefix)[-1:]
         if not derive or not {"Clone", "Debug", "Default"}.issubset(set(re.findall(r"\w+", derive[0]))):
             errors.append(f"{name}: Clone, Debug, Default not retained")
-        impl = balanced_body(source, rf"impl\s+{re.escape(name)}\b") or ""
-        if re.search(r"pub\s+fn\s+\w+\s*\([^)]*&mut\s+self|pub\s+fn\s+\w+[^-]*->\s*&mut", impl, re.S):
+        impls = "\n".join(balanced_bodies(source, rf"impl\s+{re.escape(name)}\b"))
+        public_methods = set(re.findall(r"pub\s+(?:const\s+)?fn\s+(\w+)", impls))
+        if public_methods != set(expected):
+            errors.append(f"{name}: public methods {sorted(public_methods)} != getters {sorted(expected)}")
+        if re.search(r"pub\s+fn\s+\w+\s*\([^)]*&mut\s+self|pub\s+fn\s+\w+[^-]*->\s*&mut", impls, re.S):
             errors.append(f"{name}: mutable public API exposed")
     return not errors, "; ".join(errors)
 
@@ -140,6 +156,14 @@ def dependency_contracts() -> tuple[bool, str]:
             errors.append(f"{package}: publish is false")
     core_version = records["aqc-file-engine-core"][1]
     toml_version = records["aqc-toml-engine-core"][1]
+
+    def permits_patch(declared: str | None, released: str) -> bool:
+        if declared is None:
+            return False
+        requirement = tuple(map(int, declared.split(".")[:3]))
+        version = tuple(map(int, released.split(".")[:3]))
+        return requirement[:2] == version[:2] and requirement <= version
+
     for package, (directory, _version, manifest) in records.items():
         dependencies = manifest.get("dependencies", {})
         for local, value in dependencies.items():
@@ -148,13 +172,13 @@ def dependency_contracts() -> tuple[bool, str]:
         if package != "aqc-file-engine-core":
             value = dependencies.get("aqc-file-engine-core")
             declared = value if isinstance(value, str) else (value or {}).get("version")
-            if declared != core_version:
-                errors.append(f"{package}: file-engine core {declared}, expected {core_version}")
+            if not permits_patch(declared, core_version):
+                errors.append(f"{package}: file-engine core {declared} does not permit {core_version}")
         if package.endswith("-toml-engine") and package != "aqc-toml-engine-core":
             value = dependencies.get("aqc-toml-engine-core")
             declared = value if isinstance(value, str) else (value or {}).get("version")
-            if declared != toml_version:
-                errors.append(f"{package}: TOML core {declared}, expected {toml_version}")
+            if not permits_patch(declared, toml_version):
+                errors.append(f"{package}: TOML core {declared} does not permit {toml_version}")
         lock = tomllib.loads((ROOT / directory / "Cargo.lock").read_text())
         for dep_name, wanted in (("aqc-file-engine-core", core_version), ("aqc-toml-engine-core", toml_version)):
             if dep_name not in dependencies:
@@ -166,9 +190,10 @@ def dependency_contracts() -> tuple[bool, str]:
 
 
 def changed_scope() -> tuple[bool, str]:
-    result = run(["git", "status", "--porcelain=v1", "-uall"])
-    paths = []
-    for line in result.stdout.splitlines():
+    committed = run(["git", "diff", "--name-only", ENTRY["baseline"], "HEAD", "--"])
+    status = run(["git", "status", "--porcelain=v1", "-uall"])
+    paths = committed.stdout.splitlines()
+    for line in status.stdout.splitlines():
         path = line[3:]
         if " -> " in path:
             path = path.split(" -> ", 1)[1]

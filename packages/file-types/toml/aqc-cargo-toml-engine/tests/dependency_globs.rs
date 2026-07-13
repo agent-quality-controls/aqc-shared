@@ -188,6 +188,29 @@ fn required_package_matching_glob_forbid_conflicts() {
 }
 
 #[test]
+fn exact_only_package_matching_glob_forbid_conflicts() {
+    let exact = dep_item_req(engine_core::ItemRequirements {
+        required: Vec::new(),
+        forbidden: Vec::new(),
+        exact: Some((
+            vec![package_requirement("openssl-sys", Some("0.9"))],
+            "only openssl".to_owned(),
+        )),
+    });
+    let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
+    let conflicts =
+        cargo::CargoTomlRequirements::merge(vec![(prov("p1"), exact), (prov("p2"), glob)])
+            .expect_err("forbidden package glob should conflict with exact-only package");
+
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].key, "[dependencies].openssl-sys");
+    assert_eq!(
+        conflicts[0].reason,
+        "dependency-package-glob-forbids-required-package"
+    );
+}
+
+#[test]
 fn required_package_matching_glob_forbid_does_not_write_dependency() {
     let exact = dep_item_req(engine_core::ItemRequirements {
         required: vec![(

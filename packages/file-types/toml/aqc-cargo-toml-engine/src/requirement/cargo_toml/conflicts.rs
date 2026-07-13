@@ -115,7 +115,7 @@ pub(super) fn push_dependency_package_glob_conflicts(
             continue;
         };
         let matcher = compiled_glob.compile_matcher();
-        for requirement in merged.required.values() {
+        for (_, requirement) in merged.asserted_items() {
             let Some(package) = required_dependency_package(&requirement.merged) else {
                 continue;
             };
