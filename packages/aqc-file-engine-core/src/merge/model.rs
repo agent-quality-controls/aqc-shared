@@ -48,6 +48,10 @@ pub type OptionalInput<T> = Provenanced<Option<T>>;
 pub type VersionFloor = MessagePair<String>;
 pub type KeyedValueMap<S, M> = BTreeMap<String, (S, M)>;
 
+pub(crate) fn sort_provenanced<T>(items: &mut [Provenanced<T>]) {
+    items.sort_by(|left, right| left.0.cmp(&right.0));
+}
+
 /// Generic scalar assertion verbs shared by file engines.
 #[derive(Debug, Clone)]
 pub enum ScalarAssertion<T> {

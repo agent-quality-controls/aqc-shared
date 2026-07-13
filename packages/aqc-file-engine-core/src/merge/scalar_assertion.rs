@@ -1,11 +1,11 @@
 //! Generic scalar assertion merge implementation.
 
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use super::{
     ConflictEntry, Provenanced, Resolve, ResolvedAssertionOption, ResolvedRequirement,
-    ScalarAssertion, ScalarValue,
+    ScalarAssertion, ScalarValue, sort_provenanced,
 };
 use crate::types::{OnEmpty, OnEmptyClass};
 
@@ -60,10 +60,58 @@ impl<T> OnEmptyClass for ScalarAssertion<T> {
     }
 }
 
+/// Returns whether a decoded scalar and its raw presence satisfy an assertion.
+#[must_use]
+pub fn scalar_assertion_matches<T>(
+    assertion: &ScalarAssertion<T>,
+    current: Option<&T>,
+    present: bool,
+) -> bool
+where
+    T: ScalarValue,
+{
+    match assertion {
+        ScalarAssertion::Equals(expected, _) => current == Some(expected),
+        ScalarAssertion::AtLeast(expected, _) => current
+            .and_then(|value| value.compare_for_order(expected))
+            .is_some_and(|ordering| ordering != core::cmp::Ordering::Less),
+        ScalarAssertion::AtMost(expected, _) => current
+            .and_then(|value| value.compare_for_order(expected))
+            .is_some_and(|ordering| ordering != core::cmp::Ordering::Greater),
+        ScalarAssertion::Range(minimum, maximum, _) => {
+            current
+                .and_then(|value| value.compare_for_order(minimum))
+                .is_some_and(|ordering| ordering != core::cmp::Ordering::Less)
+                && current
+                    .and_then(|value| value.compare_for_order(maximum))
+                    .is_some_and(|ordering| ordering != core::cmp::Ordering::Greater)
+        }
+        ScalarAssertion::OneOf(expected, _) => {
+            current.is_some_and(|value| expected.contains(value))
+        }
+        ScalarAssertion::Present(_) => current.is_some(),
+        ScalarAssertion::Absent(_) => !present,
+    }
+}
+
+/// Returns the deterministic value an assertion can write, when one exists.
+#[must_use]
+pub const fn scalar_assertion_writable_value<T>(assertion: &ScalarAssertion<T>) -> Option<&T> {
+    match assertion {
+        ScalarAssertion::Equals(value, _)
+        | ScalarAssertion::AtLeast(value, _)
+        | ScalarAssertion::AtMost(value, _)
+        | ScalarAssertion::Range(value, _, _) => Some(value),
+        ScalarAssertion::OneOf(_, _) | ScalarAssertion::Present(_) | ScalarAssertion::Absent(_) => {
+            None
+        }
+    }
+}
+
 /// Resolves generic scalar assertions for one file key.
 fn resolve_scalar_assertions<T>(
     key: &str,
-    items: ScalarInputs<T>,
+    mut items: ScalarInputs<T>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedAssertionOption<ScalarAssertion<T>>
 where
@@ -72,6 +120,8 @@ where
     if items.is_empty() {
         return None;
     }
+
+    sort_provenanced(&mut items);
 
     reject_unsupported_ordering(key, &items, conflicts)?;
 

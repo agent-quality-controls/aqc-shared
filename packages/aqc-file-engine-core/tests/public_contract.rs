@@ -1,9 +1,43 @@
 use aqc_file_engine_core::{
     ConflictEntry, Engine, EngineOutput, EngineRequirement, FileEngine, Finding, Provenance,
-    merged_reconcile,
+    ScalarAssertion, merged_reconcile, scalar_assertion_matches, scalar_assertion_writable_value,
 };
 use core::cell::Cell;
 use serde as _;
+
+#[test]
+fn mismatch_preserves_optional_selector() {
+    let finding = Finding::Mismatch {
+        key: "allowBuilds".to_owned(),
+        selector: Some("example-package".to_owned()),
+        current: Some("true".to_owned()),
+        expected: "false".to_owned(),
+        message: "build scripts are forbidden".to_owned(),
+        severity: aqc_file_engine_core::Severity::Error,
+        attribution: vec![provenance("policy")],
+    };
+
+    assert!(matches!(
+        finding,
+        Finding::Mismatch {
+            selector: Some(selector),
+            ..
+        } if selector == "example-package"
+    ));
+}
+
+#[test]
+fn scalar_assertion_runtime_semantics_are_core_owned() {
+    let equals = ScalarAssertion::Equals(4_u64, "equals".to_owned());
+    let present = ScalarAssertion::<u64>::Present("present".to_owned());
+    let absent = ScalarAssertion::<u64>::Absent("absent".to_owned());
+
+    assert!(scalar_assertion_matches(&equals, Some(&4), true));
+    assert!(!scalar_assertion_matches(&present, None, true));
+    assert!(scalar_assertion_matches(&absent, None, false));
+    assert_eq!(scalar_assertion_writable_value(&equals), Some(&4));
+    assert_eq!(scalar_assertion_writable_value(&present), None);
+}
 
 #[derive(Debug)]
 struct ResolvedRequirements;

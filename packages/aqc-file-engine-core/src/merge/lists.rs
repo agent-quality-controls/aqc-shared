@@ -5,15 +5,16 @@ use std::collections::BTreeSet;
 use super::{
     ConflictEntry, Contributor, ExactInput, ListInput, ListRequirements, MemberInputs,
     ResolvedExactList, ResolvedListRequirements, ResolvedRequirement, ResolvedStringMembers,
-    resolve_all_equal,
+    resolve_all_equal, sort_provenanced,
 };
 use crate::types::Provenance;
 
 pub fn resolve_list(
     key: &str,
-    items: Vec<ListInput>,
+    mut items: Vec<ListInput>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedListRequirements {
+    sort_provenanced(&mut items);
     let mut grouped = ListGroups::default();
     collect_list_groups(items, &mut grouped);
 

@@ -25,6 +25,8 @@ pub enum Finding {
     /// A key on disk disagrees with what the requirement asserts.
     Mismatch {
         key: String,
+        /// Optional identity for one item within the mismatched key.
+        selector: Option<String>,
         current: Option<String>,
         expected: String,
         /// Free-form policy-authored explanation of the mismatch: what is

@@ -7,7 +7,7 @@ use super::{
     ForbiddenItemMap, GlobAssertionGroups, GlobInput, GlobResolutionMap, ItemAssertionGroups,
     ItemAssertionInput, ItemInput, ItemRequirementMap, KeyedItem, RequiredItemResolution,
     ResolvedExactItems, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedRequirement,
+    ResolvedRequirement, sort_provenanced,
 };
 use crate::types::Provenance;
 
@@ -31,13 +31,14 @@ where
 
 pub fn resolve_items<Item>(
     key: &str,
-    input: Vec<ItemInput<Item>>,
+    mut input: Vec<ItemInput<Item>>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedItemRequirements<Item>
 where
     Item: FileItemRequirement,
     Item::Identity: ToString,
 {
+    sort_provenanced(&mut input);
     let mut grouped = ItemGroups::default();
     collect_item_groups(input, &mut grouped);
 
@@ -70,7 +71,7 @@ where
 
 pub fn resolve_forbidden_globs<Glob>(
     _key: &str,
-    input: Vec<GlobInput<Glob>>,
+    mut input: Vec<GlobInput<Glob>>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedForbiddenGlobRequirements<Glob>
 where
@@ -78,6 +79,7 @@ where
     Glob::Identity: ToString,
 {
     conflicts.reserve(0);
+    sort_provenanced(&mut input);
     let mut by_glob = GlobAssertionGroups::<Glob>::new();
 
     for (prov, globs) in input {
@@ -113,7 +115,7 @@ where
 
 pub fn compose_item_by<Item, Semantic>(
     key: &str,
-    items: Vec<ItemAssertionInput<Item>>,
+    mut items: Vec<ItemAssertionInput<Item>>,
     project: impl Fn(&Item) -> Semantic,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> Option<RequiredItemResolution<Item>>
@@ -121,6 +123,7 @@ where
     Item: Clone,
     Semantic: PartialEq,
 {
+    sort_provenanced(&mut items);
     let mut iter = items.iter();
     let (_, (first, _)) = iter.next()?;
     let first_semantic = project(first);

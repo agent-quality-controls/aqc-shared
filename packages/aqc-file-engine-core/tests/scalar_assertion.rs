@@ -67,8 +67,8 @@ fn scalar_assertion_absent_conflicts_with_present() {
     assert_eq!(
         conflicts.first().expect("one conflict").contributors,
         vec![
-            (prov("present"), "present".to_owned()),
-            (prov("absent"), "absent".to_owned())
+            (prov("absent"), "absent".to_owned()),
+            (prov("present"), "present".to_owned())
         ]
     );
 }

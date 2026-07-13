@@ -7,8 +7,8 @@ const ENGINE_ENTRY_POINTS: &[(&str, &str)] = &[
         include_str!("../src/engine.rs"),
     ),
     (
-        "engine entry point aqc-text-engine-core",
-        include_str!("../../file-types/text/aqc-text-engine-core/src/engine.rs"),
+        "engine entry point aqc-text-file-engine",
+        include_str!("../../file-types/text/aqc-text-file-engine/src/engine.rs"),
     ),
     (
         "engine entry point aqc-cargo-toml-engine",

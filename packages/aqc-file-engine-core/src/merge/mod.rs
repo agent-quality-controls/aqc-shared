@@ -17,6 +17,7 @@ mod scalar_assertion;
 
 pub use items::{asserted_items, compose_item_by, resolve_forbidden_globs, resolve_items};
 pub use lists::{render_list_requirement, resolve_exact_list, resolve_list};
+pub(crate) use model::sort_provenanced;
 pub use model::{
     Collected, ConflictEntry, Contributor, Contributors, ExactInput, ExactItems, ExactItemsInput,
     FileItemRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements, ForbiddenItemMap,
@@ -35,4 +36,6 @@ pub use scalar::{
     push_conflict, resolve_all_equal, resolve_map, resolve_maybe, resolve_scalar,
     strongest_version_floor,
 };
-pub use scalar_assertion::render_scalar_assertion;
+pub use scalar_assertion::{
+    render_scalar_assertion, scalar_assertion_matches, scalar_assertion_writable_value,
+};

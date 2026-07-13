@@ -5,13 +5,13 @@ use std::collections::BTreeSet;
 use super::{
     ConflictEntry, GroupedAssertions, KeyedValueMap, MapInputs, OptionalInput, Provenanced,
     Resolve, ResolvedAssertionOption, ResolvedMap, ResolvedRequirement, ResolvedSameOption,
-    ScalarValue, VersionFloor,
+    ScalarValue, VersionFloor, sort_provenanced,
 };
 use crate::types::ConfigScalar;
 use crate::version::parse_version_tuple;
 
 pub fn resolve_map<K, A>(
-    input: MapInputs<K, A>,
+    mut input: MapInputs<K, A>,
     key_path: impl Fn(&K) -> String,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedMap<K, A>
@@ -19,6 +19,7 @@ where
     K: Ord + Clone,
     A: Resolve,
 {
+    sort_provenanced(&mut input);
     let mut by_key = GroupedAssertions::<K, A>::new();
     for (prov, map) in input {
         for (key, assertion) in map {
@@ -40,12 +41,13 @@ where
 
 pub fn resolve_maybe<A>(
     key: &str,
-    input: Vec<OptionalInput<A>>,
+    mut input: Vec<OptionalInput<A>>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedAssertionOption<A>
 where
     A: Resolve,
 {
+    sort_provenanced(&mut input);
     let items = input
         .into_iter()
         .filter_map(|(prov, value)| value.map(|assertion| (prov, assertion)))
@@ -72,13 +74,14 @@ where
 pub fn resolve_all_equal<T>(
     key: &str,
     reason: &str,
-    items: Vec<Provenanced<T>>,
+    mut items: Vec<Provenanced<T>>,
     render: impl Fn(&T) -> String,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedSameOption<T>
 where
     T: PartialEq + Clone,
 {
+    sort_provenanced(&mut items);
     let mut iter = items.iter();
     let (_, first) = iter.next()?;
     let disagree = iter.any(|(_, value)| value != first);
