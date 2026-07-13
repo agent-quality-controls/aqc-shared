@@ -21,6 +21,15 @@
         "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/merge.rs",
         "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs",
         "specs/verifiers/verify_resolution_contract_cleanup.py"
+      ],
+      "forbidden": [
+        "scripts/_verify_lib.py",
+        "scripts/verify-all.sh",
+        "scripts/verify-layer-1.sh",
+        "scripts/verify-layer-2.sh",
+        "scripts/verify-layer-3.sh",
+        "scripts/verify-layer-4.sh",
+        "scripts/verify-layer-5.sh"
       ]
     },
     "content": [
