@@ -42,7 +42,7 @@
         "verifier": ["builtin:content"],
         "files": ["packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/merge.rs"],
         "reason": "Cargo merge Result contract",
-        "required": ["Result<ResolvedCargoTomlRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "required": ["Result<ResolvedCargoTomlRequirements", "ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
         "forbidden": ["(ResolvedCargoTomlRequirements, Vec<ConflictEntry>)"]
       },
       {

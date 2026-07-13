@@ -64,10 +64,12 @@ def merge_contracts() -> tuple[bool, str]:
     errors = []
     for relative, resolved in ENTRY["engines"]:
         source = (ROOT / relative).read_text()
-        result_type = re.sub(r"\s+", "", f"Result<{resolved}, Vec<ConflictEntry>>")
+        result_type = re.compile(
+            rf"Result<{re.escape(resolved)},Vec<(?:aqc_file_engine_core::)?ConflictEntry>>"
+        )
         normalized = re.sub(r"\s+", "", source)
-        if result_type not in normalized:
-            errors.append(f"{relative}: merge does not return {result_type}")
+        if not result_type.search(normalized):
+            errors.append(f"{relative}: merge does not return Result<{resolved},Vec<ConflictEntry>>")
         for token in ("ifconflicts.is_empty()", "Ok(resolved)", "Err(conflicts)"):
             if token not in normalized:
                 errors.append(f"{relative}: missing {token}")
