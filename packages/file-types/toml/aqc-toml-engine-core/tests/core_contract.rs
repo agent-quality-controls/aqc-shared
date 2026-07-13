@@ -164,7 +164,7 @@ fn exact_array_items_create_missing_members_and_repair_values() {
 
     let mut wrong = "items = [\"a=2\"]\n"
         .parse::<DocumentMut>()
-        .expect("valid TOML");
+        .expect("the list-field test fixture must parse as valid TOML");
     findings.clear();
     reconcile_array_items(&mut wrong, field, &requirements, &mut findings);
     assert_eq!(wrong.to_string(), "items = [\"a=1\"]\n");
@@ -183,7 +183,7 @@ fn exact_array_table_items_create_missing_members_and_repair_values() {
 
     let mut wrong = "[[items]]\nkey = \"a\"\nvalue = \"2\"\n"
         .parse::<DocumentMut>()
-        .expect("valid TOML");
+        .expect("the array-table test fixture must parse as valid TOML");
     findings.clear();
     reconcile_array_table_items(&mut wrong, field, &requirements, &mut findings);
     assert!(wrong.to_string().contains("value = \"1\""));
