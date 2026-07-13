@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
 repo="$(git rev-parse --show-toplevel)"
+staged_paths="$(mktemp)"
 workspaces="$(mktemp)"
-trap 'rm -f "$workspaces"' EXIT
+sorted_workspaces="$(mktemp)"
+trap 'rm -f "$staged_paths" "$workspaces" "$sorted_workspaces"' EXIT
 
 run_check() {
   output="$(mktemp)"
@@ -31,17 +33,93 @@ is_workspace_file() {
   esac
 }
 
-has_workspace_marker() {
-  dir_rel="$1"
-  marker="$2"
-  if [ -n "$dir_rel" ]; then
-    current="$repo/$dir_rel/$marker"
-    committed="$dir_rel/$marker"
+if git -C "$repo" rev-parse --verify -q HEAD >/dev/null; then
+  has_head=true
+else
+  status=$?
+  if [ "$status" -eq 1 ]; then
+    has_head=false
   else
-    current="$repo/$marker"
-    committed="$marker"
+    echo "Shackles could not inspect Git HEAD" >&2
+    exit "$status"
   fi
-  [ -f "$current" ] || git -C "$repo" cat-file -e "HEAD:$committed" 2>/dev/null
+fi
+
+probe_index_path() {
+  probe_path="$1"
+  if git -C "$repo" ls-files --cached --error-unmatch -- "$probe_path" >/dev/null 2>&1; then
+    return 0
+  else
+    status=$?
+    [ "$status" -eq 1 ] && return 1
+    echo "Shackles could not inspect staged marker: $probe_path" >&2
+    return "$status"
+  fi
+}
+
+probe_head_path() {
+  probe_path="$1"
+  [ "$has_head" = false ] && return 1
+  if head_paths="$(git -C "$repo" ls-tree -r --name-only HEAD -- "$probe_path")"; then
+    [ "$head_paths" = "$probe_path" ]
+  else
+    status=$?
+    echo "Shackles could not inspect committed marker: $probe_path" >&2
+    return "$status"
+  fi
+}
+
+marker_exists() {
+  marker_dir_rel="$1"
+  marker_name="$2"
+  if [ -n "$marker_dir_rel" ]; then
+    marker_path="$marker_dir_rel/$marker_name"
+  else
+    marker_path="$marker_name"
+  fi
+  if probe_index_path "$marker_path"; then
+    return 0
+  else
+    status=$?
+    [ "$status" -ne 1 ] && return "$status"
+  fi
+  probe_head_path "$marker_path"
+}
+
+marker_pair_exists() {
+  marker_dir_rel="$1"
+  if marker_exists "$marker_dir_rel" Cargo.toml; then
+    :
+  else
+    status=$?
+    [ "$status" -eq 1 ] && return 1
+    return "$status"
+  fi
+  if marker_exists "$marker_dir_rel" shakrs.json; then
+    return 0
+  else
+    return $?
+  fi
+}
+
+is_fixture_workspace() {
+  candidate_rel="$1"
+  [ -z "$candidate_rel" ] && return 1
+  fixture_parent="$(dirname "$candidate_rel")"
+  [ "$fixture_parent" = . ] && fixture_parent=""
+  while :; do
+    if probe_index_path "${fixture_parent:+$fixture_parent/}fixture.toml"; then
+      return 0
+    else
+      status=$?
+      [ "$status" -ne 1 ] && return "$status"
+    fi
+    [ -z "$fixture_parent" ] && return 1
+    fixture_next="$(dirname "$fixture_parent")"
+    [ "$fixture_next" = . ] && fixture_next=""
+    [ "$fixture_next" = "$fixture_parent" ] && return 1
+    fixture_parent="$fixture_next"
+  done
 }
 
 record_workspace_for_path() {
@@ -49,23 +127,39 @@ record_workspace_for_path() {
   dir_rel="$(dirname "$rel")"
   [ "$dir_rel" = . ] && dir_rel=""
   while :; do
-    if has_workspace_marker "$dir_rel" Cargo.toml && has_workspace_marker "$dir_rel" shakrs.json; then
+    if marker_pair_exists "$dir_rel"; then
+      if is_fixture_workspace "$dir_rel"; then
+        return 0
+      else
+        status=$?
+        [ "$status" -ne 1 ] && return "$status"
+      fi
       if [ -n "$dir_rel" ]; then
         printf '%s/%s\n' "$repo" "$dir_rel" >> "$workspaces"
       else
         printf '%s\n' "$repo" >> "$workspaces"
       fi
-      return
+      return 0
+    else
+      status=$?
+      [ "$status" -ne 1 ] && return "$status"
     fi
-    [ -z "$dir_rel" ] && return
+    [ -z "$dir_rel" ] && return 0
     parent="$(dirname "$dir_rel")"
     [ "$parent" = . ] && parent=""
-    [ "$parent" = "$dir_rel" ] && return
+    [ "$parent" = "$dir_rel" ] && return 0
     dir_rel="$parent"
   done
 }
 
-git -C "$repo" -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=ACDM |
+if git -C "$repo" -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=ACDM > "$staged_paths"; then
+  :
+else
+  status=$?
+  echo "Shackles could not read staged paths" >&2
+  exit "$status"
+fi
+
 while IFS= read -r rel; do
   case "$rel" in
     \"*)
@@ -76,9 +170,16 @@ while IFS= read -r rel; do
   if is_workspace_file "$rel"; then
     record_workspace_for_path "$rel"
   fi
-done
+done < "$staged_paths"
 
-LC_ALL=C sort -u "$workspaces" |
+if LC_ALL=C sort -u "$workspaces" > "$sorted_workspaces"; then
+  :
+else
+  status=$?
+  echo "Shackles could not sort workspace paths" >&2
+  exit "$status"
+fi
+
 while IFS= read -r workspace; do
   run_check 'shakrs' 'validate' workspace --path "$workspace"
-done
+done < "$sorted_workspaces"

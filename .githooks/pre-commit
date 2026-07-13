@@ -13,6 +13,8 @@ else
 fi
 # g3rs:end managed repo guardrails
 
+#!/bin/sh
+
 # Shackles managed hook chain: shakrs
 repo="$(git rev-parse --show-toplevel)"
 fragment="$repo/.githooks/pre-commit.d/shakrs"

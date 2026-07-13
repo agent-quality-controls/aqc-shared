@@ -1,0 +1,215 @@
+{
+  "version": 4,
+  "requirements": {
+    "tree": {
+      "verifier": ["builtin:tree"],
+      "reason": "Frozen plan: required AQC contract and proof files",
+      "required": [
+        "packages/aqc-file-engine-core/src/engine.rs",
+        "packages/aqc-file-engine-core/tests/public_contract.rs",
+        "packages/file-types/text/aqc-text-engine-core/src/requirement/merge.rs",
+        "packages/file-types/text/aqc-text-engine-core/src/requirement/model.rs",
+        "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
+        "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/merge.rs",
+        "packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/model.rs",
+        "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/merge.rs",
+        "packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/model.rs",
+        "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/merge.rs",
+        "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/model.rs",
+        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/merge.rs",
+        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/model.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/merge.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs",
+        "specs/verifiers/verify_resolution_contract_cleanup.py"
+      ]
+    },
+    "content": [
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/src/engine.rs"],
+        "reason": "Core dispatch accepts Result and separates reconciliation from conflict output",
+        "required": ["Result<ResolvedRequirements, Vec<ConflictEntry>>", "match merge(typed)", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["let (merged, conflicts) = merge(typed)", "reconcile_one(current_bytes, &merged)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/text/aqc-text-engine-core/src/requirement/merge.rs"],
+        "reason": "Text merge Result contract",
+        "required": ["Result<ResolvedTextFileRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["(ResolvedTextFileRequirements, Vec<ConflictEntry>)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/merge.rs"],
+        "reason": "Cargo merge Result contract",
+        "required": ["Result<ResolvedCargoTomlRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["(ResolvedCargoTomlRequirements, Vec<ConflictEntry>)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/merge.rs"],
+        "reason": "Clippy merge Result contract",
+        "required": ["Result<ResolvedClippyTomlRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["(ResolvedClippyTomlRequirements, Vec<ConflictEntry>)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-deny-toml-engine/src/requirement/merge.rs"],
+        "reason": "Deny merge Result contract and removed tuple alias",
+        "required": ["Result<ResolvedDenyTomlRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["DenyMergeOutput", "(ResolvedDenyTomlRequirements, Vec<ConflictEntry>)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/merge.rs"],
+        "reason": "Rust toolchain merge Result contract and removed tuple alias",
+        "required": ["Result<ResolvedRustToolchainTomlRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["RustToolchainMergeOutput", "(ResolvedRustToolchainTomlRequirements, Vec<ConflictEntry>)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/merge.rs"],
+        "reason": "Rustfmt merge Result contract and removed tuple alias",
+        "required": ["Result<ResolvedRustfmtTomlRequirements, Vec<ConflictEntry>>", "Ok(resolved)", "Err(conflicts)"],
+        "forbidden": ["RustfmtMergeOutput", "(ResolvedRustfmtTomlRequirements, Vec<ConflictEntry>)"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": [
+          "packages/file-types/toml/aqc-cargo-toml-engine/src/**/*.rs",
+          "packages/file-types/toml/aqc-clippy-toml-engine/src/**/*.rs",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/**/*.rs"
+        ],
+        "reason": "Compensating conflict blocks, fields, exports, and branches are removed",
+        "forbidden": [
+          "DependencyForbiddenGlobConflictBlocks", "ClippyForbiddenGlobConflictBlocks", "RustfmtForbiddenIgnoreGlobConflictBlocks",
+          "dependency_glob_conflicts", "workspace_dependency_glob_conflicts", "patch_dependency_glob_conflicts",
+          "disallowed_method_glob_conflicts", "disallowed_type_glob_conflicts", "disallowed_macro_glob_conflicts", "ignore_glob_conflicts"
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": [
+          "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
+          "packages/file-types/text/aqc-text-engine-core/Cargo.toml",
+          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
+        ],
+        "reason": "Affected AQC packages consume file-engine core and no Shackles packages",
+        "required": ["aqc-file-engine-core"],
+        "forbiddenGlobs": ["shackles*", "shakrs*", "shakts*"]
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": [
+          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
+        ],
+        "reason": "All TOML engines consume TOML core",
+        "required": ["aqc-toml-engine-core"]
+      }
+    ],
+    "enumerations": [
+      {
+        "verifier": ["builtin:rust-enumerations"],
+        "files": ["packages/aqc-file-engine-core/src/finding.rs"],
+        "name": "Finding",
+        "reason": "Finding vocabulary remains unchanged",
+        "values": ["Mismatch", "UnwritableRequiredKey", "InvalidRequirements", "ParseError", "ConflictingRequirements", "InternalError"]
+      },
+      {
+        "verifier": ["builtin:rust-enumerations"],
+        "files": ["packages/aqc-file-engine-core/src/types.rs"],
+        "name": "Severity",
+        "reason": "Finding severity remains unchanged",
+        "values": ["Error", "Warning", "Info"]
+      }
+    ],
+    "custom": [
+      {
+        "verifier": ["python3", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "check": "merge-result-contracts",
+        "reason": "Inspect all public merge APIs and core dispatch behavior",
+        "engines": [
+          ["packages/file-types/text/aqc-text-engine-core/src/requirement/merge.rs", "ResolvedTextFileRequirements"],
+          ["packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/merge.rs", "ResolvedCargoTomlRequirements"],
+          ["packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/merge.rs", "ResolvedClippyTomlRequirements"],
+          ["packages/file-types/toml/aqc-deny-toml-engine/src/requirement/merge.rs", "ResolvedDenyTomlRequirements"],
+          ["packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/merge.rs", "ResolvedRustToolchainTomlRequirements"],
+          ["packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/merge.rs", "ResolvedRustfmtTomlRequirements"]
+        ]
+      },
+      {
+        "verifier": ["python3", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "check": "resolved-root-encapsulation",
+        "reason": "Every root has only crate-visible fields and exact immutable getters",
+        "roots": [
+          ["packages/file-types/text/aqc-text-engine-core/src/requirement/model.rs", "ResolvedTextFileRequirements", ["exact_contents", "contents"]],
+          ["packages/file-types/toml/aqc-cargo-toml-engine/src/requirement/cargo_toml/model.rs", "ResolvedCargoTomlRequirements", ["package_lints", "package_lint_tables", "workspace_lints", "package_fields", "workspace_package_fields", "workspace_fields", "section_presence", "dependencies", "forbidden_dependency_package_globs", "workspace_dependencies", "forbidden_workspace_dependency_package_globs", "features", "profiles", "targets", "patch", "forbidden_patch_dependency_package_globs"]],
+          ["packages/file-types/toml/aqc-clippy-toml-engine/src/requirement/model.rs", "ResolvedClippyTomlRequirements", ["msrv", "thresholds", "disallowed_methods", "forbidden_disallowed_method_path_globs", "disallowed_types", "forbidden_disallowed_type_path_globs", "disallowed_macros", "forbidden_disallowed_macro_path_globs", "bools", "enums"]],
+          ["packages/file-types/toml/aqc-deny-toml-engine/src/requirement/model.rs", "ResolvedDenyTomlRequirements", ["graph_targets", "graph_exclude", "graph_exclude_dev", "graph_exclude_unpublished", "graph_all_features", "graph_no_default_features", "graph_features", "output_feature_depth", "advisories_version", "advisories_db_path", "advisories_db_urls", "advisories_yanked", "advisories_disable_yank_checking", "advisories_ignore", "advisories_unmaintained", "advisories_unsound", "advisories_maximum_db_staleness", "advisories_git_fetch_with_cli", "advisories_unused_ignored_advisory", "licenses_version", "licenses_include_dev", "licenses_include_build", "licenses_allow", "licenses_exceptions", "licenses_confidence_threshold", "licenses_clarify", "licenses_private_ignore", "licenses_private_registries", "licenses_private_ignore_sources", "licenses_unused_allowed_license", "licenses_unused_license_exception", "bans_multiple_versions", "bans_multiple_versions_include_dev", "bans_wildcards", "bans_allow_wildcard_paths", "bans_highlight", "bans_workspace_default_features", "bans_external_default_features", "bans_allow", "bans_allow_workspace", "bans_deny", "bans_features", "bans_skip", "bans_skip_tree", "bans_workspace_dependencies_duplicates", "bans_workspace_dependencies_include_path_dependencies", "bans_workspace_dependencies_unused", "bans_build_executables", "bans_build_interpreted", "bans_build_script_extensions", "bans_build_enable_builtin_globs", "bans_build_globs", "bans_build_include_dependencies", "bans_build_include_workspace", "bans_build_include_archives", "sources_unknown_registry", "sources_unknown_git", "sources_required_git_spec", "sources_allow_git", "sources_private", "sources_allow_registry", "sources_allow_org_github", "sources_allow_org_gitlab", "sources_allow_org_bitbucket", "sources_unused_allowed_source", "exact_settings"]],
+          ["packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/model.rs", "ResolvedRustToolchainTomlRequirements", ["channel", "path", "profile", "components", "targets", "exact_settings"]],
+          ["packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs", "ResolvedRustfmtTomlRequirements", ["scalar_settings", "list_settings", "forbidden_ignore_path_globs", "exact_settings"]]
+        ]
+      },
+      {
+        "verifier": ["python3", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "check": "coherent-registry-generations",
+        "reason": "One new incompatible registry-only core generation is used throughout",
+        "packages": [
+          ["packages/aqc-file-engine-core", "aqc-file-engine-core", "0.5.2"],
+          ["packages/file-types/toml/aqc-toml-engine-core", "aqc-toml-engine-core", "0.5.1"],
+          ["packages/file-types/text/aqc-text-engine-core", "aqc-text-engine-core", "0.4.1"],
+          ["packages/file-types/toml/aqc-cargo-toml-engine", "aqc-cargo-toml-engine", "0.5.2"],
+          ["packages/file-types/toml/aqc-clippy-toml-engine", "aqc-clippy-toml-engine", "0.5.1"],
+          ["packages/file-types/toml/aqc-deny-toml-engine", "aqc-deny-toml-engine", "0.3.1"],
+          ["packages/file-types/toml/aqc-rust-toolchain-toml-engine", "aqc-rust-toolchain-toml-engine", "0.5.1"],
+          ["packages/file-types/toml/aqc-rustfmt-toml-engine", "aqc-rustfmt-toml-engine", "0.5.1"]
+        ]
+      },
+      {
+        "verifier": ["python3", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "check": "exact-changed-path-scope",
+        "reason": "Only frozen-plan AQC packages and named proof/release support may change",
+        "runtimePrefixes": ["packages/aqc-file-engine-core/", "packages/file-types/text/aqc-text-engine-core/", "packages/file-types/toml/aqc-cargo-toml-engine/", "packages/file-types/toml/aqc-clippy-toml-engine/", "packages/file-types/toml/aqc-deny-toml-engine/", "packages/file-types/toml/aqc-rust-toolchain-toml-engine/", "packages/file-types/toml/aqc-rustfmt-toml-engine/"],
+        "manifestOnly": ["packages/file-types/toml/aqc-toml-engine-core/Cargo.toml", "packages/file-types/toml/aqc-toml-engine-core/Cargo.lock"],
+        "supportFiles": ["README.md", "release-plz.toml", "scripts/_verify_lib.py", "scripts/verify-all.sh", "scripts/verify-layer-1.sh", "scripts/verify-layer-2.sh", "scripts/verify-layer-3.sh", "scripts/verify-layer-4.sh", "scripts/verify-layer-5.sh", "specs/resolution-contract-cleanup.spec.json", "specs/resolution-contract-cleanup.spec.coverage.md", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "supportPrefixes": [".worklogs/"]
+      },
+      {
+        "verifier": ["python3", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "check": "frozen-forbidden-source-digests",
+        "reason": "TOML core source and filesystem, git, filetree, and syntax packages remain byte-identical",
+        "roots": [
+          ["packages/file-types/toml/aqc-toml-engine-core/src", 10, "35de629b70e153a28ff0c327b8fffdf9612a72e4ddb34c7c148df6fb3db56b43"],
+          ["packages/aqc-filetree", 19, "8a21ae1fd3279a25dcb0c4344f52549ea61615190e73ecab00e69fbd545b269c"],
+          ["packages/aqc-fs-utils", 19, "f54f469bd3396f8a485c097846f429a6216cbbdf50ca0962fd0584bd203a17dd"],
+          ["packages/aqc-git-helpers", 19, "448292b0078c7504db52a22f8fb38cb32fee5fd258405d4ff25f28a24862ffd6"],
+          ["packages/source/rust/aqc-rust-syntax", 14, "5d2329e1bd79d80f871b33ad1c0210c8f41dfecad0cdfd51aa3df775c743e041"]
+        ]
+      },
+      {
+        "verifier": ["python3", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "check": "targeted-contract-tests",
+        "reason": "Focused preimplementation tests compile the affected public and erased contracts",
+        "commands": [
+          ["cargo", "test", "--locked", "--manifest-path", "packages/aqc-file-engine-core/Cargo.toml", "--test", "public_contract"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/text/aqc-text-engine-core/Cargo.toml", "--test", "merge_tests"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml", "--test", "dependency_globs"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml", "--test", "merge"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml", "--test", "merge"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml", "--test", "behavior"],
+          ["cargo", "test", "--locked", "--manifest-path", "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml", "--test", "merge"]
+        ]
+      }
+    ]
+  }
+}

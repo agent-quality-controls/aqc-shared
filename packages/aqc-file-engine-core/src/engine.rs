@@ -63,7 +63,7 @@ pub fn merged_reconcile<Requirements, ResolvedRequirements, Merge, Reconcile>(
 ) -> EngineOutput
 where
     Requirements: EngineRequirement + Clone,
-    Merge: Fn(Vec<(Provenance, Requirements)>) -> (ResolvedRequirements, Vec<ConflictEntry>),
+    Merge: Fn(Vec<(Provenance, Requirements)>) -> Result<ResolvedRequirements, Vec<ConflictEntry>>,
     Reconcile: Fn(Option<&[u8]>, &ResolvedRequirements) -> EngineOutput,
 {
     let typed: Vec<(Provenance, Requirements)> = reqs
@@ -76,28 +76,26 @@ where
         .collect();
     if typed.is_empty() {
         return EngineOutput {
-            expected_bytes: current_bytes.map(<[u8]>::to_vec).unwrap_or_default(),
+            expected_bytes: current_bytes.unwrap_or_default().to_vec(),
             findings: Vec::new(),
         };
     }
-    let (merged, conflicts) = merge(typed);
-    if !conflicts.is_empty() {
-        let findings = conflicts
-            .into_iter()
-            .map(|entry| Finding::ConflictingRequirements {
-                key: entry.key,
-                contributors: entry
-                    .contributors
-                    .into_iter()
-                    .map(|(prov, value)| (prov.policy, value))
-                    .collect(),
-                reason: entry.reason,
-            })
-            .collect();
-        return EngineOutput {
-            expected_bytes: current_bytes.map(<[u8]>::to_vec).unwrap_or_default(),
-            findings,
-        };
+    match merge(typed) {
+        Ok(resolved) => reconcile_one(current_bytes, &resolved),
+        Err(conflicts) => EngineOutput {
+            expected_bytes: current_bytes.unwrap_or_default().to_vec(),
+            findings: conflicts
+                .into_iter()
+                .map(|conflict| Finding::ConflictingRequirements {
+                    key: conflict.key,
+                    reason: conflict.reason,
+                    contributors: conflict
+                        .contributors
+                        .into_iter()
+                        .map(|(provenance, value)| (provenance.policy, value))
+                        .collect(),
+                })
+                .collect(),
+        },
     }
-    reconcile_one(current_bytes, &merged)
 }
