@@ -180,7 +180,7 @@
         "baseline": "444a8c7033bdc0c98053afd8eb94ab50c82628e3",
         "runtimePrefixes": ["packages/aqc-file-engine-core/", "packages/file-types/text/aqc-text-engine-core/", "packages/file-types/toml/aqc-cargo-toml-engine/", "packages/file-types/toml/aqc-clippy-toml-engine/", "packages/file-types/toml/aqc-deny-toml-engine/", "packages/file-types/toml/aqc-rust-toolchain-toml-engine/", "packages/file-types/toml/aqc-rustfmt-toml-engine/"],
         "manifestOnly": ["packages/file-types/toml/aqc-toml-engine-core/Cargo.toml", "packages/file-types/toml/aqc-toml-engine-core/Cargo.lock"],
-        "supportFiles": ["README.md", "release-plz.toml", "scripts/_verify_lib.py", "scripts/verify-all.sh", "scripts/verify-layer-1.sh", "scripts/verify-layer-2.sh", "scripts/verify-layer-3.sh", "scripts/verify-layer-4.sh", "scripts/verify-layer-5.sh", "specs/resolution-contract-cleanup.spec.json", "specs/resolution-contract-cleanup.spec.coverage.md", "specs/verifiers/verify_resolution_contract_cleanup.py"],
+        "supportFiles": [".githooks/pre-commit.d/shakrs", "README.md", "release-plz.toml", "packages/aqc-file-engine-core/guardrail3-rs.toml", "packages/file-types/toml/aqc-toml-engine-core/guardrail3-rs.toml", "packages/file-types/toml/aqc-toml-engine-core/tests/core_contract.rs", "scripts/_verify_lib.py", "scripts/verify-all.sh", "scripts/verify-layer-1.sh", "scripts/verify-layer-2.sh", "scripts/verify-layer-3.sh", "scripts/verify-layer-4.sh", "scripts/verify-layer-5.sh", "specs/resolution-contract-cleanup.spec.json", "specs/resolution-contract-cleanup.spec.coverage.md", "specs/verifiers/verify_resolution_contract_cleanup.py"],
         "supportPrefixes": [".worklogs/"]
       },
       {
