@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -137,7 +138,60 @@ def root_contracts() -> tuple[bool, str]:
             errors.append(f"{name}: public methods {sorted(public_methods)} != getters {sorted(expected)}")
         if re.search(r"pub\s+fn\s+\w+\s*\([^)]*&mut\s+self|pub\s+fn\s+\w+[^-]*->\s*&mut", impls, re.S):
             errors.append(f"{name}: mutable public API exposed")
+    errors.extend(external_root_contract_errors())
     return not errors, "; ".join(errors)
+
+
+def external_root_contract_errors() -> list[str]:
+    errors = []
+    with tempfile.TemporaryDirectory(prefix="aqc-resolved-root-contract-") as temp:
+        project = Path(temp)
+        dependencies = []
+        bins = []
+        for index, (relative, name, fields) in enumerate(ENTRY["roots"]):
+            crate_dir = (ROOT / relative).parent
+            while not (crate_dir / "Cargo.toml").is_file():
+                if crate_dir == ROOT:
+                    errors.append(f"{relative}: owning crate not found")
+                    break
+                crate_dir = crate_dir.parent
+            else:
+                manifest = tomllib.loads((crate_dir / "Cargo.toml").read_text())
+                package = manifest["package"]["name"]
+                dependency = f"contract_{index}"
+                dependencies.append(f'{dependency} = {{ package = "{package}", path = "{crate_dir.as_posix()}" }}')
+                bin_name = f"root_{index}"
+                bins.append((bin_name, name, fields[0]))
+                source_dir = project / "src" / "bin"
+                source_dir.mkdir(parents=True, exist_ok=True)
+                (source_dir / f"{bin_name}.rs").write_text(
+                    f"use {dependency}::{name};\n"
+                    "fn main() {\n"
+                    f"    let mut resolved = {name}::default();\n"
+                    f"    resolved.{fields[0]} = Default::default();\n"
+                    f"    let _constructed = {name} {{ {fields[0]}: Default::default(), ..Default::default() }};\n"
+                    "}\n"
+                )
+        (project / "Cargo.toml").write_text(
+            "[package]\nname = \"resolved-root-contract\"\nversion = \"0.0.0\"\nedition = \"2024\"\n"
+            "[workspace]\nresolver = \"3\"\n[dependencies]\n"
+            + "\n".join(dependencies)
+            + "\n"
+        )
+        for bin_name, name, field in bins:
+            result = subprocess.run(
+                ["cargo", "check", "--quiet", "--bin", bin_name],
+                cwd=project,
+                text=True,
+                capture_output=True,
+                timeout=180,
+                check=False,
+            )
+            if result.returncode == 0:
+                errors.append(f"{name}.{field}: downstream mutation and construction compiled")
+            elif field not in result.stderr or "private" not in result.stderr:
+                errors.append(f"{name}.{field}: compile failure did not prove private-field boundary")
+    return errors
 
 
 def dependency_contracts() -> tuple[bool, str]:

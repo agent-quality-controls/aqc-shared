@@ -145,6 +145,11 @@ fn exact_collection_rejects_dependency_without_identity() {
             .iter()
             .any(|conflict| conflict.reason == "invalid-dependency-requirement")
     );
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.contributors.iter().any(|(source, value)| {
+            source.policy == "policy" && value == "missing file_key or package"
+        })
+    }));
 }
 
 #[test]
@@ -169,6 +174,13 @@ fn exact_collection_rejects_two_packages_using_one_file_key() {
             .iter()
             .any(|conflict| conflict.reason == "dependency-file-key-package-conflict")
     );
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.contributors.len() == 2
+            && conflict
+                .contributors
+                .iter()
+                .all(|(source, value)| source.policy == "policy" && value.contains("file_key json"))
+    }));
 }
 
 #[test]

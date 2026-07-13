@@ -198,6 +198,61 @@ fn exact_only_disallowed_path_matching_glob_conflicts() {
         conflicts.as_slice(),
         [conflict] if conflict.key == "disallowed-methods.std::env::set_var"
     ));
+    assert_eq!(
+        conflicts[0]
+            .contributors
+            .iter()
+            .map(|(source, value)| (source.policy.as_str(), value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("policy", "required"), ("policy", "forbidden")]
+    );
+}
+
+#[test]
+fn required_and_exact_disallowed_path_glob_conflict_preserves_all_attribution() {
+    let required = ClippyTomlRequirements {
+        disallowed_methods: ItemRequirements {
+            required: vec![(forbid("std::env::set_var"), "required method".to_owned())],
+            forbidden: Vec::new(),
+            exact: None,
+        },
+        ..ClippyTomlRequirements::default()
+    };
+    let exact = ClippyTomlRequirements {
+        disallowed_methods: ItemRequirements {
+            required: Vec::new(),
+            forbidden: Vec::new(),
+            exact: Some((
+                vec![forbid("std::env::set_var")],
+                "exact methods".to_owned(),
+            )),
+        },
+        ..ClippyTomlRequirements::default()
+    };
+    let forbidden = ClippyTomlRequirements {
+        forbidden_disallowed_method_path_globs: path_globs(vec![("std::env::*", "no env")]),
+        ..ClippyTomlRequirements::default()
+    };
+
+    let conflicts = ClippyTomlRequirements::merge(vec![
+        (prov("required-policy"), required),
+        (prov("exact-policy"), exact),
+        (prov("forbidden-policy"), forbidden),
+    ])
+    .expect_err("forbidden path glob should conflict with required exact method");
+
+    assert_eq!(
+        conflicts[0]
+            .contributors
+            .iter()
+            .map(|(source, value)| (source.policy.as_str(), value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("required-policy", "required"),
+            ("exact-policy", "required"),
+            ("forbidden-policy", "forbidden")
+        ]
+    );
 }
 
 #[test]

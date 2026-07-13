@@ -208,6 +208,17 @@ fn exact_only_package_matching_glob_forbid_conflicts() {
         conflicts[0].reason,
         "dependency-package-glob-forbids-required-package"
     );
+    assert_eq!(
+        conflicts[0]
+            .contributors
+            .iter()
+            .map(|(source, value)| (source.policy.as_str(), value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("p1", "required package openssl-sys"),
+            ("p2", "forbidden package glob openssl-*")
+        ]
+    );
 }
 
 #[test]
@@ -271,6 +282,23 @@ fn required_exact_dependency_matching_glob_forbid_does_not_remove_dependency() {
         )),
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
+    let conflicts = cargo::CargoTomlRequirements::merge(vec![
+        (prov("p1"), exact.clone()),
+        (prov("p2"), glob.clone()),
+    ])
+    .expect_err("forbidden package glob should conflict with required exact dependency");
+    assert_eq!(
+        conflicts[0]
+            .contributors
+            .iter()
+            .map(|(source, value)| (source.policy.as_str(), value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("p1", "required package openssl-sys"),
+            ("p1", "required package openssl-sys"),
+            ("p2", "forbidden package glob openssl-*")
+        ]
+    );
     let out = cargo_output(
         Some(b"[dependencies]\nssl = { package = \"openssl-sys\", version = \"0.9\" }\n"),
         vec![(prov("p1"), exact), (prov("p2"), glob)],
