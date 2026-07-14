@@ -1,0 +1,18 @@
+{
+  "suite": "shakts-pnpm-aqc",
+  "kind": "approved",
+  "run_id": "2026-07-13T22-43-32.699016Z-8bba8cc9",
+  "run_commit": "008018b",
+  "working_tree": "dirty",
+  "recorded_at": "2026-07-13T22:43:32.699016Z",
+  "fixture_hash": "sha256:428348370282f9b962cbf7077b9b10c75b365da2b836c775ade0c235104db735",
+  "manifest_hash": "sha256:8bba8cc91d541b1828606672e99f9dece3e121621a31532a72fe6433f68d9338",
+  "tool_version": "0.1.8",
+  "output_schema_version": "1",
+  "fixtures": [
+    {
+      "path": "fixtures/shakts-pnpm-aqc/contracts.json",
+      "sha256": "sha256:977d2c923dae352c475f8a0b9cdd59d8b34cff639be96d130e3adbf4a0acb946"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+version: 1
+
+features:
+  shakts-pnpm-aqc:
+    spec: "specs/shakts-pnpm-aqc.spec.json"
+    suites:
+      - "shakts-pnpm-aqc"
+
+suites:
+  shakts-pnpm-aqc:
+    tags:
+      - "file-engines"
+      - "json"
+      - "yaml"
+    fixtures:
+      - "fixtures/shakts-pnpm-aqc/*.json"
+    command:
+      argv:
+        - "python3"
+        - "fixtures/scripts/fixture3-shakts-pnpm-aqc.py"
+        - "{fixtures}"
+      ok_exit_codes:
+        - 0
+    storage:
+      approved_dir: "fixtures/approved/shakts-pnpm-aqc"
+      received_dir: ".fixture3/shakts-pnpm-aqc"
+      diff_dir: ".fixture3/shakts-pnpm-aqc"

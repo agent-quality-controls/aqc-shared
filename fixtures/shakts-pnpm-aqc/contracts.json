@@ -1,0 +1,10 @@
+{
+  "cases": [
+    "duplicate-json",
+    "missing-package-json",
+    "merged-yaml",
+    "quoted-merge-key",
+    "forbidden-selector",
+    "exact-only-isolation"
+  ]
+}

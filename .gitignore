@@ -3,5 +3,6 @@ target/
 **/target/
 /.cargo-target/
 **/*.rs.bk
+.fixture3/
 __pycache__/
 *.pyc

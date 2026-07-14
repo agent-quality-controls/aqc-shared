@@ -1,0 +1,21 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-json-engine-core",
+  "aqc-package-json-engine",
+  "aqc-pnpm-workspace-yaml-engine",
+  "aqc-yaml-engine-core",
+  "serde_json",
+]
+
+[checks]
+code = false
+cargo = false
+deny = false
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false

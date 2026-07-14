@@ -17,6 +17,18 @@ name = "aqc-clippy-toml-engine"
 name = "aqc-file-engine-core"
 
 [[package]]
+name = "aqc-json-engine-core"
+
+[[package]]
+name = "aqc-package-json-engine"
+
+[[package]]
+name = "aqc-pnpm-workspace-yaml-engine"
+
+[[package]]
+name = "aqc-text-file-engine"
+
+[[package]]
 name = "aqc-filetree"
 
 [[package]]
@@ -33,3 +45,12 @@ name = "aqc-rustfmt-toml-engine"
 
 [[package]]
 name = "aqc-toml-engine-core"
+
+[[package]]
+name = "aqc-yaml-engine-core"
+
+[[package]]
+name = "aqc-deny-toml-engine"
+
+[[package]]
+name = "aqc-rust-toolchain-toml-engine"

@@ -1,0 +1,93 @@
+{
+  "cases": [
+    {
+      "fixture": "contracts.json",
+      "result": {
+        "duplicateJson": [
+          {
+            "kind": "parse",
+            "message": "config.json is not a valid JSON object: duplicate object member `setting` at line 1 column 25"
+          }
+        ],
+        "exactOnlyIsolation": {
+          "findingCount": 1,
+          "findings": [
+            {
+              "key": "allowBuilds",
+              "kind": "mismatch",
+              "policies": [
+                "consumer-policy"
+              ],
+              "selector": null
+            }
+          ]
+        },
+        "forbiddenSelector": {
+          "expected": "trustPolicyExclude:\n- safe\n",
+          "findings": [
+            {
+              "key": "trustPolicyExclude",
+              "kind": "mismatch",
+              "policies": [
+                "consumer-policy"
+              ],
+              "selector": "@scope/unsafe"
+            }
+          ]
+        },
+        "mergedYaml": {
+          "direct": true,
+          "inherited": true,
+          "keys": [
+            "defaults",
+            "direct",
+            "inherited"
+          ]
+        },
+        "missingPackageJson": {
+          "expected": "{\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"tool\",\n      \"onFail\": \"error\",\n      \"version\": \"2.3.4\"\n    }\n  },\n  \"packageManager\": \"tool@2.3.4\"\n}\n",
+          "findings": [
+            {
+              "key": "packageManager",
+              "kind": "mismatch",
+              "policies": [
+                "consumer-policy"
+              ],
+              "selector": null
+            },
+            {
+              "key": "devEngines.packageManager.name",
+              "kind": "mismatch",
+              "policies": [
+                "consumer-policy"
+              ],
+              "selector": null
+            },
+            {
+              "key": "devEngines.packageManager.version",
+              "kind": "mismatch",
+              "policies": [
+                "consumer-policy"
+              ],
+              "selector": null
+            },
+            {
+              "key": "devEngines.packageManager.onFail",
+              "kind": "mismatch",
+              "policies": [
+                "consumer-policy"
+              ],
+              "selector": null
+            }
+          ]
+        },
+        "quotedMergeKey": {
+          "keys": [
+            "<<"
+          ],
+          "value": "ordinary"
+        }
+      }
+    }
+  ]
+}
