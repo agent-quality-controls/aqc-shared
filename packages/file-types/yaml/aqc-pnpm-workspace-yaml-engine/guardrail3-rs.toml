@@ -1,0 +1,143 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-yaml-engine-core",
+  "globset",
+  "schemars",
+  "serde",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:missing_docs_in_private_items"
+reason = "Private pnpm reconciliation mechanics are documented at module and public API boundaries."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:module_name_repetitions"
+reason = "Canonical pnpm requirement names retain the file-format vocabulary."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:multiple_crate_versions"
+reason = "The YAML and schema dependency graphs contain upstream version splits outside this crate's control."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:result_large_err"
+reason = "Engine requirement errors preserve structured contributor data without boxing."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:result_large_err"
+reason = "Engine requirement errors preserve structured contributor data without boxing."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:too_many_arguments"
+reason = "Reconciliation helpers receive explicit requirement and finding inputs without hidden context."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:too_many_arguments"
+reason = "Reconciliation helpers receive explicit requirement and finding inputs without hidden context."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:too_many_lines"
+reason = "Requirement resolution keeps the complete field mapping visible in one cohesive function."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:too_many_lines"
+reason = "Requirement resolution keeps the complete field mapping visible in one cohesive function."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:trivially_copy_pass_by_ref"
+reason = "Shared reconciliation signatures consistently borrow assertion values."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:type_complexity"
+reason = "Resolved requirement relationships remain explicit instead of hidden behind local aliases."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:type_complexity"
+reason = "Resolved requirement relationships remain explicit instead of hidden behind local aliases."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/types/model.rs"
+selector = "struct:PnpmWorkspaceYamlRequirements"
+reason = "The public requirement root mirrors pnpm-workspace.yaml settings and is constructed by adapters."
+
+[[waivers]]
+rule = "g3rs-code/public-struct-named-fields"
+subject = "src/types/model.rs"
+selector = "struct:PnpmPackageSelectorGlob"
+reason = "The glob wrapper is a plain requirement value constructed by adapters."
+
+[[waivers]]
+rule = "g3rs-code/large-type-inventory"
+subject = "src/types/model.rs"
+selector = "struct:PnpmWorkspaceYamlRequirements"
+reason = "The requirement root mirrors the managed pnpm-workspace.yaml settings without artificial grouping."
+
+[[waivers]]
+rule = "g3rs-code/large-type-inventory"
+subject = "src/types/model.rs"
+selector = "struct:ResolvedPnpmWorkspaceYamlRequirements"
+reason = "The resolved root preserves the same field-for-field engine contract after composition."
+
+[[waivers]]
+rule = "g3rs-deny/advisories-baseline"
+subject = "deny.toml"
+selector = "title:advisories-unmaintained-has-wrong-value"
+reason = "A universal library audits unmaintained dependencies across its complete dependency graph."
+
+[[waivers]]
+rule = "g3rs-deny/allow-wildcard-paths"
+subject = "deny.toml"
+selector = "title:allow-wildcard-paths-must-be-true"
+reason = "Published AQC crates forbid wildcard path dependencies."
+
+[[waivers]]
+rule = "g3rs-deny/license-allow-baseline"
+subject = "deny.toml"
+selector = "title:licenses-private-ignore-must-be-true"
+reason = "Published AQC crates audit private-package licenses."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:canonical-registry-missing"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:unexpected-registry-allowed"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
