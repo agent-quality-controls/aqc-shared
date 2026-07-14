@@ -3,6 +3,7 @@ use std::path::Path;
 use aqc_file_engine_core::{
     FileEngine, Finding, ForbiddenGlobRequirements, Provenance, ScalarAssertion,
 };
+use aqc_json_engine_core::JsonParseOptions;
 use aqc_package_json_engine::{
     DevEnginePackageManagerRequirements, PackageJsonEngine, PackageJsonRequirements,
     PackageManagerOnFail,
@@ -64,6 +65,19 @@ fn main() {
     let (_, duplicate_findings) = aqc_json_engine_core::parse_object_or_report(
         Some(br#"{"setting":true,"setting":false}"#),
         "config.json",
+        JsonParseOptions {
+            allow_comments: false,
+            allow_loose_object_property_names: false,
+            allow_trailing_commas: false,
+            allow_missing_commas: false,
+            allow_single_quoted_strings: false,
+            allow_hexadecimal_numbers: false,
+            allow_unary_plus_numbers: false,
+            allow_extended_json_numbers: false,
+            allow_extended_string_escapes: false,
+            allow_extended_whitespace: false,
+            allow_utf8_bom: false,
+        },
     );
 
     let package = PackageJsonRequirements {

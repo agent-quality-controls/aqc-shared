@@ -2,7 +2,9 @@
   "version": 4,
   "requirements": {
     "tree": {
-      "verifier": ["builtin:tree"],
+      "verifier": [
+        "builtin:tree"
+      ],
       "reason": "Plan: File And Package Scope, Public Types, and the required independent AQC workspaces.",
       "required": [
         "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
@@ -56,44 +58,78 @@
     },
     "content": [
       {
-        "verifier": ["builtin:content"],
+        "verifier": [
+          "builtin:content"
+        ],
         "files": [
           "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
           "packages/file-types/json/aqc-package-json-engine/Cargo.toml",
           "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml",
           "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"
         ],
-        "required": ["publish = true", "resolver = \"3\""],
-        "forbidden": ["path ="],
+        "required": [
+          "publish = true",
+          "resolver = \"3\""
+        ],
+        "forbidden": [
+          "path ="
+        ],
         "reason": "Plan: new AQC crates are independently extractable, publishable workspaces with no path dependencies."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml"],
-        "required": ["yaml-edit = \"0.2.3\""],
-        "forbidden": ["serde_yaml", "serde-yaml", "serde_yml", "serde-yml"],
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml"
+        ],
+        "required": [
+          "yaml-edit = \"0.2.3\""
+        ],
+        "forbidden": [
+          "serde_yaml",
+          "serde-yaml",
+          "serde_yml",
+          "serde-yml"
+        ],
         "reason": "Plan: AQC YAML Core uses yaml-edit 0.2.3 and forbids deprecated serde YAML packages."
       },
       {
-        "verifier": ["builtin:content"],
+        "verifier": [
+          "builtin:content"
+        ],
         "files": [
           "packages/file-types/json/aqc-json-engine-core/src/**/*.rs",
           "packages/file-types/json/aqc-package-json-engine/src/**/*.rs",
           "packages/file-types/yaml/aqc-yaml-engine-core/src/**/*.rs",
           "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"
         ],
-        "forbidden": ["serde_yaml", "serde_yml", "disallow-workspace-cycles"],
+        "forbidden": [
+          "serde_yaml",
+          "serde_yml",
+          "disallow-workspace-cycles"
+        ],
         "reason": "Plan: no deprecated YAML implementation or removed pnpm 10 setting is introduced."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["packages/aqc-file-engine-core/src/**/*.rs"],
-        "exists": ["selector: Option<String>"],
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/aqc-file-engine-core/src/**/*.rs"
+        ],
+        "exists": [
+          "selector: Option<String>"
+        ],
         "reason": "Plan: Finding::Mismatch gains an optional selector."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["release-plz.toml"],
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "release-plz.toml"
+        ],
         "required": [
           "name = \"aqc-json-engine-core\"",
           "name = \"aqc-package-json-engine\"",
@@ -106,39 +142,105 @@
     ],
     "dependencies": [
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/json/aqc-json-engine-core/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "serde_json"],
-        "forbidden": ["aqc-package-json-engine", "aqc-yaml-engine-core", "aqc-pnpm-workspace-yaml-engine"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan: JSON core reuses file-engine vocabulary and serde_json but does not depend on file-specific engines or Shackles."
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-json-engine-core/Cargo.toml"
+        ],
+        "required": [
+        "aqc-file-engine-core",
+        "jsonc-parser",
+        "serde_json",
+        "tree-sitter",
+          "tree-sitter-javascript"
+        ],
+        "forbidden": [
+          "serde",
+          "aqc-package-json-engine",
+          "aqc-yaml-engine-core",
+          "aqc-pnpm-workspace-yaml-engine"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
+        "reason": "Current architecture: JSON core privately owns the lossless parser stack and does not depend on file-specific engines or Shackles."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/json/aqc-package-json-engine/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "aqc-json-engine-core"],
-        "forbidden": ["aqc-yaml-engine-core", "aqc-pnpm-workspace-yaml-engine"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-package-json-engine/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-json-engine-core"
+        ],
+        "forbidden": [
+          "aqc-yaml-engine-core",
+          "aqc-pnpm-workspace-yaml-engine"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: Package JSON engine depends downward on its format core and universal core only."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "yaml-edit"],
-        "forbidden": ["aqc-json-engine-core", "aqc-package-json-engine", "aqc-pnpm-workspace-yaml-engine", "serde_yaml", "serde_yml"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "yaml-edit"
+        ],
+        "forbidden": [
+          "aqc-json-engine-core",
+          "aqc-package-json-engine",
+          "aqc-pnpm-workspace-yaml-engine",
+          "serde_yaml",
+          "serde_yml"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: YAML core uses yaml-edit and does not depend on file-specific engines or Shackles."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "aqc-yaml-engine-core"],
-        "forbidden": ["aqc-json-engine-core", "aqc-package-json-engine"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-yaml-engine-core"
+        ],
+        "forbidden": [
+          "aqc-json-engine-core",
+          "aqc-package-json-engine"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: pnpm YAML engine depends downward on its format core and universal core only."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
         "files": [
           "packages/file-types/text/aqc-text-file-engine/Cargo.toml",
           "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
@@ -148,12 +250,20 @@
           "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
         ],
-        "required": ["aqc-file-engine-core"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "required": [
+          "aqc-file-engine-core"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: every existing AQC engine or format core that exchanges core types moves together without acquiring Shackles dependencies."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
         "files": [
           "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml",
@@ -161,154 +271,309 @@
           "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
         ],
-        "required": ["aqc-toml-engine-core"],
+        "required": [
+          "aqc-toml-engine-core"
+        ],
         "reason": "Plan: existing TOML engines retain the shared TOML format-core boundary."
       }
     ],
     "exports": [
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "package": "aqc-json-engine-core",
-        "required": ["ConfigScalar", "Finding", "Provenance"],
-        "forbidden": ["JsonRequirements", "ResolvedJsonRequirements"],
+        "required": [
+          "ConfigScalar",
+          "Finding",
+          "JsonObject",
+          "JsonParseOptions",
+          "NonObjectParentAction",
+          "Provenance",
+          "ResolvedRequirement",
+          "ScalarAssertion",
+          "ScalarValue",
+          "parse_object_or_report",
+          "reconcile_scalar_assertion"
+        ],
+        "forbidden": [
+          "JsonRequirements",
+          "ResolvedJsonRequirements"
+        ],
         "reason": "Plan: JSON core exports format helpers and reused core vocabulary, not a generic requirement root."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "package": "aqc-package-json-engine",
-        "required": ["PackageJsonRequirements", "DevEnginePackageManagerRequirements", "PackageManagerOnFail", "ResolvedPackageJsonRequirements", "ResolvedDevEnginePackageManagerRequirements", "PackageJsonEngine", "ENGINE_ID", "Provenance", "ConflictEntry"],
+        "required": [
+          "PackageJsonRequirements",
+          "DevEnginePackageManagerRequirements",
+          "PackageManagerOnFail",
+          "ResolvedPackageJsonRequirements",
+          "ResolvedDevEnginePackageManagerRequirements",
+          "PackageJsonEngine",
+          "ENGINE_ID",
+          "Provenance",
+          "ConflictEntry"
+        ],
         "reason": "Plan: Package JSON engine public roots, child vocabulary, engine, and id."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "package": "aqc-yaml-engine-core",
-        "forbidden": ["YamlRequirements", "ResolvedYamlRequirements"],
+        "forbidden": [
+          "YamlRequirements",
+          "ResolvedYamlRequirements"
+        ],
         "reason": "Plan: YAML core exports format mechanics only and no universal requirement root."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "package": "aqc-pnpm-workspace-yaml-engine",
-        "required": ["PnpmOnFail", "PnpmTrustPolicy", "PnpmPackageSelectorGlob", "PnpmReleaseAgeMinutes", "PnpmReleaseAgeMinutesError", "PnpmWorkspaceYamlRequirements", "ResolvedPnpmWorkspaceYamlRequirements", "PnpmWorkspaceYamlEngine", "ENGINE_ID"],
+        "required": [
+          "PnpmOnFail",
+          "PnpmTrustPolicy",
+          "PnpmPackageSelectorGlob",
+          "PnpmReleaseAgeMinutes",
+          "PnpmReleaseAgeMinutesError",
+          "PnpmWorkspaceYamlRequirements",
+          "ResolvedPnpmWorkspaceYamlRequirements",
+          "PnpmWorkspaceYamlEngine",
+          "ENGINE_ID"
+        ],
         "reason": "Plan: pnpm YAML engine public roots, closed values, selector and release-age types, engine, and id."
       }
     ],
     "enumerations": [
       {
-        "verifier": ["builtin:rust-enumerations"],
-        "files": ["packages/file-types/json/aqc-package-json-engine/src/**/*.rs"],
+        "verifier": [
+          "builtin:rust-enumerations"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-package-json-engine/src/**/*.rs"
+        ],
         "name": "PackageManagerOnFail",
-        "values": ["Download", "Error", "Warn", "Ignore"],
+        "values": [
+          "Download",
+          "Error",
+          "Warn",
+          "Ignore"
+        ],
         "reason": "Plan: Package JSON onFail is a closed engine-owned value set."
       },
       {
-        "verifier": ["builtin:rust-enumerations"],
-        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"],
+        "verifier": [
+          "builtin:rust-enumerations"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"
+        ],
         "name": "PnpmOnFail",
-        "values": ["Download", "Error", "Warn", "Ignore"],
+        "values": [
+          "Download",
+          "Error",
+          "Warn",
+          "Ignore"
+        ],
         "reason": "Plan: pnpm pmOnFail is a closed value set."
       },
       {
-        "verifier": ["builtin:rust-enumerations"],
-        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"],
+        "verifier": [
+          "builtin:rust-enumerations"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"
+        ],
         "name": "PnpmTrustPolicy",
-        "values": ["NoDowngrade", "Off"],
+        "values": [
+          "NoDowngrade",
+          "Off"
+        ],
         "reason": "Plan: pnpm trustPolicy is a closed value set."
       },
       {
-        "verifier": ["builtin:rust-enumerations"],
-        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"],
+        "verifier": [
+          "builtin:rust-enumerations"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs"
+        ],
         "name": "PnpmReleaseAgeMinutesError",
-        "values": ["ExceedsJavaScriptSafeInteger"],
+        "values": [
+          "ExceedsJavaScriptSafeInteger"
+        ],
         "reason": "Plan: release age rejects only values above the JavaScript safe-integer maximum at construction."
       }
     ],
     "custom": [
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "check": "exact-public-facade",
         "package": "aqc-json-engine-core",
-        "exact": ["ConfigScalar", "Finding", "JsonObject", "Provenance", "attribution", "parse_object_or_report", "push_mismatch", "reconcile_scalar_assertion", "render_object"],
-        "reason": "Plan: the JSON format-core facade exposes exactly its format helpers and reused core vocabulary."
+        "exact": [
+          "ConfigScalar",
+          "Finding",
+          "JsonObject",
+          "JsonParseOptions",
+          "NonObjectParentAction",
+          "Provenance",
+          "ResolvedRequirement",
+          "ScalarAssertion",
+          "ScalarValue",
+          "parse_object_or_report",
+          "reconcile_scalar_assertion"
+        ],
+        "reason": "Current architecture: the JSON format-core facade exposes exactly its lossless mechanics and reused core vocabulary."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "check": "exact-public-facade",
         "package": "aqc-package-json-engine",
-        "exact": ["ConflictEntry", "DevEnginePackageManagerRequirements", "ENGINE_ID", "PackageJsonEngine", "PackageJsonRequirements", "PackageManagerOnFail", "Provenance", "ResolvedDevEnginePackageManagerRequirements", "ResolvedPackageJsonRequirements", "ResolvedRequirement", "ScalarAssertion"],
+        "exact": [
+          "ConflictEntry",
+          "DevEnginePackageManagerRequirements",
+          "ENGINE_ID",
+          "PackageJsonEngine",
+          "PackageJsonRequirements",
+          "PackageManagerOnFail",
+          "Provenance",
+          "ResolvedDevEnginePackageManagerRequirements",
+          "ResolvedPackageJsonRequirements",
+          "ResolvedMap",
+          "ResolvedRequirement",
+          "ScalarAssertion"
+        ],
         "reason": "Plan: the Package JSON facade exposes exactly its engine API and supported construction vocabulary."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "check": "exact-public-facade",
         "package": "aqc-yaml-engine-core",
-        "exact": ["ParsedYamlMapping", "YamlFieldError", "YamlFieldValue", "YamlScalar", "apply_scalar_assertion", "parse_yaml_mapping"],
+        "exact": [
+          "ParsedYamlMapping",
+          "YamlFieldError",
+          "YamlFieldValue",
+          "YamlScalar",
+          "apply_scalar_assertion",
+          "parse_yaml_mapping"
+        ],
         "reason": "Plan: the YAML format-core facade exposes exactly its format mechanics."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-exports.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-exports.py"
+        ],
         "check": "exact-public-facade",
         "package": "aqc-pnpm-workspace-yaml-engine",
-        "exact": ["ConflictEntry", "ENGINE_ID", "ForbiddenGlobRequirement", "ForbiddenGlobRequirements", "ItemRequirements", "KeyedItem", "ListRequirements", "PnpmOnFail", "PnpmPackageSelectorGlob", "PnpmReleaseAgeMinutes", "PnpmReleaseAgeMinutesError", "PnpmTrustPolicy", "PnpmWorkspaceYamlEngine", "PnpmWorkspaceYamlRequirements", "Provenance", "ResolvedForbiddenGlobRequirements", "ResolvedItemRequirements", "ResolvedListRequirements", "ResolvedPnpmWorkspaceYamlRequirements", "ResolvedRequirement", "ScalarAssertion", "ScalarValue"],
+        "exact": [
+          "ConflictEntry",
+          "ENGINE_ID",
+          "ForbiddenGlobRequirement",
+          "ForbiddenGlobRequirements",
+          "ItemRequirements",
+          "KeyedItem",
+          "ListRequirements",
+          "PnpmOnFail",
+          "PnpmPackageSelectorGlob",
+          "PnpmReleaseAgeMinutes",
+          "PnpmReleaseAgeMinutesError",
+          "PnpmTrustPolicy",
+          "PnpmWorkspaceYamlEngine",
+          "PnpmWorkspaceYamlRequirements",
+          "Provenance",
+          "ResolvedForbiddenGlobRequirements",
+          "ResolvedItemRequirements",
+          "ResolvedListRequirements",
+          "ResolvedPnpmWorkspaceYamlRequirements",
+          "ResolvedRequirement",
+          "ScalarAssertion",
+          "ScalarValue"
+        ],
         "reason": "Plan: the pnpm YAML facade exposes exactly its engine API and supported construction vocabulary."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-api.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-api.py"
+        ],
         "check": "public-api-shapes",
-        "packages": ["aqc-package-json-engine", "aqc-pnpm-workspace-yaml-engine"],
+        "packages": [
+          "aqc-package-json-engine",
+          "aqc-pnpm-workspace-yaml-engine"
+        ],
         "reason": "Plan: exact unresolved/resolved root fields, immutable getters, trait implementations, facade re-exports, scalar traits, serialized names, engine ids, and no merge-bypassing constructors."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"
+        ],
         "check": "json-core-and-package-json-reconciliation",
         "reason": "Plan: duplicate-safe root-object parsing, scalar shape checks, provenance, deterministic missing-file JSON, exact no-op bytes, package-manager declarations, merge results, and pathless byte reconciliation."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"
+        ],
         "check": "yaml-core-reconciliation",
         "reason": "Plan: duplicate-safe lossless mappings, YAML 1.2 scalar behavior, one validated effective mapping resolver over yaml-edit nodes and anchors, direct managed writes, tag and shape failures, deterministic missing-file YAML, and exact no-op bytes."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"
+        ],
         "check": "pnpm-engine-resolution-and-findings",
         "reason": "Plan: explicit field resolution, scalar and item conflicts, pnpm selector-glob semantics, per-item selector findings, exact settings, invalid glob findings, deterministic init, and successful-or-conflicted merge behavior."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"
+        ],
         "check": "adversarial-reconciliation-contract",
         "reason": "Plan: core-owned scalar evaluation, strict YAML string typing, effective exact keys, fully reconciled writable forbidden items, one finding per selector with combined attribution, and one invalid-glob finding."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-api.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-api.py"
+        ],
         "check": "resolved-roots-require-merge",
         "reason": "Plan: no resolved root or resolved child exposes Default, a constructor, mutable state, or another successful-merge bypass."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-semantics.py"
+        ],
         "check": "finding-selector-contract",
         "reason": "Plan: Finding::Mismatch preserves an optional selector and every pre-existing AQC mismatch supplies None without changing prior reconciliation behavior."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-versions.py"],
-        "check": "core-0.7-generation",
-        "reason": "Plan: aqc-file-engine-core starts 0.7.0 and every AQC crate exchanging its public types uses one compatible 0.7 generation in manifests and lockfiles."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-boundaries.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-boundaries.py"
+        ],
         "check": "layer-and-purity-boundaries",
         "reason": "Plan: format cores and engines remain independent, do not depend upward or sideways, perform no filesystem, path, environment, network, or process IO, and do not duplicate universal core vocabulary."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-boundaries.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-boundaries.py"
+        ],
         "check": "workspace-inventory-gates-and-release-records",
         "reason": "Plan: AQC inventory, workspace gates, deny files, public-contract tests, lockfiles, release metadata, fixtures, and worklog recognize all changed and added crates, classify aqc-text-file-engine as an engine, and contain no aqc-text-engine-core package."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-boundaries.py"],
-        "check": "existing-runtime-change-limit",
-        "reason": "Plan: existing AQC runtime changes are limited to selector None migration and the behavior-preserving aqc-text-file-engine rename; no compatibility package, deprecated export, alias, obsolete aqc-text-engine-core reference, or path dependency is introduced."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-shakts-pnpm-aqc-fixtures.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-pnpm-aqc-fixtures.py"
+        ],
         "check": "public-api-fixture-contract",
         "reason": "Plan: AQC Fixture3 snapshots reusable JSON, YAML, Package JSON, and pnpm engine behavior through public APIs rather than cargo-test exit proxies."
       }

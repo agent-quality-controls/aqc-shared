@@ -1,0 +1,291 @@
+{
+  "version": 4,
+  "requirements": {
+    "tree": {
+      "verifier": ["builtin:tree"],
+      "reason": "One lossless JSON-family core remains and both concrete engines retain their independent workspaces.",
+      "required": [
+        "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
+        "packages/file-types/json/aqc-json-engine-core/src/lib.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/mod.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/bind.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/extensions.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/parse.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/scalar.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/types/mod.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/types/object.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/types/options.rs",
+        "packages/file-types/json/aqc-json-engine-core/tests/core_contract.rs",
+        "packages/file-types/json/aqc-package-json-engine/Cargo.toml",
+        "packages/file-types/json/aqc-package-json-engine/tests/contract.rs",
+        "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml",
+        "packages/file-types/jsonc/aqc-tsconfig-json-engine/tests/contract.rs",
+        "packages/file-types/README.md",
+        "docs/architecture/file-engine-cores.md",
+        ".github/workflows/release.yml",
+        "release-plz.toml",
+        "specs/json-engine-core-consolidation.spec.json",
+        "specs/verifiers/verify-json-engine-core-consolidation.py",
+        "specs/json-engine-core-consolidation.spec.coverage.md"
+      ],
+      "forbidden": [
+        "packages/file-types/jsonc/aqc-jsonc-engine-core/**",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/render.rs"
+      ]
+    },
+    "content": [
+      {
+        "verifier": ["builtin:content"],
+        "files": [
+          "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
+          "packages/file-types/json/aqc-package-json-engine/Cargo.toml",
+          "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml"
+        ],
+        "required": ["rust-version = \"1.88\"", "edition = \"2024\"", "publish = true", "resolver = \"3\""],
+        "forbidden": ["path ="],
+        "reason": "The consolidated parser sets the true Rust 1.88 MSRV and all crates remain publishable independent workspaces."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/README.md"],
+        "required": [
+          "Concrete engines depend on their format engine core",
+          "`package.json` uses strict JSON",
+          "`tsconfig.json` enables its supported JSONC extensions"
+        ],
+        "forbidden": [
+          "`serde_json` (re-serialize is fine",
+          "`package.json`, `tsconfig.json`, ..."
+        ],
+        "reason": "The active file-types guide must describe the consolidated lossless JSON-family architecture."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-json-engine-core/src/**/*.rs"],
+        "exists": [
+          "pub struct JsonObject",
+          "pub struct JsonParseOptions",
+          "pub fn parse_object_or_report",
+          "pub fn reconcile_scalar_assertion",
+          "selector: Option<String>",
+          "pub fn render(&self"
+        ],
+        "forbidden": [
+          "serde_json::Value",
+          "pub fn render_object",
+          "pub use jsonc_parser",
+          "pub use tree_sitter",
+          "PackageJson",
+          "Tsconfig",
+          "TypeScript",
+          "std::fs",
+          "std::path",
+          "std::process",
+          "std::env",
+          "std::net",
+          "TcpStream",
+          "UdpSocket",
+          "Command::new"
+        ],
+        "reason": "The unified core owns only lossless JSON-family byte mechanics and universal requirement reconciliation."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-package-json-engine/src/**/*.rs"],
+        "exists": [
+          "JsonParseOptions",
+          "allow_comments: false",
+          "allow_loose_object_property_names: false",
+          "allow_trailing_commas: false",
+          "allow_missing_commas: false",
+          "allow_single_quoted_strings: false",
+          "allow_hexadecimal_numbers: false",
+          "allow_unary_plus_numbers: false",
+          "allow_extended_json_numbers: false",
+          "allow_extended_string_escapes: false",
+          "allow_extended_whitespace: false",
+          "allow_utf8_bom: false",
+          "NonObjectParentAction::Replace",
+          "NonObjectParentAction::Preserve",
+          "document.render()"
+        ],
+        "forbidden": ["render_object", "jsonc_parser", "tree_sitter", "std::fs", "std::path", "std::process", "std::env", "std::net", "Command::new", "TcpStream", "UdpSocket"],
+        "reason": "Package JSON explicitly selects strict syntax and uses the shared lossless renderer."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/jsonc/aqc-tsconfig-json-engine/src/**/*.rs"],
+        "exists": [
+          "aqc_json_engine_core",
+          "JsonParseOptions",
+          "allow_comments: true",
+          "allow_loose_object_property_names: false",
+          "allow_trailing_commas: true",
+          "allow_missing_commas: false",
+          "allow_single_quoted_strings: false",
+          "allow_hexadecimal_numbers: true",
+          "allow_unary_plus_numbers: false",
+          "allow_extended_json_numbers: true",
+          "allow_extended_string_escapes: true",
+          "allow_extended_whitespace: true",
+          "allow_utf8_bom: true",
+          "NonObjectParentAction::Preserve",
+          "document.render()"
+        ],
+        "forbidden": ["jsonc_parser", "tree_sitter", "std::fs", "std::path", "std::process", "std::env", "std::net", "Command::new", "TcpStream", "UdpSocket"],
+        "reason": "TSConfig retains its TypeScript-compatible syntax profile through the unified core."
+      }
+    ],
+    "dependencies": [
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/json/aqc-json-engine-core/Cargo.toml"],
+        "required": ["aqc-file-engine-core", "jsonc-parser", "serde_json", "tree-sitter", "tree-sitter-javascript"],
+        "forbidden": ["serde", "aqc-package-json-engine", "aqc-tsconfig-json-engine", "aqc-toml-engine-core"],
+        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "reason": "The parser stack is private to the format core, which has no concrete-engine or product dependency."
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/json/aqc-package-json-engine/Cargo.toml"],
+        "required": ["aqc-file-engine-core", "aqc-json-engine-core"],
+        "forbidden": ["aqc-tsconfig-json-engine", "jsonc-parser", "serde_json", "tree-sitter", "tree-sitter-javascript"],
+        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "reason": "Package JSON depends on the unified core without reaching into parser implementation or sibling engines."
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml"],
+        "required": ["aqc-file-engine-core", "aqc-json-engine-core"],
+        "forbidden": ["aqc-package-json-engine", "jsonc-parser", "serde_json", "tree-sitter", "tree-sitter-javascript"],
+        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "reason": "TSConfig depends on the unified core without reaching into parser implementation or sibling engines."
+      }
+    ],
+    "exports": [
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "package": "aqc-json-engine-core",
+        "required": [
+          "ConfigScalar",
+          "Finding",
+          "JsonObject",
+          "JsonParseOptions",
+          "NonObjectParentAction",
+          "Provenance",
+          "ResolvedRequirement",
+          "ScalarAssertion",
+          "ScalarValue",
+          "parse_object_or_report",
+          "reconcile_scalar_assertion"
+        ],
+        "forbidden": ["JsoncObject", "JsoncParseOptions", "render_object"]
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "package": "aqc-package-json-engine",
+        "required": ["PackageJsonRequirements", "ResolvedPackageJsonRequirements"]
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "package": "aqc-tsconfig-json-engine",
+        "required": ["TsconfigJsonRequirements", "ResolvedTsconfigJsonRequirements"]
+      }
+    ],
+    "enumerations": [
+      {
+        "verifier": ["builtin:rust-enumerations"],
+        "files": ["packages/file-types/json/aqc-json-engine-core/src/**/*.rs"],
+        "name": "NonObjectParentAction",
+        "values": ["Preserve", "Replace"],
+        "reason": "Concrete engines must select whether malformed managed parents are preserved or replaced."
+      }
+    ],
+    "custom": [
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "exact-unified-api"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "active-inventory-clean"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "runtime-contracts"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "downstream-contract"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "plan-coverage"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "aqc-pnpm-fixtures"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "aqc-tsc-fixtures"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "release-inventory"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-json-core-format"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-json-core-clippy"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-json-core-package"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-json-core-deny"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-package-json-format"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-package-json-clippy"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-package-json-package"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-package-json-deny"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-tsconfig-format"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-tsconfig-clippy"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-tsconfig-package"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-tsconfig-deny"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-json-engine-core-consolidation.py"],
+        "check": "required-gates-boundaries"
+      }
+    ]
+  }
+}

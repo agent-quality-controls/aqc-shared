@@ -7,7 +7,7 @@
 use aqc_file_engine_core::{
     Engine, EngineRequirement, FileEngine, Finding, Provenance, ScalarAssertion,
 };
-use aqc_jsonc_engine_core as _;
+use aqc_json_engine_core as _;
 use aqc_tsconfig_json_engine::{
     ResolvedTsconfigJsonRequirements, TsconfigBooleanCompilerOption, TsconfigJsonEngine,
     TsconfigJsonRequirements,
@@ -174,6 +174,43 @@ fn corrections_preserve_comments_trailing_commas_and_unmanaged_values() {
     assert!(rendered.contains("// option"));
     assert!(rendered.contains("\"module\": \"preserve\","));
     assert!(rendered.contains("\"strict\": true,"));
+}
+
+#[test]
+fn typescript_syntax_extensions_survive_reconciliation() {
+    let bytes = b"\xef\xbb\xbf{\n  // preserved\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"hex\": 0x10,\n    \"binary\": 0b10,\n    \"octal\": 0o10,\n    \"leading\": .5,\n    \"trailing\": 1.,\n    \"separator\": 1_000,\n    \"negative\": -0b11,\n  },\n}\n";
+    let expected = b"\xef\xbb\xbf{\n  // preserved\n  \"compilerOptions\": {\n    \"strict\": true,\n    \"hex\": 0x10,\n    \"binary\": 0b10,\n    \"octal\": 0o10,\n    \"leading\": .5,\n    \"trailing\": 1.,\n    \"separator\": 1_000,\n    \"negative\": -0b11,\n  },\n}\n";
+    let resolved = merge(one_option(TsconfigBooleanCompilerOption::Strict, true));
+    let output = <TsconfigJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+    assert_eq!(output.findings.len(), 1);
+    assert_eq!(output.expected_bytes, expected);
+}
+
+#[test]
+fn typescript_string_escapes_survive_reconciliation() {
+    let bytes = b"{\x0b\n  \"label\": \"\\x41\\v\\0\\'\\q\\u{1f600}line\\\ncontinued\",\n  \"compilerOptions\": { \"strict\": false },\n}\n";
+    let expected = b"{\x0b\n  \"label\": \"\\x41\\v\\0\\'\\q\\u{1f600}line\\\ncontinued\",\n  \"compilerOptions\": { \"strict\": true },\n}\n";
+    let resolved = merge(one_option(TsconfigBooleanCompilerOption::Strict, true));
+    let output = <TsconfigJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+    assert_eq!(output.findings.len(), 1);
+    assert_eq!(output.expected_bytes, expected);
+}
+
+#[test]
+fn unsupported_typescript_syntax_extensions_are_rejected_and_preserved() {
+    for bytes in [
+        b"{compilerOptions:{\"strict\":true}}".as_slice(),
+        b"{\"compilerOptions\":{\"strict\":true \"noCheck\":false}}".as_slice(),
+        b"{'compilerOptions':{\"strict\":true}}".as_slice(),
+        b"{\"compilerOptions\":{\"strict\":true},\"value\":+1}".as_slice(),
+    ] {
+        let output = <TsconfigJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &baseline());
+        assert_eq!(output.expected_bytes, bytes);
+        assert!(matches!(
+            output.findings.as_slice(),
+            [Finding::ParseError { .. }]
+        ));
+    }
 }
 
 #[test]

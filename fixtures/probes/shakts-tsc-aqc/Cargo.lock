@@ -24,16 +24,8 @@ name = "aqc-json-engine-core"
 version = "0.8.0"
 dependencies = [
  "aqc-file-engine-core",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aqc-jsonc-engine-core"
-version = "0.8.0"
-dependencies = [
- "aqc-file-engine-core",
  "jsonc-parser",
+ "serde_json",
  "tree-sitter",
  "tree-sitter-javascript",
 ]
@@ -53,7 +45,7 @@ name = "aqc-tsconfig-json-engine"
 version = "0.8.0"
 dependencies = [
  "aqc-file-engine-core",
- "aqc-jsonc-engine-core",
+ "aqc-json-engine-core",
  "schemars",
  "serde",
 ]
@@ -272,7 +264,7 @@ name = "shakts-tsc-aqc-fixture-probe"
 version = "0.0.0"
 dependencies = [
  "aqc-file-engine-core",
- "aqc-jsonc-engine-core",
+ "aqc-json-engine-core",
  "aqc-package-json-engine",
  "aqc-tsconfig-json-engine",
  "serde_json",

@@ -1,8 +1,8 @@
 use aqc_file_engine_core::{
     ConfigScalar, EngineOutput, Finding, Severity, resolved_map_attribution,
 };
-use aqc_jsonc_engine_core::{
-    JsoncParseOptions, parse_object_or_report, reconcile_scalar_assertion,
+use aqc_json_engine_core::{
+    JsonParseOptions, NonObjectParentAction, parse_object_or_report, reconcile_scalar_assertion,
 };
 
 use crate::ResolvedTsconfigJsonRequirements;
@@ -43,6 +43,7 @@ pub(super) fn reconcile_document(
             &mut document,
             &["compilerOptions", option.file_key()],
             Some(option.file_key().to_owned()),
+            NonObjectParentAction::Preserve,
             resolved,
             |value| Some(ConfigScalar::Bool(*value)),
             |scalar| match scalar {
@@ -58,8 +59,8 @@ pub(super) fn reconcile_document(
     }
 }
 
-const fn typescript_parse_options() -> JsoncParseOptions {
-    JsoncParseOptions {
+const fn typescript_parse_options() -> JsonParseOptions {
+    JsonParseOptions {
         allow_comments: true,
         allow_loose_object_property_names: false,
         allow_trailing_commas: true,
@@ -68,6 +69,8 @@ const fn typescript_parse_options() -> JsoncParseOptions {
         allow_hexadecimal_numbers: true,
         allow_unary_plus_numbers: false,
         allow_extended_json_numbers: true,
+        allow_extended_string_escapes: true,
+        allow_extended_whitespace: true,
         allow_utf8_bom: true,
     }
 }

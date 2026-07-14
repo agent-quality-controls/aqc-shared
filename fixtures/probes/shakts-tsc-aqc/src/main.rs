@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use aqc_file_engine_core::{Engine, EngineRequirement, FileEngine, Finding, Provenance};
-use aqc_jsonc_engine_core::{JsoncParseOptions, parse_object_or_report};
+use aqc_json_engine_core::{JsonParseOptions, parse_object_or_report};
 use aqc_package_json_engine::{PackageJsonEngine, PackageJsonRequirements};
 use aqc_tsconfig_json_engine::{
     ScalarAssertion, TsconfigBooleanCompilerOption, TsconfigJsonEngine, TsconfigJsonRequirements,
@@ -455,14 +455,11 @@ fn package_json_maps() -> Value {
             assert!(fixed.findings.is_empty());
             let expected = String::from_utf8(output.expected_bytes).expect("Package JSON UTF-8");
             if name == "wrong-section-and-siblings" {
-                for fragment in [
-                    "\"dependencies\"",
-                    "\"lint\": \"eslint .\"",
-                    "\"eslint\": \"9.0.0\"",
-                    "\"private\": true",
-                ] {
-                    assert!(expected.contains(fragment), "Package JSON must preserve {fragment}");
-                }
+                let parsed: Value = serde_json::from_str(&expected).expect("Package JSON object");
+                assert_eq!(parsed["dependencies"]["typescript"], "7.0.2");
+                assert_eq!(parsed["scripts"]["lint"], "eslint .");
+                assert_eq!(parsed["devDependencies"]["eslint"], "9.0.0");
+                assert_eq!(parsed["private"], true);
             }
             json!({"case": name, "expected": expected, "findings": findings(&output.findings), "stableRerun": true})
         })
@@ -536,10 +533,11 @@ fn package_json_maps() -> Value {
     assert_eq!(algebra_output.findings.len(), 3);
     let algebra_expected =
         String::from_utf8(algebra_output.expected_bytes).expect("Package JSON UTF-8");
-    assert!(algebra_expected.contains("\"kept\": \"yes\""));
-    assert!(!algebra_expected.contains("remove"));
-    assert!(!algebra_expected.contains("present"));
-    assert!(!algebra_expected.contains("oneOf"));
+    let parsed: Value = serde_json::from_str(&algebra_expected).expect("Package JSON object");
+    assert_eq!(parsed["scripts"]["kept"], "yes");
+    assert!(parsed["scripts"].get("remove").is_none());
+    assert!(parsed["scripts"].get("present").is_none());
+    assert!(parsed["scripts"].get("oneOf").is_none());
     json!({
         "leafCases": leaves,
         "parentShapeCases": parents,
@@ -696,8 +694,8 @@ fn public_api() -> Value {
     })
 }
 
-const fn jsonc_options() -> JsoncParseOptions {
-    JsoncParseOptions {
+const fn jsonc_options() -> JsonParseOptions {
+    JsonParseOptions {
         allow_comments: true,
         allow_loose_object_property_names: false,
         allow_trailing_commas: true,
@@ -706,6 +704,8 @@ const fn jsonc_options() -> JsoncParseOptions {
         allow_hexadecimal_numbers: true,
         allow_unary_plus_numbers: false,
         allow_extended_json_numbers: true,
+        allow_extended_string_escapes: true,
+        allow_extended_whitespace: true,
         allow_utf8_bom: true,
     }
 }

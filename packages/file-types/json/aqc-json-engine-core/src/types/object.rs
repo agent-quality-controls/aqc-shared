@@ -1,98 +1,275 @@
-use aqc_file_engine_core::ConfigScalar;
-use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use aqc_file_engine_core::ConfigScalar;
+use jsonc_parser::cst::{CstInputValue, CstNode, CstObject, CstRootNode, CstStringLit};
+
+#[derive(Debug)]
+pub(crate) struct MaskedNumber {
+    pub(crate) literal: CstStringLit,
+    pub(crate) marker: String,
+    pub(crate) original: String,
+    pub(crate) path: Vec<String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct MaskedString {
+    pub(crate) literal: CstStringLit,
+    pub(crate) masked: String,
+    pub(crate) original: String,
+    pub(crate) unrepresentable: bool,
+    pub(crate) path: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonObjectParentAction {
+    Preserve,
+    Replace,
+}
+
+#[derive(Debug)]
 pub struct JsonObject {
-    pub(crate) members: Map<String, Value>,
+    pub(crate) root: CstRootNode,
+    pub(crate) masked_numbers: Vec<MaskedNumber>,
+    pub(crate) masked_strings: Vec<MaskedString>,
+    pub(crate) masked_scalars: BTreeMap<Vec<String>, String>,
+    pub(crate) utf8_bom: bool,
 }
 
 impl JsonObject {
     #[must_use]
     pub fn scalar(&self, path: &[&str]) -> Option<ConfigScalar> {
-        value_at(&self.members, path).and_then(value_to_scalar)
+        let value = value_at(&self.root.object_value()?, path)?;
+        if let Some(value) = value.as_string_lit() {
+            let owned_path = path
+                .iter()
+                .map(|component| (*component).to_owned())
+                .collect::<Vec<_>>();
+            if self
+                .masked_strings
+                .iter()
+                .any(|masked| masked.unrepresentable && masked.path.as_ref() == Some(&owned_path))
+            {
+                return None;
+            }
+            let decoded = value.decoded_value().ok()?;
+            if let Some(original) = self.masked_scalars.get(
+                &path
+                    .iter()
+                    .map(|component| (*component).to_owned())
+                    .collect::<Vec<_>>(),
+            ) {
+                return parse_integer(original).map(ConfigScalar::Int);
+            }
+            return Some(ConfigScalar::Str(decoded));
+        }
+        if let Some(value) = value.as_boolean_lit() {
+            return Some(ConfigScalar::Bool(value.value()));
+        }
+        value
+            .as_number_lit()
+            .and_then(|value| parse_integer(&value.to_string()))
+            .map(ConfigScalar::Int)
     }
 
     #[must_use]
     pub fn value_exists(&self, path: &[&str]) -> bool {
-        value_at(&self.members, path).is_some()
+        self.root
+            .object_value()
+            .and_then(|object| value_at(&object, path))
+            .is_some()
     }
 
     #[must_use]
     pub fn object_exists(&self, path: &[&str]) -> bool {
-        value_at(&self.members, path).is_some_and(Value::is_object)
+        self.root
+            .object_value()
+            .and_then(|object| value_at(&object, path))
+            .is_some_and(|value| value.as_object().is_some())
     }
 
-    pub fn set_scalar(&mut self, path: &[&str], value: ConfigScalar) -> bool {
-        set_value(&mut self.members, path, scalar_to_value(value))
+    pub fn set_scalar(
+        &mut self,
+        path: &[&str],
+        value: ConfigScalar,
+        parent_action: NonObjectParentAction,
+    ) -> bool {
+        let Some((last, parents)) = path.split_last() else {
+            return false;
+        };
+        let Some(mut object) = self.root.object_value() else {
+            return false;
+        };
+        let mut replaced_parent_depth = None;
+        for (index, parent) in parents.iter().enumerate() {
+            let replaces_existing_value = parent_action == NonObjectParentAction::Replace
+                && object.get(parent).is_some()
+                && object.object_value(parent).is_none();
+            let next = match parent_action {
+                NonObjectParentAction::Preserve => object.object_value_or_create(parent),
+                NonObjectParentAction::Replace => Some(object.object_value_or_set(parent)),
+            };
+            let Some(next) = next else { return false };
+            if replaces_existing_value && replaced_parent_depth.is_none() {
+                replaced_parent_depth = Some(index.saturating_add(1));
+            }
+            object = next;
+        }
+        let input = scalar_input(value);
+        if let Some(property) = object.get(last) {
+            property.set_value(input);
+        } else {
+            let _ = object.append(last, input);
+        }
+        let metadata_path = replaced_parent_depth
+            .and_then(|depth| path.get(..depth))
+            .unwrap_or(path);
+        self.discard_path_metadata(metadata_path);
+        true
     }
 
     pub fn remove_value(&mut self, path: &[&str]) -> bool {
-        remove_value(&mut self.members, path)
+        let Some((last, parents)) = path.split_last() else {
+            return false;
+        };
+        let Some(mut object) = self.root.object_value() else {
+            return false;
+        };
+        for parent in parents {
+            let Some(next) = object.object_value(parent) else {
+                return false;
+            };
+            object = next;
+        }
+        let Some(property) = object.get(last) else {
+            return false;
+        };
+        property.remove();
+        self.discard_path_metadata(path);
+        true
     }
 
     #[must_use]
     pub fn rendered_value(&self, path: &[&str]) -> Option<String> {
-        value_at(&self.members, path).map(Value::to_string)
+        let value = self
+            .root
+            .object_value()
+            .and_then(|object| value_at(&object, path))?;
+        if let Some(original) = self.masked_scalars.get(
+            &path
+                .iter()
+                .map(|component| (*component).to_owned())
+                .collect::<Vec<_>>(),
+        ) {
+            return Some(original.clone());
+        }
+        Some(self.render_with_original_scalars(|| value.to_string()))
+    }
+
+    #[must_use]
+    pub fn render(&self) -> Vec<u8> {
+        let rendered = self.render_with_original_scalars(|| self.root.to_string());
+        if self.utf8_bom {
+            let mut bytes = Vec::with_capacity(rendered.len().saturating_add(3));
+            bytes.extend_from_slice(&[0xef, 0xbb, 0xbf]);
+            bytes.extend_from_slice(rendered.as_bytes());
+            bytes
+        } else {
+            rendered.into_bytes()
+        }
+    }
+
+    fn render_with_original_scalars(&self, render: impl FnOnce() -> String) -> String {
+        for masked in &self.masked_numbers {
+            masked.literal.set_raw_value(masked.original.clone());
+        }
+        for masked in &self.masked_strings {
+            masked.literal.set_raw_value(masked.original.clone());
+        }
+        let rendered = render();
+        for masked in &self.masked_numbers {
+            masked
+                .literal
+                .set_raw_value(format!("\"{}\"", masked.marker));
+        }
+        for masked in &self.masked_strings {
+            masked.literal.set_raw_value(masked.masked.clone());
+        }
+        rendered
+    }
+
+    fn discard_path_metadata(&mut self, path: &[&str]) {
+        let owned_path = path
+            .iter()
+            .map(|component| (*component).to_owned())
+            .collect::<Vec<_>>();
+        self.masked_scalars
+            .retain(|candidate, _| !candidate.starts_with(&owned_path));
+        self.masked_numbers
+            .retain(|masked| !masked.path.starts_with(&owned_path));
+        self.masked_strings.retain(|masked| {
+            masked
+                .path
+                .as_ref()
+                .is_none_or(|candidate| !candidate.starts_with(&owned_path))
+        });
     }
 }
 
-fn value_at<'a>(members: &'a Map<String, Value>, path: &[&str]) -> Option<&'a Value> {
+fn value_at(object: &CstObject, path: &[&str]) -> Option<CstNode> {
     let (first, rest) = path.split_first()?;
-    let mut value = members.get(*first)?;
+    let mut value = object.get(first)?.value()?;
     for key in rest {
-        value = value.as_object()?.get(*key)?;
+        value = value.as_object()?.get(key)?.value()?;
     }
     Some(value)
 }
 
-fn value_to_scalar(value: &Value) -> Option<ConfigScalar> {
+fn scalar_input(value: ConfigScalar) -> CstInputValue {
     match value {
-        Value::String(value) => Some(ConfigScalar::Str(value.clone())),
-        Value::Bool(value) => Some(ConfigScalar::Bool(*value)),
-        Value::Number(value) => value.as_i64().map(ConfigScalar::Int),
-        Value::Null | Value::Array(_) | Value::Object(_) => None,
+        ConfigScalar::Str(value) => CstInputValue::String(value),
+        ConfigScalar::Int(value) => CstInputValue::Number(value.to_string()),
+        ConfigScalar::Bool(value) => CstInputValue::Bool(value),
     }
 }
 
-fn scalar_to_value(value: ConfigScalar) -> Value {
-    match value {
-        ConfigScalar::Str(value) => Value::String(value),
-        ConfigScalar::Int(value) => Value::Number(value.into()),
-        ConfigScalar::Bool(value) => Value::Bool(value),
-    }
-}
-
-fn set_value(members: &mut Map<String, Value>, path: &[&str], value: Value) -> bool {
-    let Some((last, parents)) = path.split_last() else {
-        return false;
+fn parse_integer(value: &str) -> Option<i64> {
+    let normalized = value.replace('_', "");
+    let normalized_value = normalized.strip_suffix('n').unwrap_or(&normalized);
+    let (negative, unsigned) = normalized_value.strip_prefix('-').map_or_else(
+        || {
+            (
+                false,
+                normalized_value
+                    .strip_prefix('+')
+                    .unwrap_or(normalized_value),
+            )
+        },
+        |unsigned| (true, unsigned),
+    );
+    let parsed = if let Some(hex) = unsigned
+        .strip_prefix("0x")
+        .or_else(|| unsigned.strip_prefix("0X"))
+    {
+        u64::from_str_radix(hex, 16).ok()?
+    } else if let Some(binary) = unsigned
+        .strip_prefix("0b")
+        .or_else(|| unsigned.strip_prefix("0B"))
+    {
+        u64::from_str_radix(binary, 2).ok()?
+    } else if let Some(octal) = unsigned
+        .strip_prefix("0o")
+        .or_else(|| unsigned.strip_prefix("0O"))
+    {
+        u64::from_str_radix(octal, 8).ok()?
+    } else {
+        unsigned.parse::<u64>().ok()?
     };
-    let mut current = members;
-    for key in parents {
-        let entry = current
-            .entry((*key).to_owned())
-            .or_insert_with(|| Value::Object(Map::new()));
-        if !entry.is_object() {
-            *entry = Value::Object(Map::new());
-        }
-        let Some(object) = entry.as_object_mut() else {
-            return false;
-        };
-        current = object;
+    if negative {
+        i64::try_from(parsed)
+            .ok()
+            .and_then(i64::checked_neg)
+            .or_else(|| (parsed == i64::MIN.unsigned_abs()).then_some(i64::MIN))
+    } else {
+        i64::try_from(parsed).ok()
     }
-    let _ = current.insert((*last).to_owned(), value);
-    true
-}
-
-fn remove_value(members: &mut Map<String, Value>, path: &[&str]) -> bool {
-    let Some((last, parents)) = path.split_last() else {
-        return false;
-    };
-    let mut current = members;
-    for key in parents {
-        let Some(object) = current.get_mut(*key).and_then(Value::as_object_mut) else {
-            return false;
-        };
-        current = object;
-    }
-    current.remove(*last).is_some()
 }

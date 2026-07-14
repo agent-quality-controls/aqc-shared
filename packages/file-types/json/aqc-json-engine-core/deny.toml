@@ -21,7 +21,6 @@ highlight = "all"
 skip = []
 
 deny = [
-    { name = "aqc-jsonc-engine-core", wrappers = [], reason = "Dependency boundary: unrelated AQC workspaces must not depend on JSONC engine infrastructure" },
     { name = "aqc-tsconfig-json-engine", wrappers = [], reason = "Dependency boundary: aqc-json-engine-core must not depend on file engine crates" },
     { name = "shakts-tsc-adapter", wrappers = [], reason = "Dependency boundary: aqc-json-engine-core must not depend on adapter crates" },
     { name = "shakts-tsc-policy", wrappers = [], reason = "Dependency boundary: aqc-json-engine-core must not depend on policy crates" },
@@ -34,9 +33,9 @@ deny = [
     { crate = "shakts-hooks-policy", reason = "Forbidden by Shackles package dependency boundary" },
     { crate = "shakts", reason = "Forbidden by Shackles package dependency boundary" },
     { crate = "shackles-cli-support", reason = "AQC shared crates must not depend on product crates" },
-    { name = "simd-json", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
-    { name = "json5", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
-    { name = "sonic-rs", wrappers = [], reason = "Forbid competing JSON libraries; use serde_json" },
+    { name = "simd-json", wrappers = [], reason = "Forbid competing JSON libraries; use the approved lossless parser" },
+    { name = "json5", wrappers = [], reason = "Forbid competing JSON libraries; use the approved lossless parser" },
+    { name = "sonic-rs", wrappers = [], reason = "Forbid competing JSON libraries; use the approved lossless parser" },
     { name = "openssl", wrappers = [], reason = "Forbid OpenSSL; use rustls when TLS is needed" },
     { name = "openssl-sys", wrappers = [], reason = "Forbid OpenSSL; use rustls when TLS is needed" },
     { name = "ureq", wrappers = [], reason = "Forbid competing HTTP clients; use reqwest when HTTP is needed" },
@@ -66,7 +65,7 @@ deny = [
     { name = "rmp-serde", wrappers = [], reason = "Forbid competing binary serialization formats" },
     { name = "prost", wrappers = [], reason = "Forbid competing binary serialization formats" },
     { name = "flatbuffers", wrappers = [], reason = "Forbid competing binary serialization formats" },
-    { name = "regex", wrappers = [], reason = "Forbid regex crates; use structured parsers" },
+    { name = "regex", wrappers = ["tree-sitter"], reason = "Forbid direct regex use; tree-sitter owns its parser-internal regex dependency" },
     { name = "fancy-regex", wrappers = [], reason = "Forbid regex crates; use structured parsers" },
     { name = "onig", wrappers = [], reason = "Forbid regex crates; use structured parsers" },
     { name = "pcre2", wrappers = [], reason = "Forbid regex crates; use structured parsers" },

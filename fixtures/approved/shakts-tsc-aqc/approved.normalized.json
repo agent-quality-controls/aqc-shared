@@ -5,7 +5,7 @@
       "result": {
         "absentFileInit": {
           "packageJson": {
-            "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+            "expected": "{\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  },\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  }\n}\n",
             "findingCount": 2,
             "stableRerun": true
           },
@@ -1188,7 +1188,7 @@
               "case": "single-quotes",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Single-quoted strings are not allowed on line 1 column 2"
               }
             },
             {
@@ -1197,7 +1197,7 @@
               "case": "loose-property-names",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Expected string for object property on line 1 column 2"
               }
             },
             {
@@ -1206,7 +1206,7 @@
               "case": "omitted-commas",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Expected comma on line 1 column 12"
               }
             },
             {
@@ -1215,7 +1215,7 @@
               "case": "unary-plus",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Unary plus on numbers is not allowed on line 1 column 15"
               }
             },
             {
@@ -1224,7 +1224,7 @@
               "case": "bigint",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Unexpected token on line 1 column 16"
               }
             },
             {
@@ -1233,7 +1233,7 @@
               "case": "legacy-octal",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Expected comma on line 1 column 16"
               }
             }
           ]
@@ -1340,7 +1340,7 @@
               "case": "malformed",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+                "message": "tsconfig.json is not a valid JSONC object: Unterminated object on line 1 column 1"
               },
               "suppressedOptionFindings": true
             },
@@ -1394,7 +1394,7 @@
               "case": "duplicate-root",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `x`"
+                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `x` at line 1 column 10"
               },
               "suppressedOptionFindings": true
             },
@@ -1403,7 +1403,7 @@
               "case": "duplicate-nested",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `strict`"
+                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `strict` at line 1 column 42"
               },
               "suppressedOptionFindings": true
             },
@@ -1412,7 +1412,7 @@
               "case": "duplicate-in-array",
               "finding": {
                 "kind": "parse",
-                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `x`"
+                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `x` at line 1 column 20"
               },
               "suppressedOptionFindings": true
             }
@@ -1554,7 +1554,7 @@
           "leafCases": [
             {
               "case": "missing",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  },\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  }\n}",
               "findings": [
                 {
                   "current": null,
@@ -1581,7 +1581,7 @@
             },
             {
               "case": "different",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\"typecheck\":\"tsc --build tsconfig.json --noCheck false\"},\"devDependencies\":{\"typescript\":\"7.0.2\"}}",
               "findings": [
                 {
                   "current": "\"tsc -p other.json\"",
@@ -1608,7 +1608,7 @@
             },
             {
               "case": "wrong-type-boolean",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\"typecheck\":\"tsc --build tsconfig.json --noCheck false\"},\"devDependencies\":{\"typescript\":\"7.0.2\"}}",
               "findings": [
                 {
                   "current": "true",
@@ -1635,7 +1635,7 @@
             },
             {
               "case": "wrong-type-number",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\"typecheck\":\"tsc --build tsconfig.json --noCheck false\"},\"devDependencies\":{\"typescript\":\"7.0.2\"}}",
               "findings": [
                 {
                   "current": "1",
@@ -1662,7 +1662,7 @@
             },
             {
               "case": "wrong-type-null",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\"typecheck\":\"tsc --build tsconfig.json --noCheck false\"},\"devDependencies\":{\"typescript\":\"7.0.2\"}}",
               "findings": [
                 {
                   "current": "null",
@@ -1689,7 +1689,7 @@
             },
             {
               "case": "wrong-type-array",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\"typecheck\":\"tsc --build tsconfig.json --noCheck false\"},\"devDependencies\":{\"typescript\":\"7.0.2\"}}",
               "findings": [
                 {
                   "current": "[]",
@@ -1716,7 +1716,7 @@
             },
             {
               "case": "wrong-type-object",
-              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\"typecheck\":\"tsc --build tsconfig.json --noCheck false\"},\"devDependencies\":{\"typescript\":\"7.0.2\"}}",
               "findings": [
                 {
                   "current": "{}",
@@ -1743,7 +1743,7 @@
             },
             {
               "case": "wrong-section-and-siblings",
-              "expected": "{\n  \"dependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"devDependencies\": {\n    \"eslint\": \"9.0.0\",\n    \"typescript\": \"7.0.2\"\n  },\n  \"private\": true,\n  \"scripts\": {\n    \"lint\": \"eslint .\",\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "expected": "{\"scripts\":{\n    \"lint\":\"eslint .\",\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  },\"dependencies\":{\"typescript\":\"7.0.2\"},\"devDependencies\":{\n    \"eslint\":\"9.0.0\",\n    \"typescript\": \"7.0.2\"\n  },\"private\":true}",
               "findings": [
                 {
                   "current": null,
@@ -1902,7 +1902,7 @@
             }
           ],
           "scalarAlgebra": {
-            "expected": "{\n  \"scripts\": {\n    \"kept\": \"yes\"\n  }\n}\n",
+            "expected": "{\"scripts\":{\"kept\":\"yes\"}}",
             "findings": [
               {
                 "current": null,

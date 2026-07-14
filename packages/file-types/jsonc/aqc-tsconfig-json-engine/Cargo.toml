@@ -84,13 +84,13 @@ default = ["all"]
 all = ["api"]
 api = [
     "dep:aqc-file-engine-core",
-    "dep:aqc-jsonc-engine-core",
+    "dep:aqc-json-engine-core",
     "dep:schemars",
     "dep:serde",
 ]
 
 [dependencies]
 aqc-file-engine-core = { version = "0.7.1", optional = true }
-aqc-jsonc-engine-core = { version = "0.8.0", optional = true }
+aqc-json-engine-core = { version = "0.8.0", optional = true }
 schemars = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }

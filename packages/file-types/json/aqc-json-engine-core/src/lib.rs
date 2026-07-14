@@ -4,16 +4,10 @@ mod runtime;
 mod types;
 
 #[cfg(feature = "api")]
-pub use aqc_file_engine_core::ConfigScalar;
+pub use aqc_file_engine_core::{
+    ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion, ScalarValue,
+};
 #[cfg(feature = "api")]
-pub use aqc_file_engine_core::Finding;
+pub use runtime::{parse_object_or_report, reconcile_scalar_assertion};
 #[cfg(feature = "api")]
-pub use aqc_file_engine_core::Provenance;
-#[cfg(feature = "api")]
-pub use runtime::parse_object_or_report;
-#[cfg(feature = "api")]
-pub use runtime::reconcile_scalar_assertion;
-#[cfg(feature = "api")]
-pub use runtime::render_object;
-#[cfg(feature = "api")]
-pub use types::JsonObject;
+pub use types::{JsonObject, JsonParseOptions, NonObjectParentAction};

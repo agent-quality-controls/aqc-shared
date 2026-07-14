@@ -20,11 +20,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "aqc-jsonc-engine-core"
+name = "aqc-json-engine-core"
 version = "0.8.0"
 dependencies = [
  "aqc-file-engine-core",
  "jsonc-parser",
+ "serde_json",
  "tree-sitter",
  "tree-sitter-javascript",
 ]
@@ -34,7 +35,7 @@ name = "aqc-tsconfig-json-engine"
 version = "0.8.0"
 dependencies = [
  "aqc-file-engine-core",
- "aqc-jsonc-engine-core",
+ "aqc-json-engine-core",
  "schemars",
  "serde",
 ]

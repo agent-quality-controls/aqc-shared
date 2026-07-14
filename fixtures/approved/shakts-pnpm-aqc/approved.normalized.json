@@ -45,7 +45,7 @@
           ]
         },
         "missingPackageJson": {
-          "expected": "{\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"tool\",\n      \"onFail\": \"error\",\n      \"version\": \"2.3.4\"\n    }\n  },\n  \"packageManager\": \"tool@2.3.4\"\n}\n",
+          "expected": "{\n  \"packageManager\": \"tool@2.3.4\",\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"tool\",\n      \"version\": \"2.3.4\",\n      \"onFail\": \"error\"\n    }\n  }\n}\n",
           "findings": [
             {
               "key": "packageManager",

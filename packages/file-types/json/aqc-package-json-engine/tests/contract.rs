@@ -25,7 +25,7 @@ fn missing_package_json_creates_both_package_manager_declarations_deterministica
     );
     assert_eq!(
         output.expected_bytes,
-        b"{\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"onFail\": \"error\",\n      \"version\": \"11.11.0\"\n    }\n  },\n  \"packageManager\": \"pnpm@11.11.0\"\n}\n",
+        b"{\n  \"packageManager\": \"pnpm@11.11.0\",\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"version\": \"11.11.0\",\n      \"onFail\": \"error\"\n    }\n  }\n}\n",
         "Missing package.json creation must be canonical and complete."
     );
     assert_eq!(
@@ -54,7 +54,7 @@ fn existing_empty_object_returns_corrected_expected_bytes_and_findings() {
     let output = reconcile_existing(b"{}\n");
     assert_eq!(
         output.expected_bytes,
-        b"{\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"onFail\": \"error\",\n      \"version\": \"11.11.0\"\n    }\n  },\n  \"packageManager\": \"pnpm@11.11.0\"\n}\n",
+        b"{\n  \"packageManager\": \"pnpm@11.11.0\",\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"version\": \"11.11.0\",\n      \"onFail\": \"error\"\n    }\n  }\n}\n",
         "A writable mismatch must produce corrected expected bytes."
     );
     assert_eq!(
@@ -70,7 +70,7 @@ fn invalid_existing_package_json_returns_corrected_bytes_and_findings() {
     let output = reconcile_existing(bytes);
     assert_eq!(
         output.expected_bytes,
-        b"{\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"onFail\": \"error\",\n      \"version\": \"11.11.0\"\n    }\n  },\n  \"packageManager\": \"pnpm@11.11.0\"\n}\n",
+        br#"{"packageManager":"pnpm@11.11.0","devEngines":{"packageManager":{"name":"pnpm","version":"11.11.0","onFail":"error"}}}"#,
         "Writable mismatches must produce corrected expected bytes."
     );
     assert_eq!(
@@ -96,7 +96,7 @@ fn nested_writes_preserve_unaddressed_values() {
     let output = reconcile_existing(bytes);
     assert_eq!(
         output.expected_bytes,
-        b"{\n  \"devEngines\": {\n    \"kept\": true,\n    \"packageManager\": {\n      \"custom\": 42,\n      \"name\": \"pnpm\",\n      \"onFail\": \"error\",\n      \"version\": \"11.11.0\"\n    }\n  },\n  \"name\": \"kept\",\n  \"packageManager\": \"pnpm@11.11.0\"\n}\n",
+        b"{\n  \"name\":\"kept\",\n  \"devEngines\":{\"kept\":true,\"packageManager\":{\n      \"name\":\"pnpm\",\n      \"custom\":42,\n      \"version\": \"11.11.0\",\n      \"onFail\": \"error\"\n    }},\n  \"packageManager\": \"pnpm@11.11.0\"\n}",
         "Nested corrections must preserve every unaddressed value."
     );
     assert_eq!(
@@ -112,7 +112,7 @@ fn wrong_container_shapes_are_replaced_by_corrected_nested_objects() {
     let output = reconcile_existing(bytes);
     assert_eq!(
         output.expected_bytes,
-        b"{\n  \"devEngines\": {\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"onFail\": \"error\",\n      \"version\": \"11.11.0\"\n    }\n  },\n  \"packageManager\": \"pnpm@11.11.0\",\n  \"private\": true\n}\n",
+        b"{\"packageManager\":\"pnpm@11.11.0\",\"devEngines\":{\"packageManager\":{\n      \"name\": \"pnpm\",\n      \"version\": \"11.11.0\",\n      \"onFail\": \"error\"\n    }},\"private\":true}",
         "Writable assertions must replace wrong managed shapes without changing unmanaged values."
     );
     assert_eq!(
@@ -120,6 +120,18 @@ fn wrong_container_shapes_are_replaced_by_corrected_nested_objects() {
         4,
         "Each wrong or missing managed scalar must be reported."
     );
+}
+
+#[test]
+fn writable_nested_requirements_replace_a_non_object_dev_engines_parent() {
+    let bytes = br#"{"devEngines":[],"private":true}"#;
+    let output = reconcile_existing(bytes);
+    assert_eq!(
+        output.expected_bytes,
+        b"{\n  \"devEngines\":{\n    \"packageManager\": {\n      \"name\": \"pnpm\",\n      \"version\": \"11.11.0\",\n      \"onFail\": \"error\"\n    }\n  },\n  \"private\":true,\n  \"packageManager\": \"pnpm@11.11.0\"\n}",
+        "Writable nested assertions must replace their malformed managed parent."
+    );
+    assert_eq!(output.findings.len(), 4);
 }
 
 #[test]
@@ -134,6 +146,10 @@ fn wrong_managed_leaf_shapes_are_replaced_independently() {
             &resolved_complete(),
         );
         assert!(fixed.findings.is_empty(), "wrong shape {value}");
+        assert_eq!(
+            fixed.expected_bytes, output.expected_bytes,
+            "wrong shape {value} must reach a fixed point"
+        );
     }
 }
 
@@ -158,7 +174,7 @@ fn absent_assertion_removes_only_the_addressed_value() {
         "A present object must not satisfy a scalar absence assertion."
     );
     assert_eq!(
-        output.expected_bytes, b"{\n  \"name\": \"kept\",\n  \"private\": true\n}\n",
+        output.expected_bytes, br#"{"name":"kept","private":true}"#,
         "Absence must remove the addressed field and preserve other values."
     );
 }
@@ -209,6 +225,17 @@ fn check_only_assertions_report_without_inventing_values() {
         2,
         "Missing check-only values must still be reported."
     );
+
+    let wrong_parent = br#"{"devEngines":[],"kept":true}"#;
+    let wrong_parent_output =
+        <PackageJsonEngine as FileEngine<ResolvedPackageJsonRequirements>>::reconcile(
+            Some(wrong_parent),
+            &resolved,
+        );
+    assert_eq!(
+        wrong_parent_output.expected_bytes, wrong_parent,
+        "Check-only assertions must not remove a parent they cannot replace."
+    );
 }
 
 #[test]
@@ -217,6 +244,8 @@ fn malformed_non_object_and_duplicate_json_suppress_field_findings() {
         b"{".as_slice(),
         b"[]".as_slice(),
         br#"{"packageManager":"pnpm@11","packageManager":"npm@10"}"#.as_slice(),
+        br#"{"outer":{"name":"first","name":"second"}}"#.as_slice(),
+        br#"{"items":[{"name":"first","name":"second"}]}"#.as_slice(),
     ] {
         let output = reconcile_existing(bytes);
         assert_eq!(
@@ -231,6 +260,32 @@ fn malformed_non_object_and_duplicate_json_suppress_field_findings() {
         assert!(
             matches!(output.findings.first(), Some(Finding::ParseError { .. })),
             "The finding must report parse or root shape."
+        );
+    }
+}
+
+#[test]
+fn strict_package_json_rejects_every_json_extension() {
+    let cases: &[(&str, &[u8])] = &[
+        ("comments", br#"{/* comment */"value":true}"#),
+        ("loose object property names", br"{value:true}"),
+        ("trailing commas", br#"{"value":true,}"#),
+        ("missing commas", br#"{"first":true "second":false}"#),
+        ("single-quoted strings", br#"{"value":'text'}"#),
+        ("hexadecimal numbers", br#"{"value":0x10}"#),
+        ("unary plus numbers", br#"{"value":+1}"#),
+        ("extended JSON numbers", br#"{"value":1_000}"#),
+        ("UTF-8 BOM", b"\xef\xbb\xbf{\"value\":true}"),
+    ];
+    for (extension, bytes) in cases {
+        let output = reconcile_existing(bytes);
+        assert_eq!(
+            output.expected_bytes, *bytes,
+            "{extension} must preserve rejected input bytes."
+        );
+        assert!(
+            matches!(output.findings.as_slice(), [Finding::ParseError { .. }]),
+            "{extension} must produce one parse error."
         );
     }
 }
@@ -391,7 +446,7 @@ fn keyed_maps_create_entries_and_preserve_unmanaged_siblings() {
     );
     assert_eq!(
         output.expected_bytes,
-        b"{\n  \"devDependencies\": {\n    \"eslint\": \"9.0.0\",\n    \"typescript\": \"7.0.2\"\n  },\n  \"private\": true,\n  \"scripts\": {\n    \"lint\": \"eslint .\",\n    \"typecheck\": \"tsc --build --noEmit tsconfig.json\"\n  }\n}\n",
+        b"{\"scripts\":{\n    \"lint\":\"eslint .\",\n    \"typecheck\": \"tsc --build --noEmit tsconfig.json\"\n  },\"devDependencies\":{\n    \"eslint\":\"9.0.0\",\n    \"typescript\": \"7.0.2\"\n  },\"private\":true}",
         "Managed entries must compose with unrelated object members."
     );
     let selectors = output
@@ -497,7 +552,7 @@ fn keyed_maps_apply_check_only_and_absent_scalar_algebra() {
     let output = <PackageJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
     assert_eq!(output.findings.len(), 3);
     assert_eq!(
-        output.expected_bytes, b"{\n  \"scripts\": {\n    \"kept\": \"unchanged\"\n  }\n}\n",
+        output.expected_bytes, br#"{"scripts":{"kept":"unchanged"}}"#,
         "Check-only assertions must not invent values and absence must remove only its key."
     );
     assert_eq!(

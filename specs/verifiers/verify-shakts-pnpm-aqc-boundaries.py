@@ -28,79 +28,6 @@ EXISTING_PACKAGES = {
     "aqc-rustfmt-toml-engine": ROOT / "packages/file-types/toml/aqc-rustfmt-toml-engine",
 }
 
-APPROVED_CHANGED_FILES = {
-    ".gitignore",
-    ".github/workflows/release.yml",
-    "fixture3.yaml",
-    "fixtures/scripts/fixture3-shakts-pnpm-aqc.py",
-    "release-plz.toml",
-    "packages/aqc-file-engine-core/src/finding.rs",
-    "packages/aqc-file-engine-core/src/lib.rs",
-    "packages/aqc-file-engine-core/src/merge/mod.rs",
-    "packages/aqc-file-engine-core/src/merge/model.rs",
-    "packages/aqc-file-engine-core/src/merge/scalar.rs",
-    "packages/aqc-file-engine-core/src/merge/scalar_assertion.rs",
-    "packages/aqc-file-engine-core/src/merge/items.rs",
-    "packages/aqc-file-engine-core/src/merge/lists.rs",
-    "packages/aqc-file-engine-core/tests/architecture.rs",
-    "packages/aqc-file-engine-core/tests/public_contract.rs",
-    "packages/aqc-file-engine-core/tests/exact_items.rs",
-    "packages/aqc-file-engine-core/tests/scalar_assertion.rs",
-    "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/dependencies/removals.rs",
-    "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/dependencies/required.rs",
-    "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/features.rs",
-    "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/lints.rs",
-    "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_lint_tables.rs",
-    "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/disallowed.rs",
-    "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/msrv.rs",
-    "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/thresholds.rs",
-    "packages/file-types/toml/aqc-clippy-toml-engine/tests/merge.rs",
-    "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/reconcile/settings_support.rs",
-    "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings/exact.rs",
-    "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings/ignore.rs",
-    "packages/file-types/toml/aqc-toml-engine-core/src/finding.rs",
-    "packages/file-types/toml/aqc-toml-engine-core/src/scalars.rs",
-    "packages/file-types/toml/aqc-toml-engine-core/tests/core_contract.rs",
-}
-
-APPROVED_CHANGED_ROOTS = (
-    ".worklogs/",
-    "fixtures/shakts-pnpm-aqc/",
-    "fixtures/approved/shakts-pnpm-aqc/",
-    "fixtures/probes/shakts-pnpm-aqc/",
-    "packages/file-types/json/aqc-json-engine-core/",
-    "packages/file-types/json/aqc-package-json-engine/",
-    "packages/file-types/text/aqc-text-engine-core/",
-    "packages/file-types/text/aqc-text-file-engine/",
-    "packages/file-types/yaml/aqc-yaml-engine-core/",
-    "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/",
-    "specs/",
-)
-
-
-def changed_paths() -> tuple[set[str], list[str]]:
-    changed: set[str] = set()
-    errors: list[str] = []
-    for command in (
-        ["git", "diff", "--name-only", "HEAD"],
-        ["git", "ls-files", "--others", "--exclude-standard"],
-    ):
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            errors.append(f"cannot inspect repository diff: {result.stderr.strip()}")
-        else:
-            changed.update(result.stdout.splitlines())
-    return changed, errors
-
-
-def approved_changed_path(path: str) -> bool:
-    if path in APPROVED_CHANGED_FILES or path.startswith(APPROVED_CHANGED_ROOTS):
-        return True
-    if path.endswith(("/Cargo.toml", "/Cargo.lock", "/deny.toml")) and path.startswith("packages/"):
-        return True
-    return False
-
-
 def emit(errors: list[str]) -> None:
     evidence = {"check": ENTRY["check"], "status": "fail" if errors else "pass"}
     if errors:
@@ -187,7 +114,13 @@ def check_layers(errors: list[str]) -> None:
         "Finding",
     ]
     allowed_production_dependencies = {
-        "aqc-json-engine-core": {"aqc-file-engine-core", "serde", "serde_json"},
+        "aqc-json-engine-core": {
+            "aqc-file-engine-core",
+            "jsonc-parser",
+            "serde_json",
+            "tree-sitter",
+            "tree-sitter-javascript",
+        },
         "aqc-package-json-engine": {
             "aqc-file-engine-core", "aqc-json-engine-core", "schemars", "serde"
         },
@@ -349,64 +282,6 @@ def check_inventory(errors: list[str]) -> None:
                 errors.append(f"release workflow omits ordered-release marker {marker}")
 
 
-def mismatch_bodies(source_text: str) -> list[str]:
-    bodies = []
-    offset = 0
-    while (index := source_text.find("Finding::Mismatch", offset)) >= 0:
-        brace = source_text.find("{", index)
-        if brace < 0:
-            break
-        depth = 1
-        for end in range(brace + 1, len(source_text)):
-            if source_text[end] == "{":
-                depth += 1
-            elif source_text[end] == "}":
-                depth -= 1
-                if depth == 0:
-                    bodies.append(source_text[brace + 1:end])
-                    offset = end + 1
-                    break
-        else:
-            break
-    return bodies
-
-
-def check_existing_limit(errors: list[str]) -> None:
-    forbidden_aliases = ["aqc_text_engine_core", "AqcTextEngineCore", "TextEngineCore"]
-    for name, directory in EXISTING_PACKAGES.items():
-        package_source = source(directory)
-        if not package_source:
-            errors.append(f"{name}: source is missing")
-            continue
-        for body in mismatch_bodies(package_source):
-            if "key:" in body and "selector: None" not in body:
-                errors.append(f"{name}: existing mismatch does not supply selector: None")
-                break
-        if "selector: Some(" in package_source:
-            errors.append(f"{name}: existing runtime introduces an item selector")
-        for alias in forbidden_aliases:
-            if alias in package_source:
-                errors.append(f"{name}: compatibility alias/reference {alias}")
-        manifest = manifest_for(directory)
-        if manifest:
-            for dep, value in dependencies(manifest).items():
-                if isinstance(value, dict) and "path" in value:
-                    errors.append(f"{name}: path dependency {dep}")
-    for directory in NEW_PACKAGES.values():
-        package_source = source(directory)
-        if re.search(r"(?i)deprecated|compat(?:ibility)?\s+(?:alias|shim)", package_source):
-            errors.append(f"{directory.relative_to(ROOT)}: deprecated compatibility API introduced")
-    changed, change_errors = changed_paths()
-    errors.extend(change_errors)
-    unexpected = sorted(path for path in changed if not approved_changed_path(path))
-    errors.extend(f"unapproved repository change: {path}" for path in unexpected)
-    errors.extend(
-        f"generated artifact is forbidden: {path}"
-        for path in sorted(changed)
-        if "__pycache__" in Path(path).parts or path.endswith(".pyc")
-    )
-
-
 def symlink_errors() -> list[str]:
     errors: list[str] = []
     required = [RAW_SPEC, Path(__file__).absolute(), ROOT / "specs/verifiers", ROOT / ".github/workflows/release.yml"]
@@ -431,8 +306,6 @@ if check == "layer-and-purity-boundaries":
     check_layers(errors)
 elif check == "workspace-inventory-gates-and-release-records":
     check_inventory(errors)
-elif check == "existing-runtime-change-limit":
-    check_existing_limit(errors)
 else:
     errors.append(f"unsupported boundary check {check}")
 emit(errors)

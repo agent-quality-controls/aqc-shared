@@ -7,8 +7,7 @@
 
 ## JSON Families
 
-- `aqc-json-engine-core` owns strict JSON object parsing and targeted JSON edits.
-- `aqc-jsonc-engine-core` owns lossless JSONC object parsing and targeted edits. Callers provide `JsoncParseOptions`; the core does not select a tool dialect.
+- `aqc-json-engine-core` owns lossless JSON-family object parsing and targeted edits. Callers provide `JsonParseOptions`; the core does not select strict JSON or a tool dialect.
 - `aqc-package-json-engine` owns `package.json` fields.
 - `aqc-tsconfig-json-engine` owns `tsconfig.json`, including TypeScript's JSONC syntax switches and compiler-option keys.
 

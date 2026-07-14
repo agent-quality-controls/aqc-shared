@@ -2,15 +2,28 @@
   "version": 4,
   "requirements": {
     "tree": {
-      "verifier": ["builtin:tree"],
-      "reason": "Plan: exact AQC package inventory, new independent JSONC workspaces, affected attribution consumers, fixtures, probes, docs, and release records.",
+      "verifier": [
+        "builtin:tree"
+      ],
+      "reason": "Plan: exact AQC package inventory, the unified JSON core and TSConfig workspace, affected attribution consumers, fixtures, probes, docs, and release records.",
       "required": [
         "packages/aqc-file-engine-core/Cargo.toml",
         "packages/aqc-file-engine-core/src/merge/model.rs",
         "packages/aqc-file-engine-core/src/finding.rs",
         "packages/aqc-file-engine-core/tests/public_contract.rs",
+        "packages/file-types/json/aqc-json-engine-core/Cargo.lock",
         "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
+        "packages/file-types/json/aqc-json-engine-core/LICENSE",
+        "packages/file-types/json/aqc-json-engine-core/README.md",
+        "packages/file-types/json/aqc-json-engine-core/deny.toml",
+        "packages/file-types/json/aqc-json-engine-core/guardrail3-rs.toml",
         "packages/file-types/json/aqc-json-engine-core/src/lib.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/mod.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/parse.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/scalar.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/types/mod.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/types/object.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/types/options.rs",
         "packages/file-types/json/aqc-json-engine-core/tests/core_contract.rs",
         "packages/file-types/json/aqc-package-json-engine/Cargo.toml",
         "packages/file-types/json/aqc-package-json-engine/src/lib.rs",
@@ -19,19 +32,6 @@
         "packages/file-types/json/aqc-package-json-engine/src/types/model.rs",
         "packages/file-types/json/aqc-package-json-engine/tests/contract.rs",
         "packages/file-types/json/aqc-package-json-engine/tests/engine_requirement.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.toml",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.lock",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/LICENSE",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/README.md",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/deny.toml",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/guardrail3-rs.toml",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/src/lib.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/src/runtime/mod.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/src/runtime/parse.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/src/runtime/scalar.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/src/types/mod.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/src/types/object.rs",
-        "packages/file-types/jsonc/aqc-jsonc-engine-core/tests/core_contract.rs",
         "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml",
         "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.lock",
         "packages/file-types/jsonc/aqc-tsconfig-json-engine/LICENSE",
@@ -80,44 +80,81 @@
     },
     "content": [
       {
-        "verifier": ["builtin:content"],
+        "verifier": [
+          "builtin:content"
+        ],
         "files": [
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.toml",
+          "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
           "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml"
         ],
-        "required": ["rust-version = \"1.88\"", "edition = \"2024\"", "publish = true", "resolver = \"3\""],
-        "forbidden": ["path ="],
-        "reason": "Plan: new JSONC crates are publishable independent Rust 1.88 workspaces with no path dependencies."
+        "required": [
+          "rust-version = \"1.88\"",
+          "edition = \"2024\"",
+          "publish = true",
+          "resolver = \"3\""
+        ],
+        "forbidden": [
+          "path ="
+        ],
+        "reason": "Plan: the unified JSON core and TSConfig engine are publishable independent Rust 1.88 workspaces with no path dependencies."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.toml"],
-        "required": ["jsonc-parser = { version = \"=0.33.0\""],
-        "forbidden": ["serde_json", "json5", "json_comments"],
-        "reason": "Plan: JSONC core pins the selected configurable lossless parser rather than strict JSON or another dialect."
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-json-engine-core/Cargo.toml"
+        ],
+      "required": [
+        "jsonc-parser = { version = \"=0.33.0\"",
+        "serde_json = { version = \"1\""
+      ],
+      "forbidden": [
+        "json5",
+        "json_comments"
+      ],
+      "reason": "Current architecture: unified JSON core pins the configurable lossless parser and uses serde_json only to preserve strict-JSON validation diagnostics."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["packages/aqc-file-engine-core/src/**/*.rs"],
-        "exists": ["pub fn attribution(&self) -> Vec<Provenance>", "pub fn resolved_map_attribution"],
-        "forbidden": ["pub fn mismatch(", "pub fn push_mismatch("],
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/aqc-file-engine-core/src/**/*.rs"
+        ],
+        "exists": [
+          "pub fn attribution(&self) -> Vec<Provenance>",
+          "pub fn resolved_map_attribution"
+        ],
+        "forbidden": [
+          "pub fn mismatch(",
+          "pub fn push_mismatch("
+        ],
         "reason": "Plan: universal core owns requirement and resolved-map attribution while Finding::Mismatch remains the sole construction API."
       },
       {
-        "verifier": ["builtin:content"],
+        "verifier": [
+          "builtin:content"
+        ],
         "files": [
           "packages/file-types/json/aqc-json-engine-core/src/**/*.rs",
           "packages/file-types/toml/aqc-toml-engine-core/src/**/*.rs"
         ],
-        "forbidden": ["fn attribution(", "fn push_mismatch(", "pub use runtime::attribution", "pub use runtime::push_mismatch"],
+        "forbidden": [
+          "fn attribution(",
+          "fn push_mismatch(",
+          "pub use runtime::attribution",
+          "pub use runtime::push_mismatch"
+        ],
         "reason": "Plan: JSON and TOML format-local attribution and vector-mutating mismatch helpers are deleted with no wrappers or aliases."
       },
       {
-        "verifier": ["builtin:content"],
+        "verifier": [
+          "builtin:content"
+        ],
         "files": [
           "packages/file-types/json/aqc-json-engine-core/src/**/*.rs",
           "packages/file-types/json/aqc-package-json-engine/src/**/*.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/**/*.rs",
           "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/**/*.rs",
           "packages/file-types/toml/aqc-toml-engine-core/src/**/*.rs",
           "packages/file-types/toml/aqc-cargo-toml-engine/src/**/*.rs",
@@ -129,13 +166,17 @@
           "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/**/*.rs",
           "packages/file-types/text/aqc-text-file-engine/src/**/*.rs"
         ],
-        "exists": [".attribution()"],
+        "exists": [
+          ".attribution()"
+        ],
         "reason": "Plan: every named exact-provenance consumer adopts the universal attribution method."
       },
       {
-        "verifier": ["builtin:content"],
+        "verifier": [
+          "builtin:content"
+        ],
         "files": [
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/**/*.rs",
+          "packages/file-types/json/aqc-json-engine-core/src/**/*.rs",
           "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/**/*.rs"
         ],
         "forbidden": [
@@ -154,10 +195,14 @@
         "reason": "Plan: AQC cores and engines are product-neutral pure byte transforms with no policy, adapter, filesystem, environment, network, or process knowledge."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/jsonc/aqc-jsonc-engine-core/src/**/*.rs"],
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-json-engine-core/src/**/*.rs"
+        ],
         "exists": [
-          "pub fn set_scalar(&mut self",
+          "pub fn set_scalar(",
           "pub fn remove_value(&mut self",
           "pub fn scalar(&self",
           "pub fn value_exists(&self",
@@ -178,68 +223,130 @@
         "reason": "Plan: reusable JSONC mechanics know no TSConfig or TypeScript names, and the corrected mutation methods require mutable receivers."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/json/aqc-package-json-engine/src/**/*.rs"],
-        "exists": ["scripts", "dev_dependencies", "devDependencies", "ResolvedMap"],
-        "forbidden": ["ItemRequirements<KeyedItem<String>>", "ScriptRequirement", "DevDependencyRequirement"],
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-package-json-engine/src/**/*.rs"
+        ],
+        "exists": [
+          "scripts",
+          "dev_dependencies",
+          "devDependencies",
+          "ResolvedMap"
+        ],
+        "forbidden": [
+          "ItemRequirements<KeyedItem<String>>",
+          "ScriptRequirement",
+          "DevDependencyRequirement"
+        ],
         "reason": "Plan: Package JSON uses keyed scalar maps matching file structure, not collection or wrapper abstractions."
       },
       {
-        "verifier": ["builtin:content"],
-        "files": ["release-plz.toml"],
-        "required": ["name = \"aqc-jsonc-engine-core\"", "name = \"aqc-tsconfig-json-engine\""],
-        "reason": "Plan: release records include both new publishable AQC crates."
+        "verifier": [
+          "builtin:content"
+        ],
+        "files": [
+          "release-plz.toml"
+        ],
+        "required": [
+          "name = \"aqc-json-engine-core\"",
+          "name = \"aqc-tsconfig-json-engine\""
+        ],
+        "reason": "Plan: release records include the unified JSON core and publishable TSConfig engine."
       }
     ],
     "dependencies": [
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "jsonc-parser"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/json/aqc-json-engine-core/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "jsonc-parser"
+        ],
         "forbidden": [
-          "aqc-json-engine-core",
           "aqc-package-json-engine",
           "aqc-tsconfig-json-engine",
           "aqc-toml-engine-core"
         ],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan: JSONC core depends only on universal core and parser, never an engine, another format core, or Shackles."
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
+        "reason": "Plan: the unified JSON core depends on universal core and JSON-family parsers, never an engine, another format core, or Shackles."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "aqc-jsonc-engine-core"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-json-engine-core"
+        ],
         "forbidden": [
-          "aqc-json-engine-core",
           "aqc-package-json-engine",
           "aqc-toml-engine-core",
           "aqc-cargo-toml-engine"
         ],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan: TSConfig engine depends downward on universal and JSONC cores only, with no sibling engine or product dependency."
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
+        "reason": "Plan: TSConfig engine depends downward on universal and unified JSON cores only, with no sibling engine or product dependency."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/json/aqc-package-json-engine/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "aqc-json-engine-core"],
-        "forbidden": ["aqc-jsonc-engine-core", "aqc-tsconfig-json-engine"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan: Package JSON remains a strict JSON engine and does not depend on JSONC or TSConfig."
-      },
-      {
-        "verifier": ["builtin:cargo-dependencies"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
         "files": [
-          "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
+          "packages/file-types/json/aqc-package-json-engine/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-json-engine-core"
+        ],
+        "forbidden": [
+          "aqc-tsconfig-json-engine"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
+        "reason": "Plan: Package JSON depends on the unified JSON core and does not depend on TSConfig."
+      },
+      {
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
           "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
           "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml",
           "packages/file-types/text/aqc-text-file-engine/Cargo.toml"
         ],
-        "required": ["aqc-file-engine-core"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "required": [
+          "aqc-file-engine-core"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: affected format cores and text engine reuse universal attribution without acquiring product dependencies."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
         "files": [
           "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml",
@@ -247,27 +354,48 @@
           "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
           "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
         ],
-        "required": ["aqc-file-engine-core", "aqc-toml-engine-core"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-toml-engine-core"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: every affected TOML engine retains universal-core and TOML-core boundaries only."
       },
       {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"],
-        "required": ["aqc-file-engine-core", "aqc-yaml-engine-core"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "verifier": [
+          "builtin:cargo-dependencies"
+        ],
+        "files": [
+          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"
+        ],
+        "required": [
+          "aqc-file-engine-core",
+          "aqc-yaml-engine-core"
+        ],
+        "forbiddenGlobs": [
+          "shackles-*",
+          "shakrs-*",
+          "shakts-*"
+        ],
         "reason": "Plan: PNPM Workspace YAML retains universal-core and YAML-core boundaries."
       }
     ],
     "exports": [
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
-        "package": "aqc-jsonc-engine-core",
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
+        "package": "aqc-json-engine-core",
         "required": [
           "ConfigScalar",
           "Finding",
-          "JsoncObject",
-          "JsoncParseOptions",
+          "JsonObject",
+          "JsonParseOptions",
+          "NonObjectParentAction",
           "Provenance",
           "ResolvedRequirement",
           "ScalarAssertion",
@@ -275,11 +403,20 @@
           "parse_object_or_report",
           "reconcile_scalar_assertion"
         ],
-        "forbidden": ["JsonRequirements", "ResolvedJsonRequirements", "TsconfigJsonRequirements", "attribution", "push_mismatch", "FindingMismatch"],
+        "forbidden": [
+          "JsonRequirements",
+          "ResolvedJsonRequirements",
+          "TsconfigJsonRequirements",
+          "attribution",
+          "push_mismatch",
+          "FindingMismatch"
+        ],
         "reason": "Plan: JSONC facade exposes reusable format mechanics, a stable core-owned parser-options type chosen by concrete engines, and core vocabulary without leaking the parser dependency."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
         "package": "aqc-tsconfig-json-engine",
         "required": [
           "ConflictEntry",
@@ -293,11 +430,19 @@
           "TsconfigJsonEngine",
           "TsconfigJsonRequirements"
         ],
-        "forbidden": ["JsoncObject", "PackageJsonRequirements", "TscAdapterRequirement", "ItemRequirements", "KeyedItem"],
+        "forbidden": [
+          "JsonObject",
+          "PackageJsonRequirements",
+          "TscAdapterRequirement",
+          "ItemRequirements",
+          "KeyedItem"
+        ],
         "reason": "Plan: TSConfig facade exposes its engine API and complete supported core construction vocabulary, but no format internals or other vertical types."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
         "package": "aqc-package-json-engine",
         "required": [
           "ConflictEntry",
@@ -313,14 +458,24 @@
           "ResolvedRequirement",
           "ScalarAssertion"
         ],
-        "forbidden": ["ScriptRequirement", "DevDependencyRequirement", "ItemRequirements", "KeyedItem", "TsconfigJsonRequirements"],
+        "forbidden": [
+          "ScriptRequirement",
+          "DevDependencyRequirement",
+          "ItemRequirements",
+          "KeyedItem",
+          "TsconfigJsonRequirements"
+        ],
         "reason": "Plan: Package JSON facade adds ResolvedMap needed by public keyed-map getters and no wrapper or item collection aliases."
       }
     ],
     "enumerations": [
       {
-        "verifier": ["builtin:rust-enumerations"],
-        "files": ["packages/file-types/jsonc/aqc-tsconfig-json-engine/src/**/*.rs"],
+        "verifier": [
+          "builtin:rust-enumerations"
+        ],
+        "files": [
+          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/**/*.rs"
+        ],
         "name": "TsconfigBooleanCompilerOption",
         "values": [
           "Strict",
@@ -351,180 +506,46 @@
     ],
     "custom": [
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
         "check": "exact-new-package-trees",
-        "reason": "Plan: both new independent packages contain exactly the facade, types, runtime, gates, metadata, and tests in the declared package layouts."
+        "reason": "Plan: the unified JSON core and TSConfig package contain exactly the facade, types, runtime, gates, metadata, and tests in the declared package layouts."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
         "check": "exact-public-facades-and-api-shapes",
         "reason": "Plan: exact public roots, fields, getters, corrected mutable JSONC mutation signatures, private resolved state, facade vocabulary, and no aliases."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
         "check": "exact-dependency-boundaries",
         "reason": "Plan: new and changed crates have exact downward package identities, no path dependencies, no engine-to-engine edges, and no AQC-to-Shackles edges."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
         "check": "attribution-migration-contract",
         "reason": "Plan: attribution lives only on ResolvedRequirement; format helpers disappear; all named consumers migrate while specialized filtering, aggregation, rendering, selectors, and direct Finding::Mismatch construction remain."
       },
       {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
-        "check": "jsonc-and-engine-purity-boundaries",
-        "reason": "Plan: JSONC core is tool-neutral, TSConfig engine is product-neutral, both are pure transforms, CST dependency types stay private, and engines do not own IO or commands."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
-        "check": "fixture-and-downstream-contract",
-        "reason": "Plan: Fixture3 and downstream probes cover JSONC dialect/preservation, TSConfig reconciliation/conflicts/findings/init, public facade compilation, and denied forbidden dependencies."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-shakts-tsc-aqc.py"],
-        "check": "changed-package-scope",
-        "allowed_paths": [
-          "packages/aqc-file-engine-core/deny.toml",
-          "packages/aqc-filetree/deny.toml",
-          "packages/aqc-fs-utils/deny.toml",
-          "packages/aqc-git-helpers/deny.toml",
-          "packages/file-types/json/aqc-json-engine-core/deny.toml",
-          "packages/file-types/text/aqc-text-file-engine/deny.toml",
-          "packages/file-types/toml/aqc-cargo-toml-engine/deny.toml",
-          "packages/file-types/toml/aqc-clippy-toml-engine/deny.toml",
-          "packages/file-types/toml/aqc-deny-toml-engine/deny.toml",
-          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/deny.toml",
-          "packages/file-types/toml/aqc-rustfmt-toml-engine/deny.toml",
-          "packages/file-types/toml/aqc-toml-engine-core/deny.toml",
-          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/deny.toml",
-          "packages/file-types/yaml/aqc-yaml-engine-core/deny.toml",
-          "packages/source/rust/aqc-rust-syntax/deny.toml",
-          ".github/workflows/release.yml",
-          ".worklogs/2026-07-14-145832-shakts-tsc-aqc.md",
-          "docs/architecture/file-engine-cores.md",
-          "fixture3.yaml",
-          "fixtures/approved/shakts-tsc-aqc/approved.meta.json",
-          "fixtures/approved/shakts-tsc-aqc/approved.normalized.json",
-          "fixtures/probes/shakts-pnpm-aqc/Cargo.lock",
-          "fixtures/probes/shakts-pnpm-aqc/Cargo.toml",
-          "fixtures/probes/shakts-pnpm-aqc/src/main.rs",
-          "fixtures/probes/shakts-tsc-aqc/Cargo.lock",
-          "fixtures/probes/shakts-tsc-aqc/Cargo.toml",
-          "fixtures/probes/shakts-tsc-aqc/guardrail3-rs.toml",
-          "fixtures/probes/shakts-tsc-aqc/src/main.rs",
-          "fixtures/scripts/fixture3-shakts-pnpm-aqc.py",
-          "fixtures/scripts/fixture3-shakts-tsc-aqc.py",
-          "fixtures/scripts/local_cargo_source.py",
-          "fixtures/shakts-tsc-aqc/contracts.json",
-          "packages/aqc-file-engine-core/Cargo.lock",
-          "packages/aqc-file-engine-core/Cargo.toml",
-          "packages/aqc-file-engine-core/src/lib.rs",
-          "packages/aqc-file-engine-core/src/merge/mod.rs",
-          "packages/aqc-file-engine-core/src/merge/model.rs",
-          "packages/aqc-file-engine-core/tests/public_contract.rs",
-          "packages/file-types/json/aqc-json-engine-core/Cargo.lock",
-          "packages/file-types/json/aqc-json-engine-core/Cargo.toml",
-          "packages/file-types/json/aqc-json-engine-core/src/lib.rs",
-          "packages/file-types/json/aqc-json-engine-core/src/runtime/finding.rs",
-          "packages/file-types/json/aqc-json-engine-core/src/runtime/mod.rs",
-          "packages/file-types/json/aqc-json-engine-core/src/runtime/scalar.rs",
-          "packages/file-types/json/aqc-json-engine-core/src/types/object.rs",
-          "packages/file-types/json/aqc-json-engine-core/tests/core_contract.rs",
-          "packages/file-types/json/aqc-package-json-engine/Cargo.lock",
-          "packages/file-types/json/aqc-package-json-engine/Cargo.toml",
-          "packages/file-types/json/aqc-package-json-engine/deny.toml",
-          "packages/file-types/json/aqc-package-json-engine/src/lib.rs",
-          "packages/file-types/json/aqc-package-json-engine/src/runtime/merge.rs",
-          "packages/file-types/json/aqc-package-json-engine/src/runtime/reconcile.rs",
-          "packages/file-types/json/aqc-package-json-engine/src/types/model.rs",
-          "packages/file-types/json/aqc-package-json-engine/tests/contract.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.lock",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/Cargo.toml",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/LICENSE",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/README.md",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/deny.toml",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/guardrail3-rs.toml",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/lib.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/runtime/mod.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/runtime/parse.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/runtime/scalar.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/types/mod.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/types/object.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/src/types/options.rs",
-          "packages/file-types/jsonc/aqc-jsonc-engine-core/tests/core_contract.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.lock",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/LICENSE",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/README.md",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/deny.toml",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/guardrail3-rs.toml",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/lib.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/runtime/engine.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/runtime/merge.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/runtime/mod.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/runtime/reconcile.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/types/mod.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/types/model.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/tests/contract.rs",
-          "packages/file-types/jsonc/aqc-tsconfig-json-engine/tests/engine_requirement.rs",
-          "packages/file-types/text/aqc-text-file-engine/Cargo.lock",
-          "packages/file-types/text/aqc-text-file-engine/Cargo.toml",
-          "packages/file-types/text/aqc-text-file-engine/src/reconcile.rs",
-          "packages/file-types/text/aqc-text-file-engine/tests/reconcile_tests.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.lock",
-          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/dependencies/apply.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/dependencies/removals.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/features.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/lints.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_fields.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_lint_tables.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_lints.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/profiles.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/section_presence.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/target_tables.rs",
-          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/workspace_fields.rs",
-          "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.lock",
-          "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/bools.rs",
-          "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/disallowed.rs",
-          "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/enums.rs",
-          "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/msrv.rs",
-          "packages/file-types/toml/aqc-clippy-toml-engine/src/reconcile/thresholds.rs",
-          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.lock",
-          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-deny-toml-engine/src/reconcile/apply.rs",
-          "packages/file-types/toml/aqc-deny-toml-engine/src/reconcile/exact.rs",
-          "packages/file-types/toml/aqc-deny-toml-engine/src/reconcile/lists.rs",
-          "packages/file-types/toml/aqc-deny-toml-engine/src/reconcile/scalar_apply.rs",
-          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.lock",
-          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/reconcile/settings.rs",
-          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/reconcile/settings_support.rs",
-          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.lock",
-          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings/apply.rs",
-          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings/ignore.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/Cargo.lock",
-          "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
-          "packages/file-types/toml/aqc-toml-engine-core/src/finding.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/src/items/array.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/src/items/array_table.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/src/items/support.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/src/lib.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/src/lists.rs",
-          "packages/file-types/toml/aqc-toml-engine-core/src/scalars.rs",
-          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.lock",
-          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml",
-          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/runtime/reconcile/support.rs",
-          "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.lock",
-          "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml",
-          "packages/file-types/yaml/aqc-yaml-engine-core/src/runtime/scalar.rs",
-          "release-plz.toml",
-          "specs/shakts-tsc-aqc.spec.json",
+        "verifier": [
           "specs/verifiers/verify-shakts-tsc-aqc.py"
         ],
-        "reason": "Plan: AQC implementation changes remain inside the exhaustive named package and artifact scope."
+        "check": "json-family-and-engine-purity-boundaries",
+        "reason": "Plan: unified JSON core is tool-neutral, TSConfig engine is product-neutral, both are pure transforms, CST dependency types stay private, and engines do not own IO or commands."
+      },
+      {
+        "verifier": [
+          "specs/verifiers/verify-shakts-tsc-aqc.py"
+        ],
+        "check": "fixture-and-downstream-contract",
+        "reason": "Plan: Fixture3 and downstream probes cover JSONC dialect/preservation, TSConfig reconciliation/conflicts/findings/init, public facade compilation, and denied forbidden dependencies."
       }
     ]
   }

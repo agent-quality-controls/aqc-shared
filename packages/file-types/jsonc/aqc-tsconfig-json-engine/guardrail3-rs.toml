@@ -2,7 +2,7 @@ profile = "library"
 
 allowed_deps = [
   "aqc-file-engine-core",
-  "aqc-jsonc-engine-core",
+  "aqc-json-engine-core",
   "schemars",
   "serde",
 ]

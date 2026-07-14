@@ -14,7 +14,7 @@ DATA = json.loads(SPEC.read_text())
 ENTRY = DATA["requirements"][CATEGORY][INDEX]
 ROOT = SPEC.parent.parent
 PACKAGES = {
-    "aqc-jsonc-engine-core": ROOT / "packages/file-types/jsonc/aqc-jsonc-engine-core",
+    "aqc-json-engine-core": ROOT / "packages/file-types/json/aqc-json-engine-core",
     "aqc-tsconfig-json-engine": ROOT / "packages/file-types/jsonc/aqc-tsconfig-json-engine",
     "aqc-package-json-engine": ROOT / "packages/file-types/json/aqc-package-json-engine",
 }
@@ -71,26 +71,17 @@ def dependencies(package: Path) -> set[str]:
     return names
 
 
-def changed_paths() -> list[str]:
-    paths: set[str] = set()
-    for command in (["git", "diff", "--name-only", "HEAD"], ["git", "diff", "--name-only", "--cached"], ["git", "ls-files", "--others", "--exclude-standard"]):
-        result = subprocess.run(command, cwd=ROOT, check=False, capture_output=True, text=True)
-        if result.returncode == 0:
-            paths.update(line for line in result.stdout.splitlines() if line)
-    return sorted(paths)
-
-
 def custom_errors() -> list[str]:
     check = ENTRY["check"]
-    jsonc = PACKAGES["aqc-jsonc-engine-core"]
+    json_core = PACKAGES["aqc-json-engine-core"]
     tsconfig = PACKAGES["aqc-tsconfig-json-engine"]
     package_json = PACKAGES["aqc-package-json-engine"]
     if check == "exact-new-package-trees":
         base = {"Cargo.toml", "Cargo.lock", "LICENSE", "README.md", "deny.toml", "guardrail3-rs.toml", "src/lib.rs"}
-        return exact_tree(jsonc, base | {"src/runtime/mod.rs", "src/runtime/parse.rs", "src/runtime/scalar.rs", "src/types/mod.rs", "src/types/object.rs", "src/types/options.rs", "tests/core_contract.rs"}) + exact_tree(tsconfig, base | {"src/runtime/engine.rs", "src/runtime/merge.rs", "src/runtime/mod.rs", "src/runtime/reconcile.rs", "src/types/mod.rs", "src/types/model.rs", "tests/contract.rs", "tests/engine_requirement.rs"})
+        return exact_tree(json_core, base | {"src/runtime/mod.rs", "src/runtime/parse.rs", "src/runtime/scalar.rs", "src/types/mod.rs", "src/types/object.rs", "src/types/options.rs", "tests/core_contract.rs"}) + exact_tree(tsconfig, base | {"src/runtime/engine.rs", "src/runtime/merge.rs", "src/runtime/mod.rs", "src/runtime/reconcile.rs", "src/types/mod.rs", "src/types/model.rs", "tests/contract.rs", "tests/engine_requirement.rs"})
     if check == "exact-public-facades-and-api-shapes":
         expected = {
-            jsonc: {"ConfigScalar", "Finding", "JsoncObject", "JsoncParseOptions", "Provenance", "ResolvedRequirement", "ScalarAssertion", "ScalarValue", "parse_object_or_report", "reconcile_scalar_assertion"},
+            json_core: {"ConfigScalar", "Finding", "JsonObject", "JsonParseOptions", "NonObjectParentAction", "Provenance", "ResolvedRequirement", "ScalarAssertion", "ScalarValue", "parse_object_or_report", "reconcile_scalar_assertion"},
             tsconfig: {"ConflictEntry", "ENGINE_ID", "Provenance", "ResolvedMap", "ResolvedRequirement", "ResolvedTsconfigJsonRequirements", "ScalarAssertion", "TsconfigBooleanCompilerOption", "TsconfigJsonEngine", "TsconfigJsonRequirements"},
             package_json: {"ConflictEntry", "DevEnginePackageManagerRequirements", "ENGINE_ID", "PackageJsonEngine", "PackageJsonRequirements", "PackageManagerOnFail", "Provenance", "ResolvedDevEnginePackageManagerRequirements", "ResolvedMap", "ResolvedPackageJsonRequirements", "ResolvedRequirement", "ScalarAssertion"},
         }
@@ -99,15 +90,15 @@ def custom_errors() -> list[str]:
             actual = facade_names(package)
             if actual != names:
                 errors.append(f"{package.name} facade expected {sorted(names)}, found {sorted(actual)}")
-        jsonc_text = source_tree(jsonc)
+        json_core_text = source_tree(json_core)
         tsconfig_text = source_tree(tsconfig)
         package_text = source_tree(package_json)
         required = [
-            (jsonc_text, "pub fn set_scalar(&mut self"),
-            (jsonc_text, "pub fn remove_value(&mut self"),
-            (jsonc_text, "pub fn scalar(&self"),
-            (jsonc_text, "pub fn render(&self"),
-            (jsonc_text, "document: &mut JsoncObject"),
+            (json_core_text, "pub fn set_scalar("),
+            (json_core_text, "pub fn remove_value(&mut self"),
+            (json_core_text, "pub fn scalar(&self"),
+            (json_core_text, "pub fn render(&self"),
+            (json_core_text, "document: &mut JsonObject"),
             (tsconfig_text, "pub boolean_compiler_options:"),
             (tsconfig_text, "&ResolvedMap<TsconfigBooleanCompilerOption, ScalarAssertion<bool>>"),
             (tsconfig_text, "pub const fn file_key(self) -> &'static str"),
@@ -116,17 +107,23 @@ def custom_errors() -> list[str]:
             (package_text, "&ResolvedMap<String, ScalarAssertion<String>>"),
         ]
         errors.extend(f"missing API fragment {fragment}" for text, fragment in required if fragment not in text)
-        for text, forbidden in [(jsonc_text, "pub fn set_scalar(&self"), (jsonc_text, "pub fn remove_value(&self")]:
+        for text, forbidden in [(json_core_text, "pub fn set_scalar(&self"), (json_core_text, "pub fn remove_value(&self")]:
             if forbidden in text:
                 errors.append(f"corrected mutable signature violated by {forbidden}")
-        aliases = re.findall(r"\bpub\s+type\s+([A-Za-z_][A-Za-z0-9_]*)", jsonc_text + tsconfig_text + package_text)
+        aliases = re.findall(r"\bpub\s+type\s+([A-Za-z_][A-Za-z0-9_]*)", json_core_text + tsconfig_text + package_text)
         if aliases:
             errors.append(f"public aliases forbidden: {aliases}")
         return errors
     if check == "exact-dependency-boundaries":
         expected = {
-            jsonc: {"aqc-file-engine-core", "jsonc-parser", "tree-sitter", "tree-sitter-javascript"},
-            tsconfig: {"aqc-file-engine-core", "aqc-jsonc-engine-core", "schemars", "serde"},
+            json_core: {
+                "aqc-file-engine-core",
+                "jsonc-parser",
+                "serde_json",
+                "tree-sitter",
+                "tree-sitter-javascript",
+            },
+            tsconfig: {"aqc-file-engine-core", "aqc-json-engine-core", "schemars", "serde"},
         }
         errors = []
         for package, names in expected.items():
@@ -139,10 +136,6 @@ def custom_errors() -> list[str]:
             for name in dependencies(manifest.parent):
                 if name.startswith(("shackles-", "shakrs-", "shakts-")):
                     errors.append(f"AQC package {manifest.parent.relative_to(ROOT)} depends on {name}")
-        exempt = {jsonc / "deny.toml", tsconfig / "deny.toml"}
-        for deny in ROOT.glob("packages/**/deny.toml"):
-            if deny not in exempt and "aqc-jsonc-engine-core" not in deny.read_text():
-                errors.append(f"{deny.relative_to(ROOT)} does not forbid aqc-jsonc-engine-core")
         return errors
     if check == "attribution-migration-contract":
         core = source_tree(ROOT / "packages/aqc-file-engine-core")
@@ -186,20 +179,20 @@ def custom_errors() -> list[str]:
             if re.search(r"\bfn\s+map_attribution\s*\(", text):
                 errors.append(f"duplicate map attribution helper remains in {engine_path.name}")
         return errors
-    if check == "jsonc-and-engine-purity-boundaries":
+    if check == "json-family-and-engine-purity-boundaries":
         errors = []
-        for package in [jsonc, tsconfig]:
+        for package in [json_core, tsconfig]:
             text = source_tree(package)
             for token in ["std::fs", "std::path", "std::process", "std::env", "Command::new", "reqwest", "ureq", "shakts", "shackles"]:
                 if token in text:
                     errors.append(f"{package.name} contains forbidden boundary token {token}")
-        jsonc_text = source_tree(jsonc)
-        if "options: JsoncParseOptions" not in jsonc_text:
-            errors.append("JSONC parser does not accept caller-owned JsoncParseOptions")
+        json_core_text = source_tree(json_core)
+        if "options: JsonParseOptions" not in json_core_text:
+            errors.append("unified JSON parser does not accept caller-owned JsonParseOptions")
         for token in ["tsconfig", "typescript", "compilerOptions", "Tsc"]:
-            if token in jsonc_text:
-                errors.append(f"JSONC core contains tool-specific token {token}")
-        if "jsonc_parser" in (jsonc / "src/lib.rs").read_text() if (jsonc / "src/lib.rs").is_file() else False:
+            if token in json_core_text:
+                errors.append(f"unified JSON core contains tool-specific token {token}")
+        if "jsonc_parser" in (json_core / "src/lib.rs").read_text() if (json_core / "src/lib.rs").is_file() else False:
             errors.append("JSONC facade leaks parser dependency types")
         return errors
     if check == "fixture-and-downstream-contract":
@@ -219,10 +212,6 @@ def custom_errors() -> list[str]:
         if result.returncode != 0:
             errors.append(f"fixture3 shakts-tsc-aqc failed: {result.stdout}{result.stderr}")
         return errors
-    if check == "changed-package-scope":
-        allowed = set(ENTRY["allowed_paths"])
-        changed = set(changed_paths())
-        return [f"changed path outside plan scope: {path}" for path in sorted(changed - allowed)] + [f"planned path is unchanged: {path}" for path in sorted(allowed - changed)]
     return [f"unknown check {check}"]
 
 

@@ -170,6 +170,8 @@ check_struct(
     {
         "package_manager": "Option<ScalarAssertion<String>>",
         "dev_engines_package_manager": "DevEnginePackageManagerRequirements",
+        "scripts": "BTreeMap<String,ScalarAssertion<String>>",
+        "dev_dependencies": "BTreeMap<String,ScalarAssertion<String>>",
     },
     "pub",
 )
@@ -191,6 +193,8 @@ check_struct(
     {
         "package_manager": "Option<ResolvedRequirement<ScalarAssertion<String>,ScalarAssertion<String>>>",
         "dev_engines_package_manager": "ResolvedDevEnginePackageManagerRequirements",
+        "scripts": "ResolvedMap<String,ScalarAssertion<String>>",
+        "dev_dependencies": "ResolvedMap<String,ScalarAssertion<String>>",
     },
     "pub(crate)",
 )
@@ -212,6 +216,8 @@ check_getters(
     {
         "package_manager": "Option<ResolvedRequirement<ScalarAssertion<String>,ScalarAssertion<String>>>",
         "dev_engines_package_manager": "ResolvedDevEnginePackageManagerRequirements",
+        "scripts": "ResolvedMap<String,ScalarAssertion<String>>",
+        "dev_dependencies": "ResolvedMap<String,ScalarAssertion<String>>",
     },
 )
 check_getters(

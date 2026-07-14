@@ -52,7 +52,7 @@ else:
     if len(duplicate) != 1 or duplicate[0].get("kind") != "parse" or "duplicate object member" not in duplicate[0].get("message", ""):
         errors.append("duplicateJson does not prove one duplicate-member parse failure")
     missing = result["missingPackageJson"]
-    if missing.get("expected") != '{\n  "devEngines": {\n    "packageManager": {\n      "name": "tool",\n      "onFail": "error",\n      "version": "2.3.4"\n    }\n  },\n  "packageManager": "tool@2.3.4"\n}\n':
+    if missing.get("expected") != '{\n  "packageManager": "tool@2.3.4",\n  "devEngines": {\n    "packageManager": {\n      "name": "tool",\n      "version": "2.3.4",\n      "onFail": "error"\n    }\n  }\n}\n':
         errors.append("missingPackageJson expected bytes differ from the canonical document")
     if [item.get("key") for item in missing.get("findings", [])] != [
         "packageManager", "devEngines.packageManager.name",

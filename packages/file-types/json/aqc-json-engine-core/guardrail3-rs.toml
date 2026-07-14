@@ -2,8 +2,10 @@ profile = "library"
 
 allowed_deps = [
   "aqc-file-engine-core",
-  "serde",
+  "jsonc-parser",
   "serde_json",
+  "tree-sitter",
+  "tree-sitter-javascript",
 ]
 
 [checks]

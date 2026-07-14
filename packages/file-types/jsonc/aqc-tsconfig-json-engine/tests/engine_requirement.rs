@@ -1,5 +1,5 @@
 use aqc_file_engine_core::EngineRequirement;
-use aqc_jsonc_engine_core as _;
+use aqc_json_engine_core as _;
 use aqc_tsconfig_json_engine::{ENGINE_ID, TsconfigJsonRequirements};
 use schemars as _;
 use serde as _;

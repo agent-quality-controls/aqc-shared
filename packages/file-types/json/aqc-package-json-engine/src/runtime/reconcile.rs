@@ -2,7 +2,7 @@ use aqc_file_engine_core::merge::ResolvedMap;
 use aqc_file_engine_core::{
     ConfigScalar, Finding, ResolvedRequirement, ScalarAssertion, Severity, resolved_map_attribution,
 };
-use aqc_json_engine_core::{JsonObject, reconcile_scalar_assertion};
+use aqc_json_engine_core::{JsonObject, NonObjectParentAction, reconcile_scalar_assertion};
 
 use crate::types::{PackageManagerOnFail, ResolvedPackageJsonRequirements};
 
@@ -15,6 +15,8 @@ pub(super) fn reconcile_document(
         reconcile_scalar_assertion(
             document,
             &["packageManager"],
+            None,
+            NonObjectParentAction::Replace,
             resolved,
             |value| Some(ConfigScalar::Str(value.to_owned())),
             |scalar| match scalar {
@@ -45,6 +47,8 @@ pub(super) fn reconcile_document(
         reconcile_scalar_assertion(
             document,
             &["devEngines", "packageManager", "onFail"],
+            None,
+            NonObjectParentAction::Replace,
             resolved,
             |value| Some(ConfigScalar::Str(value.as_str().to_owned())),
             |scalar| match scalar {
@@ -85,10 +89,11 @@ fn reconcile_string_map(
         return;
     }
     for (key, resolved) in requirements {
-        let findings_before = findings.len();
         reconcile_scalar_assertion(
             document,
             &[parent, key],
+            Some(key.to_owned()),
+            NonObjectParentAction::Preserve,
             resolved,
             |value| Some(ConfigScalar::Str(value.to_owned())),
             |scalar| match scalar {
@@ -97,11 +102,6 @@ fn reconcile_string_map(
             },
             findings,
         );
-        for finding in findings.iter_mut().skip(findings_before) {
-            if let Finding::Mismatch { selector, .. } = finding {
-                *selector = Some(key.to_owned());
-            }
-        }
     }
 }
 
@@ -114,6 +114,8 @@ fn reconcile_string(
     reconcile_scalar_assertion(
         document,
         path,
+        None,
+        NonObjectParentAction::Replace,
         resolved,
         |value| Some(ConfigScalar::Str(value.to_owned())),
         |scalar| match scalar {

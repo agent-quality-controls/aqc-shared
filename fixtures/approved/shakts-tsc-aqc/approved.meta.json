@@ -1,10 +1,10 @@
 {
   "suite": "shakts-tsc-aqc",
   "kind": "approved",
-  "run_id": "2026-07-14T15-34-54.17106Z-3cab040e",
-  "run_commit": "598b4d6",
+  "run_id": "2026-07-14T17-50-36.034186Z-3cab040e",
+  "run_commit": "f371e6a",
   "working_tree": "dirty",
-  "recorded_at": "2026-07-14T15:34:54.17106Z",
+  "recorded_at": "2026-07-14T17:50:36.034186Z",
   "fixture_hash": "sha256:9da57b3ae35b326889d221056f63cfcfdf8ef6dc59da28a80d0ed3e2d949694b",
   "manifest_hash": "sha256:3cab040e0de7a5f021eb983ee41c65273eccd7be3f8ff95d329523f1edbf03cd",
   "tool_version": "0.1.8",
@@ -15,5 +15,5 @@
       "sha256": "sha256:bb7bfedce9aadba087551e124ff35792798440d4252eb68c672ac5328ac5aafb"
     }
   ],
-  "comment": "Add managed-key insertion proof that preserves BOM, comments, trailing commas, and extended numeric literals."
+  "comment": "unified lossless JSON core preserves bytes and reports precise parser locations"
 }
