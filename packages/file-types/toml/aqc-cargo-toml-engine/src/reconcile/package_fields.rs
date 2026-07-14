@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
     ConfigScalar, DottedVersion, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
-    parse_version_tuple,
+    Severity, parse_version_tuple,
 };
 use aqc_toml_engine_core::{ScalarFieldEdit, scalar_field_edit};
 use toml_edit::{DocumentMut, Item, Table, TableLike};
@@ -106,7 +106,7 @@ fn attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        aqc_toml_engine_core::attribution(resolved)
+        resolved.attribution()
     } else {
         filtered
     }
@@ -238,14 +238,15 @@ fn apply_dotted_version(
             {
                 return;
             }
-            aqc_toml_engine_core::push_mismatch(
-                findings,
-                format!("[{}].{field}", scope.prefix()),
-                current.map(ToOwned::to_owned),
-                format!("at least {}", min.as_str()),
-                msg.to_owned(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: format!("[{}].{field}", scope.prefix()),
+                selector: None,
+                current: current.map(ToOwned::to_owned),
+                expected: format!("at least {}", min.as_str()),
+                message: msg.to_owned(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             ensure_target(doc, scope)[field] =
                 aqc_toml_engine_core::scalar_item(&ConfigScalar::Str(min.as_str().to_owned()));
         }
@@ -258,14 +259,15 @@ fn apply_dotted_version(
                 .iter()
                 .map(|value| value.as_str().to_owned())
                 .collect::<BTreeSet<_>>();
-            aqc_toml_engine_core::push_mismatch(
-                findings,
-                format!("[{}].{field}", scope.prefix()),
-                current.map(ToOwned::to_owned),
-                format!("one of {allowed:?}"),
-                msg.to_owned(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: format!("[{}].{field}", scope.prefix()),
+                selector: None,
+                current: current.map(ToOwned::to_owned),
+                expected: format!("one of {allowed:?}"),
+                message: msg.to_owned(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
         }
         ScalarAssertion::Present(msg) => apply_config_scalar(
             doc,
@@ -314,14 +316,15 @@ fn apply_inherits(
         return;
     }
     let current = current_item(doc, scope, field).and_then(aqc_toml_engine_core::render_item);
-    aqc_toml_engine_core::push_mismatch(
-        findings,
-        format!("[{}].{field}", scope.prefix()),
+    findings.push(Finding::Mismatch {
+        key: format!("[{}].{field}", scope.prefix()),
+        selector: None,
         current,
-        "{ workspace = true }".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
+        expected: "{ workspace = true }".to_owned(),
+        message: msg.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
     ensure_target(doc, scope)[field] = util::workspace_inline();
 }
 

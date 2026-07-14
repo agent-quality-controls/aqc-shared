@@ -1,0 +1,20 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "aqc-jsonc-engine-core",
+  "aqc-package-json-engine",
+  "aqc-tsconfig-json-engine",
+  "serde_json",
+]
+
+[checks]
+code = false
+cargo = false
+deny = false
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false

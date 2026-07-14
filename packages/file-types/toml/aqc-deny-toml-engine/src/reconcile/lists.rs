@@ -1,9 +1,7 @@
 //! List deny.toml reconciliation.
 
-use aqc_file_engine_core::{Finding, Provenance};
-use aqc_toml_engine_core::{
-    ListFieldKeyStyle, attribution, push_mismatch, reconcile_list_field, report_list_shape,
-};
+use aqc_file_engine_core::{Finding, Provenance, Severity};
+use aqc_toml_engine_core::{ListFieldKeyStyle, reconcile_list_field, report_list_shape};
 use toml_edit::{DocumentMut, Item};
 
 use crate::requirement::ResolvedDenyTomlRequirements;
@@ -184,28 +182,30 @@ fn report_nested_list_shape(
     let attribution = list_attribution(requirement);
     let message = list_message(requirement);
     let Some(array) = item.as_array() else {
-        push_mismatch(
-            findings,
-            display_key.to_owned(),
-            Some(render_item(item)),
-            "array of strings".to_owned(),
+        findings.push(Finding::Mismatch {
+            key: display_key.to_owned(),
+            selector: None,
+            current: Some(render_item(item)),
+            expected: "array of strings".to_owned(),
             message,
-            &attribution,
-        );
+            severity: Severity::Error,
+            attribution,
+        });
         return;
     };
     for (index, value) in array.iter().enumerate() {
         if value.as_str().is_some() {
             continue;
         }
-        push_mismatch(
-            findings,
-            format!("{display_key}[{index}]"),
-            Some(value.to_string()),
-            "string".to_owned(),
-            message.clone(),
-            &attribution,
-        );
+        findings.push(Finding::Mismatch {
+            key: format!("{display_key}[{index}]"),
+            selector: None,
+            current: Some(value.to_string()),
+            expected: "string".to_owned(),
+            message: message.clone(),
+            severity: Severity::Error,
+            attribution: attribution.clone(),
+        });
     }
 }
 
@@ -237,8 +237,18 @@ fn list_attribution(
     requirement
         .contains
         .values()
-        .flat_map(attribution)
-        .chain(requirement.excludes.values().flat_map(attribution))
-        .chain(requirement.exact.iter().flat_map(attribution))
+        .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution)
+        .chain(
+            requirement
+                .excludes
+                .values()
+                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
+        )
+        .chain(
+            requirement
+                .exact
+                .iter()
+                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
+        )
         .collect()
 }

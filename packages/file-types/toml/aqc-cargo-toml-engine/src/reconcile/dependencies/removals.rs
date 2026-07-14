@@ -93,11 +93,7 @@ pub(super) fn apply_package_glob_forbids(
 ) {
     for entry in globs.globs.values() {
         let glob = &entry.merged;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let message = entry
             .collected
             .first()

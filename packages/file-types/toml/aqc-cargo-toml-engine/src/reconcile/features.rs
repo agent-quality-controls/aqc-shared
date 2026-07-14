@@ -27,11 +27,7 @@ pub(crate) fn apply(
     let Some(merged) = merged else { return };
     for entry in merged.required.values() {
         let feature = &entry.merged.file_key;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let msg = entry
             .collected
             .first()
@@ -48,11 +44,7 @@ pub(crate) fn apply(
     }
     for entry in merged.forbidden.values() {
         let feature = &entry.merged.file_key;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let msg = entry
             .collected
             .first()
@@ -64,7 +56,7 @@ pub(crate) fn apply(
         let attribution = exact
             .collected
             .iter()
-            .map(|(prov, _)| prov.clone())
+            .map(|(provenance, _)| provenance.clone())
             .collect::<Vec<_>>();
         let allowed = exact.identities.clone();
         let message = exact

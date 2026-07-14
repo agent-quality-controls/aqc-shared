@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "schemars",
  "serde",
@@ -21,7 +21,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-json-engine-core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "aqc-file-engine-core",
  "serde",
@@ -30,7 +30,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-package-json-engine"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-json-engine-core",
@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-pnpm-workspace-yaml-engine"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-yaml-engine-core",
@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-yaml-engine-core"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "aqc-file-engine-core",
  "yaml-edit",
@@ -324,47 +324,3 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-
-[[patch.unused]]
-name = "aqc-cargo-toml-engine"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "aqc-clippy-toml-engine"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "aqc-deny-toml-engine"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "aqc-filetree"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-fs-utils"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-git-helpers"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-rust-syntax"
-version = "0.3.3"
-
-[[patch.unused]]
-name = "aqc-rust-toolchain-toml-engine"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "aqc-rustfmt-toml-engine"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "aqc-text-file-engine"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "aqc-toml-engine-core"
-version = "0.7.0"

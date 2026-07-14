@@ -92,11 +92,7 @@ fn apply_tool(
 ) {
     for entry in merged.required.values() {
         let lint = &entry.merged.file_key;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let level = &entry.merged.value.level;
         let priority = entry.merged.value.priority;
         let message = entry
@@ -118,11 +114,7 @@ fn apply_tool(
     }
     for entry in merged.forbidden.values() {
         let lint = &entry.merged.file_key;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let message = entry
             .collected
             .first()
@@ -135,7 +127,7 @@ fn apply_tool(
         let attribution = exact
             .collected
             .iter()
-            .map(|(prov, _)| prov.clone())
+            .map(|(provenance, _)| provenance.clone())
             .collect::<Vec<_>>();
         let message = exact
             .collected

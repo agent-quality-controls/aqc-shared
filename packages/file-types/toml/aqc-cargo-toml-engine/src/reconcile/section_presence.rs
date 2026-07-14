@@ -12,8 +12,7 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement};
-use aqc_toml_engine_core::{attribution as resolved_attribution, push_mismatch};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
 use aqc_toml_engine_core::{ensure_nested, ensure_table};
 use toml_edit::{DocumentMut, Item, Table};
 
@@ -29,7 +28,7 @@ pub(crate) fn apply(
     findings: &mut Vec<Finding>,
 ) {
     for (section, merged) in merged_by_section {
-        let attribution = resolved_attribution(merged);
+        let attribution = merged.attribution();
         apply_one(doc, *section, &merged.merged, &attribution, findings);
     }
 }
@@ -63,14 +62,15 @@ fn apply_present(
     if section_exists(doc, section) {
         return;
     }
-    push_mismatch(
-        findings,
-        section.table_path().to_owned(),
-        None,
-        "table present".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
+    findings.push(Finding::Mismatch {
+        key: section.table_path().to_owned(),
+        selector: None,
+        current: None,
+        expected: "table present".to_owned(),
+        message: msg.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
     // `[package]` needs a `name` the engine cannot invent: check-only.
     if matches!(section, ManifestSection::Package) {
         return;
@@ -89,14 +89,15 @@ fn apply_absent(
     if !section_exists(doc, section) {
         return;
     }
-    push_mismatch(
-        findings,
-        section.table_path().to_owned(),
-        Some("table present".to_owned()),
-        "table absent".to_owned(),
-        msg.to_owned(),
-        attribution,
-    );
+    findings.push(Finding::Mismatch {
+        key: section.table_path().to_owned(),
+        selector: None,
+        current: Some("table present".to_owned()),
+        expected: "table absent".to_owned(),
+        message: msg.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
     remove_section(doc, section);
 }
 

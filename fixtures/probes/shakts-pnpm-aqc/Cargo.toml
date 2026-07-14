@@ -9,9 +9,9 @@ publish = false
 resolver = "3"
 
 [dependencies]
-aqc-file-engine-core = "0.7.0"
-aqc-json-engine-core = "0.7.0"
-aqc-package-json-engine = "0.7.0"
-aqc-yaml-engine-core = "0.7.0"
-aqc-pnpm-workspace-yaml-engine = "0.7.0"
+aqc-file-engine-core = "0.7.1"
+aqc-json-engine-core = "0.8.0"
+aqc-package-json-engine = "0.8.0"
+aqc-yaml-engine-core = "0.7.1"
+aqc-pnpm-workspace-yaml-engine = "0.7.1"
 serde_json = "1"

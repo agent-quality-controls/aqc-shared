@@ -88,11 +88,7 @@ pub(crate) fn apply_set(
 ) {
     let required_file_keys = required_file_keys(merged);
     for entry in merged.required.values() {
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let msg = entry
             .collected
             .first()
@@ -113,11 +109,7 @@ pub(crate) fn apply_set(
 
     let mut removals = BTreeMap::new();
     for entry in merged.forbidden.values() {
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let msg = entry
             .collected
             .first()
@@ -147,7 +139,7 @@ pub(crate) fn apply_set(
         let attribution = exact
             .collected
             .iter()
-            .map(|(prov, _)| prov.clone())
+            .map(|(provenance, _)| provenance.clone())
             .collect::<Vec<_>>();
         let message = exact
             .collected

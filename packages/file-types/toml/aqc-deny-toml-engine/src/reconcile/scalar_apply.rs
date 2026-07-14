@@ -2,8 +2,8 @@
 
 use core::cmp::Ordering;
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion};
-use aqc_toml_engine_core::{ScalarFieldEdit, attribution, push_mismatch};
+use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion, Severity};
+use aqc_toml_engine_core::ScalarFieldEdit;
 use toml_edit::{DocumentMut, Item};
 
 use super::scalar_value::DenyTomlScalar;
@@ -24,7 +24,7 @@ pub(super) fn apply_scalar<T>(
     let Some(resolved) = requirement else {
         return;
     };
-    let attribution = attribution(resolved);
+    let attribution = resolved.attribution();
     let current = table_item(doc, table_path, field_key);
     match scalar_edit(
         display_key,
@@ -61,14 +61,15 @@ where
             if current.and_then(T::parse_item).as_ref() == Some(want) {
                 return None;
             }
-            push_mismatch(
-                findings,
-                display_key.to_owned(),
-                current.map(render_item),
-                T::render_value(want),
-                message.clone(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: display_key.to_owned(),
+                selector: None,
+                current: current.map(render_item),
+                expected: T::render_value(want),
+                message: message.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             Some(ScalarFieldEdit::Write(T::write_item(want)))
         }
         ScalarAssertion::OneOf(allowed, message) => {
@@ -78,43 +79,46 @@ where
             {
                 return None;
             }
-            push_mismatch(
-                findings,
-                display_key.to_owned(),
-                current.map(render_item),
-                format!(
+            findings.push(Finding::Mismatch {
+                key: display_key.to_owned(),
+                selector: None,
+                current: current.map(render_item),
+                expected: format!(
                     "one of {:?}",
                     allowed.iter().map(T::render_value).collect::<Vec<_>>()
                 ),
-                message.clone(),
-                attribution,
-            );
+                message: message.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             None
         }
         ScalarAssertion::Present(message) => {
             if current.is_some() {
                 return None;
             }
-            push_mismatch(
-                findings,
-                display_key.to_owned(),
-                None,
-                "present".to_owned(),
-                message.clone(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: display_key.to_owned(),
+                selector: None,
+                current: None,
+                expected: "present".to_owned(),
+                message: message.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             None
         }
         ScalarAssertion::Absent(message) => {
             let current = current.map(render_item)?;
-            push_mismatch(
-                findings,
-                display_key.to_owned(),
-                Some(current),
-                "absent".to_owned(),
-                message.clone(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: display_key.to_owned(),
+                selector: None,
+                current: Some(current),
+                expected: "absent".to_owned(),
+                message: message.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             Some(ScalarFieldEdit::Remove)
         }
         ScalarAssertion::AtLeast(want, message) => scalar_order_edit(
@@ -144,18 +148,19 @@ where
             if in_range {
                 return None;
             }
-            push_mismatch(
-                findings,
-                display_key.to_owned(),
-                current.map(render_item),
-                format!(
+            findings.push(Finding::Mismatch {
+                key: display_key.to_owned(),
+                selector: None,
+                current: current.map(render_item),
+                expected: format!(
                     "between {} and {}",
                     T::render_value(min),
                     T::render_value(max)
                 ),
-                message.clone(),
-                attribution,
-            );
+                message: message.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             Some(ScalarFieldEdit::Write(T::write_item(min)))
         }
     }
@@ -179,13 +184,14 @@ where
     {
         return None;
     }
-    push_mismatch(
-        findings,
-        display_key.to_owned(),
-        current.map(render_item),
-        T::render_value(want),
-        message.to_owned(),
-        attribution,
-    );
+    findings.push(Finding::Mismatch {
+        key: display_key.to_owned(),
+        selector: None,
+        current: current.map(render_item),
+        expected: T::render_value(want),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
     Some(ScalarFieldEdit::Write(T::write_item(want)))
 }

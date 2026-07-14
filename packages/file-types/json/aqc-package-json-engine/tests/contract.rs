@@ -144,6 +144,7 @@ fn absent_assertion_removes_only_the_addressed_value() {
         PackageJsonRequirements {
             package_manager: Some(ScalarAssertion::Absent("Remove packageManager.".to_owned())),
             dev_engines_package_manager: DevEnginePackageManagerRequirements::default(),
+            ..PackageJsonRequirements::default()
         },
     )]);
     let bytes = br#"{"name":"kept","packageManager":{},"private":true}"#;
@@ -177,6 +178,7 @@ fn check_only_assertions_report_without_inventing_values() {
                 )),
                 ..DevEnginePackageManagerRequirements::default()
             },
+            ..PackageJsonRequirements::default()
         },
     )]);
     let bytes = b"{ \"name\": \"kept\" }\n";
@@ -376,6 +378,170 @@ fn erased_engine_with_no_requirements_preserves_bytes_as_no_op() {
     );
 }
 
+#[test]
+fn keyed_maps_create_entries_and_preserve_unmanaged_siblings() {
+    let resolved = keyed_map_requirement();
+    let bytes =
+        br#"{"scripts":{"lint":"eslint ."},"devDependencies":{"eslint":"9.0.0"},"private":true}"#;
+    let output = <PackageJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+    assert_eq!(
+        output.findings.len(),
+        2,
+        "Each missing keyed scalar must be reported."
+    );
+    assert_eq!(
+        output.expected_bytes,
+        b"{\n  \"devDependencies\": {\n    \"eslint\": \"9.0.0\",\n    \"typescript\": \"7.0.2\"\n  },\n  \"private\": true,\n  \"scripts\": {\n    \"lint\": \"eslint .\",\n    \"typecheck\": \"tsc --build --noEmit tsconfig.json\"\n  }\n}\n",
+        "Managed entries must compose with unrelated object members."
+    );
+    let selectors = output
+        .findings
+        .iter()
+        .map(|finding| {
+            let Finding::Mismatch { selector, .. } = finding else {
+                panic!("Keyed scalar mismatches must use mismatch findings.");
+            };
+            selector.clone()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selectors,
+        [Some("typecheck".to_owned()), Some("typescript".to_owned())],
+        "Each keyed scalar must retain its map key as selector."
+    );
+}
+
+#[test]
+fn keyed_map_wrong_parent_shape_is_reported_without_replacement() {
+    let resolved = keyed_map_requirement();
+    let bytes = br#"{"scripts":[],"devDependencies":"wrong","private":true}"#;
+    let output = <PackageJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+    assert_eq!(
+        output.expected_bytes, bytes,
+        "A present non-object parent must not be replaced."
+    );
+    assert_eq!(
+        output.findings.len(),
+        2,
+        "Each invalid parent must report once."
+    );
+    assert!(
+        output.findings.iter().all(|finding| matches!(
+            finding,
+            Finding::Mismatch { selector: None, attribution, .. }
+                if attribution == &[provenance(POLICY)]
+        )),
+        "Parent shape findings must aggregate map attribution without a selector."
+    );
+}
+
+#[test]
+fn keyed_map_merge_retains_contributors_and_reports_conflicts_by_file_path() {
+    let equal = merge(vec![
+        (provenance("policy-a"), keyed_map_input("7.0.2")),
+        (provenance("policy-b"), keyed_map_input("7.0.2")),
+    ]);
+    assert_eq!(
+        equal
+            .dev_dependencies()
+            .get("typescript")
+            .expect("typescript must resolve.")
+            .collected
+            .len(),
+        2,
+        "Equal keyed assertions must retain every contributor."
+    );
+    let conflicts = PackageJsonRequirements::merge(vec![
+        (provenance("policy-a"), keyed_map_input("7.0.2")),
+        (provenance("policy-b"), keyed_map_input("7.1.0")),
+    ])
+    .expect_err("Different keyed values must conflict.");
+    assert_eq!(
+        conflicts
+            .iter()
+            .map(|entry| entry.key.as_str())
+            .collect::<Vec<_>>(),
+        ["devDependencies.typescript"],
+        "Map conflicts must identify their Package JSON path."
+    );
+}
+
+#[test]
+fn keyed_maps_apply_check_only_and_absent_scalar_algebra() {
+    let requirement = PackageJsonRequirements {
+        scripts: [
+            (
+                "present".to_owned(),
+                ScalarAssertion::Present("Declare the script.".to_owned()),
+            ),
+            (
+                "supported".to_owned(),
+                ScalarAssertion::OneOf(
+                    ["first".to_owned(), "second".to_owned()]
+                        .into_iter()
+                        .collect(),
+                    "Use a supported script.".to_owned(),
+                ),
+            ),
+            (
+                "removed".to_owned(),
+                ScalarAssertion::Absent("Remove the script.".to_owned()),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        ..PackageJsonRequirements::default()
+    };
+    let resolved = merge(vec![(provenance(POLICY), requirement)]);
+    let bytes = br#"{"scripts":{"removed":"old","kept":"unchanged"}}"#;
+    let output = <PackageJsonEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+    assert_eq!(output.findings.len(), 3);
+    assert_eq!(
+        output.expected_bytes, b"{\n  \"scripts\": {\n    \"kept\": \"unchanged\"\n  }\n}\n",
+        "Check-only assertions must not invent values and absence must remove only its key."
+    );
+    assert_eq!(
+        output
+            .findings
+            .iter()
+            .map(|finding| {
+                let Finding::Mismatch { selector, .. } = finding else {
+                    panic!("Map scalar failures must be mismatch findings.");
+                };
+                selector.clone()
+            })
+            .collect::<Vec<_>>(),
+        [
+            Some("present".to_owned()),
+            Some("removed".to_owned()),
+            Some("supported".to_owned()),
+        ]
+    );
+}
+
+fn keyed_map_requirement() -> ResolvedPackageJsonRequirements {
+    merge(vec![(provenance(POLICY), keyed_map_input("7.0.2"))])
+}
+
+fn keyed_map_input(version: &str) -> PackageJsonRequirements {
+    PackageJsonRequirements {
+        scripts: std::iter::once((
+            "typecheck".to_owned(),
+            ScalarAssertion::Equals(
+                "tsc --build --noEmit tsconfig.json".to_owned(),
+                "Require the typecheck script.".to_owned(),
+            ),
+        ))
+        .collect(),
+        dev_dependencies: std::iter::once((
+            "typescript".to_owned(),
+            ScalarAssertion::Equals(version.to_owned(), "Pin TypeScript.".to_owned()),
+        ))
+        .collect(),
+        ..PackageJsonRequirements::default()
+    }
+}
+
 fn resolved_complete() -> ResolvedPackageJsonRequirements {
     merge(vec![(provenance(POLICY), complete_requirement("11.11.0"))])
 }
@@ -413,6 +579,7 @@ fn complete_requirement(version: &str) -> PackageJsonRequirements {
                 "Fail on a package manager mismatch.".to_owned(),
             )),
         },
+        ..PackageJsonRequirements::default()
     }
 }
 

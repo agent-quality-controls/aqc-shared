@@ -17,6 +17,11 @@ impl JsonObject {
         value_at(&self.members, path).is_some()
     }
 
+    #[must_use]
+    pub fn object_exists(&self, path: &[&str]) -> bool {
+        value_at(&self.members, path).is_some_and(Value::is_object)
+    }
+
     pub fn set_scalar(&mut self, path: &[&str], value: ConfigScalar) -> bool {
         set_value(&mut self.members, path, scalar_to_value(value))
     }

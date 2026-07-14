@@ -29,7 +29,7 @@ pub use model::{
     ResolvedExactItems, ResolvedExactList, ResolvedForbiddenGlobRequirements,
     ResolvedItemRequirements, ResolvedListRequirements, ResolvedMap, ResolvedRequirement,
     ResolvedSame, ResolvedSameOption, ResolvedStringMembers, ScalarAssertion, ScalarOperation,
-    ScalarValue, VersionFloor,
+    ScalarValue, VersionFloor, resolved_map_attribution,
 };
 pub use scalar::{
     compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,

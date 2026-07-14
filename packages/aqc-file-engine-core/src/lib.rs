@@ -36,7 +36,8 @@ pub use merge::{
     compose_string_set, keyed_entries_eq, push_conflict, render_list_requirement,
     render_scalar_assertion, resolve_all_equal, resolve_exact_list, resolve_forbidden_globs,
     resolve_items, resolve_list, resolve_map, resolve_maybe, resolve_scalar,
-    scalar_assertion_matches, scalar_assertion_writable_value, strongest_version_floor,
+    resolved_map_attribution, scalar_assertion_matches, scalar_assertion_writable_value,
+    strongest_version_floor,
 };
 #[cfg(feature = "api")]
 pub use requirement::EngineRequirement;

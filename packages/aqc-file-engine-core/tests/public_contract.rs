@@ -1,6 +1,7 @@
 use aqc_file_engine_core::{
     ConflictEntry, Engine, EngineOutput, EngineRequirement, FileEngine, Finding, Provenance,
-    ScalarAssertion, merged_reconcile, scalar_assertion_matches, scalar_assertion_writable_value,
+    ResolvedRequirement, ScalarAssertion, merged_reconcile, resolved_map_attribution,
+    scalar_assertion_matches, scalar_assertion_writable_value,
 };
 use core::cell::Cell;
 use serde as _;
@@ -24,6 +25,60 @@ fn mismatch_preserves_optional_selector() {
             ..
         } if selector == "example-package"
     ));
+}
+
+#[test]
+fn resolved_requirement_attribution_preserves_collection_order_and_duplicates() {
+    let first = provenance("first-policy");
+    let second = provenance("second-policy");
+    let resolved = ResolvedRequirement {
+        merged: (),
+        collected: vec![
+            (first.clone(), "first"),
+            (second.clone(), "second"),
+            (first.clone(), "third"),
+        ],
+    };
+
+    assert_eq!(resolved.attribution(), vec![first.clone(), second, first]);
+}
+
+#[test]
+fn resolved_map_attribution_sorts_and_deduplicates_contributors() {
+    let first = provenance("first-policy");
+    let second = provenance("second-policy");
+    let resolved = [
+        (
+            "a",
+            ResolvedRequirement {
+                merged: ScalarAssertion::Equals(true, "a".to_owned()),
+                collected: vec![(
+                    second.clone(),
+                    ScalarAssertion::Equals(true, "a".to_owned()),
+                )],
+            },
+        ),
+        (
+            "b",
+            ResolvedRequirement {
+                merged: ScalarAssertion::Equals(false, "b".to_owned()),
+                collected: vec![
+                    (
+                        first.clone(),
+                        ScalarAssertion::Equals(false, "b".to_owned()),
+                    ),
+                    (
+                        second.clone(),
+                        ScalarAssertion::Equals(false, "b".to_owned()),
+                    ),
+                ],
+            },
+        ),
+    ]
+    .into_iter()
+    .collect();
+
+    assert_eq!(resolved_map_attribution(&resolved), vec![first, second]);
 }
 
 #[test]

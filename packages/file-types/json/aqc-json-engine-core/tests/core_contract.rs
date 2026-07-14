@@ -3,10 +3,10 @@
     reason = "The accepted contract requires this exact integration-test filename, which the repository classifier treats as production."
 )]
 
-use aqc_file_engine_core::{ResolvedRequirement, ScalarAssertion, Severity};
+use aqc_file_engine_core::{ResolvedRequirement, ScalarAssertion};
 use aqc_json_engine_core::{
-    ConfigScalar, Finding, Provenance, attribution, parse_object_or_report, push_mismatch,
-    reconcile_scalar_assertion, render_object,
+    ConfigScalar, Finding, Provenance, parse_object_or_report, reconcile_scalar_assertion,
+    render_object,
 };
 use serde as _;
 use serde_json as _;
@@ -124,45 +124,20 @@ fn wrong_shape_is_distinct_from_a_missing_scalar() {
 }
 
 #[test]
-fn mismatch_preserves_provenance_attribution() {
-    let provenance = Provenance {
-        policy: "consumer-policy".to_owned(),
-    };
-    let resolved = ResolvedRequirement {
-        merged: (),
-        collected: vec![(provenance.clone(), ())],
-    };
-    let mut findings = Vec::new();
-    push_mismatch(
-        &mut findings,
-        "packageManager".to_owned(),
-        None,
-        "expected-value".to_owned(),
-        "Require the expected value.".to_owned(),
-        &attribution(&resolved),
+fn object_existence_requires_an_object_at_the_exact_path() {
+    let (object, findings) = parse_object_or_report(
+        Some(br#"{"object":{"nested":{}},"scalar":"value","array":[]}"#),
+        "package.json",
     );
-    match findings.as_slice() {
-        [
-            Finding::Mismatch {
-                selector,
-                severity,
-                attribution,
-                ..
-            },
-        ] => {
-            assert_eq!(
-                selector, &None,
-                "JSON scalar findings must not invent selectors."
-            );
-            assert_eq!(
-                severity,
-                &Severity::Error,
-                "JSON mismatches must be errors."
-            );
-            assert_eq!(attribution, &[provenance], "Provenance must be preserved.");
-        }
-        _ => panic!("The helper must emit one mismatch finding."),
-    }
+    assert!(findings.is_empty(), "A valid object must parse.");
+    let object = object.expect("A valid object must be returned.");
+
+    assert!(object.object_exists(&["object"]));
+    assert!(object.object_exists(&["object", "nested"]));
+    assert!(!object.object_exists(&["scalar"]));
+    assert!(!object.object_exists(&["array"]));
+    assert!(!object.object_exists(&["missing"]));
+    assert!(!object.object_exists(&[]));
 }
 
 #[test]

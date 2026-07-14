@@ -73,14 +73,15 @@ fn ensure_toolchain_table<'a>(
             );
             let _ = doc.remove("toolchain");
         } else if support::has_requirements(requirement) {
-            toml_core::push_mismatch(
-                findings,
-                "toolchain".to_owned(),
-                None,
-                "table".to_owned(),
-                "rust-toolchain.toml must contain a [toolchain] table.".to_owned(),
-                &support::requirement_attribution(requirement),
-            );
+            findings.push(file_core::Finding::Mismatch {
+                key: "toolchain".to_owned(),
+                selector: None,
+                current: None,
+                expected: "table".to_owned(),
+                message: "rust-toolchain.toml must contain a [toolchain] table.".to_owned(),
+                severity: file_core::Severity::Error,
+                attribution: support::requirement_attribution(requirement),
+            });
         }
     }
     toml_core::ensure_table(doc, "toolchain")
@@ -143,14 +144,15 @@ fn apply_string_scalar<T>(
             if current.and_then(Item::as_str) == Some(expected.as_str()) {
                 return;
             }
-            toml_core::push_mismatch(
-                findings,
-                display_key,
-                current.and_then(toml_core::render_item),
-                expected.clone(),
-                message.clone(),
-                attribution,
-            );
+            findings.push(file_core::Finding::Mismatch {
+                key: display_key,
+                selector: None,
+                current: current.and_then(toml_core::render_item),
+                expected: expected.clone(),
+                message: message.clone(),
+                severity: file_core::Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             table[key] = toml_value(expected);
         }
         file_core::ScalarAssertion::OneOf(allowed, message) => {
@@ -161,40 +163,43 @@ fn apply_string_scalar<T>(
                 return;
             }
             let rendered = allowed.iter().map(render).collect::<Vec<_>>();
-            toml_core::push_mismatch(
-                findings,
-                display_key,
-                current.and_then(toml_core::render_item),
-                format!("one of {rendered:?}"),
-                message.clone(),
-                attribution,
-            );
+            findings.push(file_core::Finding::Mismatch {
+                key: display_key,
+                selector: None,
+                current: current.and_then(toml_core::render_item),
+                expected: format!("one of {rendered:?}"),
+                message: message.clone(),
+                severity: file_core::Severity::Error,
+                attribution: attribution.to_vec(),
+            });
         }
         file_core::ScalarAssertion::Present(message) => {
             if current.is_some() {
                 return;
             }
-            toml_core::push_mismatch(
-                findings,
-                display_key,
-                None,
-                "present".to_owned(),
-                message.clone(),
-                attribution,
-            );
+            findings.push(file_core::Finding::Mismatch {
+                key: display_key,
+                selector: None,
+                current: None,
+                expected: "present".to_owned(),
+                message: message.clone(),
+                severity: file_core::Severity::Error,
+                attribution: attribution.to_vec(),
+            });
         }
         file_core::ScalarAssertion::Absent(message) => {
             let Some(rendered) = current.and_then(toml_core::render_item) else {
                 return;
             };
-            toml_core::push_mismatch(
-                findings,
-                display_key,
-                Some(rendered),
-                "absent".to_owned(),
-                message.clone(),
-                attribution,
-            );
+            findings.push(file_core::Finding::Mismatch {
+                key: display_key,
+                selector: None,
+                current: Some(rendered),
+                expected: "absent".to_owned(),
+                message: message.clone(),
+                severity: file_core::Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             let _ = table.remove(key);
         }
         file_core::ScalarAssertion::AtLeast(..)
@@ -231,14 +236,15 @@ fn apply_list(
         let mut canonical_values = current_values;
         canonical_values.sort();
         canonical_values.dedup();
-        toml_core::push_mismatch(
-            findings,
-            format!("toolchain.{key}"),
-            table.get(key).and_then(toml_core::render_item),
-            format!("{canonical_values:?}"),
-            "rust-toolchain.toml lists must be canonical.".to_owned(),
-            &support::list_attribution(resolved),
-        );
+        findings.push(file_core::Finding::Mismatch {
+            key: format!("toolchain.{key}"),
+            selector: None,
+            current: table.get(key).and_then(toml_core::render_item),
+            expected: format!("{canonical_values:?}"),
+            message: "rust-toolchain.toml lists must be canonical.".to_owned(),
+            severity: file_core::Severity::Error,
+            attribution: support::list_attribution(resolved),
+        });
         toml_core::write_table_list(table, key, &canonical_values);
     }
 }

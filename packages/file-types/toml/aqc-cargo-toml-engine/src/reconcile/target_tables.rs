@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, Finding, OnEmpty, OnEmptyClass, Provenance, ResolvedRequirement, ScalarAssertion,
+    Severity,
 };
 use aqc_toml_engine_core::{ScalarFieldEdit, scalar_field_edit};
 use toml_edit::{DocumentMut, Item, Table, value};
@@ -87,7 +88,7 @@ pub(crate) fn apply_named(
     findings: &mut Vec<Finding>,
 ) {
     for (name, merged) in merged_by_name {
-        let attribution = aqc_toml_engine_core::attribution(merged);
+        let attribution = merged.attribution();
         apply_named_one(doc, kind, name, &merged.merged, &attribution, findings);
     }
 }
@@ -107,28 +108,30 @@ fn apply_named_one(
             if exists {
                 return;
             }
-            aqc_toml_engine_core::push_mismatch(
-                findings,
-                format!("[[{kind}]].{name}"),
-                None,
-                "present".to_owned(),
-                msg.clone(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: format!("[[{kind}]].{name}"),
+                selector: None,
+                current: None,
+                expected: "present".to_owned(),
+                message: msg.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             let _ = ensure_entry(doc, kind, name);
         }
         ResolvedTargetTableAssertion::Absent(msg) => {
             let Some(index) = entry_index(doc, kind, name) else {
                 return;
             };
-            aqc_toml_engine_core::push_mismatch(
-                findings,
-                format!("[[{kind}]].{name}"),
-                Some("present".to_owned()),
-                "absent".to_owned(),
-                msg.clone(),
-                attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: format!("[[{kind}]].{name}"),
+                selector: None,
+                current: Some("present".to_owned()),
+                expected: "absent".to_owned(),
+                message: msg.clone(),
+                severity: Severity::Error,
+                attribution: attribution.to_vec(),
+            });
             if let Some(aot) = doc.get_mut(kind).and_then(Item::as_array_of_tables_mut) {
                 let _ = aot.remove(index);
             }
@@ -136,25 +139,27 @@ fn apply_named_one(
         ResolvedTargetTableAssertion::Fields(map) => {
             if !exists && assertion.on_empty() == OnEmpty::ChecksOnly {
                 // Cannot be satisfied by writing: report the missing entry only.
-                aqc_toml_engine_core::push_mismatch(
-                    findings,
-                    format!("[[{kind}]].{name}"),
-                    None,
-                    "present (check-only fields)".to_owned(),
-                    String::new(),
-                    attribution,
-                );
+                findings.push(Finding::Mismatch {
+                    key: format!("[[{kind}]].{name}"),
+                    selector: None,
+                    current: None,
+                    expected: "present (check-only fields)".to_owned(),
+                    message: String::new(),
+                    severity: Severity::Error,
+                    attribution: attribution.to_vec(),
+                });
                 return;
             }
             if !exists {
-                aqc_toml_engine_core::push_mismatch(
-                    findings,
-                    format!("[[{kind}]].{name}"),
-                    None,
-                    "present".to_owned(),
-                    String::new(),
-                    attribution,
-                );
+                findings.push(Finding::Mismatch {
+                    key: format!("[[{kind}]].{name}"),
+                    selector: None,
+                    current: None,
+                    expected: "present".to_owned(),
+                    message: String::new(),
+                    severity: Severity::Error,
+                    attribution: attribution.to_vec(),
+                });
                 let _ = ensure_entry(doc, kind, name);
             }
             let loc = FieldLoc::Entry { kind, name };
@@ -187,7 +192,7 @@ fn field_attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        aqc_toml_engine_core::attribution(resolved)
+        resolved.attribution()
     } else {
         filtered
     }

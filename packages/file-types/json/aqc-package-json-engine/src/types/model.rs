@@ -5,7 +5,9 @@
 
 use core::any::Any;
 use core::cmp::Ordering;
+use std::collections::BTreeMap;
 
+use aqc_file_engine_core::merge::ResolvedMap;
 use aqc_file_engine_core::{EngineRequirement, ResolvedRequirement, ScalarAssertion, ScalarValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -63,6 +65,8 @@ impl ScalarValue for PackageManagerOnFail {
 pub struct PackageJsonRequirements {
     pub package_manager: Option<ScalarAssertion<String>>,
     pub dev_engines_package_manager: DevEnginePackageManagerRequirements,
+    pub scripts: BTreeMap<String, ScalarAssertion<String>>,
+    pub dev_dependencies: BTreeMap<String, ScalarAssertion<String>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -77,6 +81,8 @@ pub struct ResolvedPackageJsonRequirements {
     pub(crate) package_manager:
         Option<ResolvedRequirement<ScalarAssertion<String>, ScalarAssertion<String>>>,
     pub(crate) dev_engines_package_manager: ResolvedDevEnginePackageManagerRequirements,
+    pub(crate) scripts: ResolvedMap<String, ScalarAssertion<String>>,
+    pub(crate) dev_dependencies: ResolvedMap<String, ScalarAssertion<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +106,16 @@ impl ResolvedPackageJsonRequirements {
         &self,
     ) -> &ResolvedDevEnginePackageManagerRequirements {
         &self.dev_engines_package_manager
+    }
+
+    #[must_use]
+    pub const fn scripts(&self) -> &ResolvedMap<String, ScalarAssertion<String>> {
+        &self.scripts
+    }
+
+    #[must_use]
+    pub const fn dev_dependencies(&self) -> &ResolvedMap<String, ScalarAssertion<String>> {
+        &self.dev_dependencies
     }
 }
 

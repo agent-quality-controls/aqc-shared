@@ -50,7 +50,7 @@ pub(crate) fn apply(
             let attribution = globs
                 .globs
                 .values()
-                .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone()))
+                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution)
                 .collect::<Vec<_>>();
             let message = globs
                 .globs
@@ -74,11 +74,7 @@ fn apply_forbidden_path_globs(
 ) {
     for entry in globs.globs.values() {
         let glob = &entry.merged;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let message = entry
             .collected
             .first()

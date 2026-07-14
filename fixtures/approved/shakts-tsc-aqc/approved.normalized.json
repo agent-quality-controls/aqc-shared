@@ -1,0 +1,1943 @@
+{
+  "cases": [
+    {
+      "fixture": "contracts.json",
+      "result": {
+        "absentFileInit": {
+          "packageJson": {
+            "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+            "findingCount": 2,
+            "stableRerun": true
+          },
+          "tsconfig": {
+            "expected": "{\n  \"compilerOptions\": {\n    \"strict\": true,\n    \"alwaysStrict\": true,\n    \"noImplicitAny\": true,\n    \"noImplicitThis\": true,\n    \"strictBindCallApply\": true,\n    \"strictFunctionTypes\": true,\n    \"strictNullChecks\": true,\n    \"strictPropertyInitialization\": true,\n    \"useUnknownInCatchVariables\": true,\n    \"strictBuiltinIteratorReturn\": true,\n    \"noImplicitReturns\": true,\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"noUncheckedIndexedAccess\": true,\n    \"exactOptionalPropertyTypes\": true,\n    \"noPropertyAccessFromIndexSignature\": true,\n    \"noImplicitOverride\": true,\n    \"noFallthroughCasesInSwitch\": true,\n    \"forceConsistentCasingInFileNames\": true,\n    \"allowUnreachableCode\": false,\n    \"allowUnusedLabels\": false,\n    \"noCheck\": false\n  }\n}\n",
+            "findingCount": 22,
+            "stableRerun": true
+          }
+        },
+        "compilerOptions": {
+          "cases": [
+            {
+              "key": "strict",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.strict",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strict"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strict",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strict"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strict",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strict"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "alwaysStrict",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.alwaysStrict",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "alwaysStrict"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.alwaysStrict",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "alwaysStrict"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.alwaysStrict",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "alwaysStrict"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noImplicitAny",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitAny",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitAny"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitAny",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitAny"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitAny",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitAny"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noImplicitThis",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitThis",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitThis"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitThis",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitThis"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitThis",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitThis"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "strictBindCallApply",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictBindCallApply",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictBindCallApply"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictBindCallApply",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictBindCallApply"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictBindCallApply",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictBindCallApply"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "strictFunctionTypes",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictFunctionTypes",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictFunctionTypes"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictFunctionTypes",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictFunctionTypes"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictFunctionTypes",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictFunctionTypes"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "strictNullChecks",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictNullChecks",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictNullChecks"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictNullChecks",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictNullChecks"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictNullChecks",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictNullChecks"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "strictPropertyInitialization",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictPropertyInitialization",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictPropertyInitialization"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictPropertyInitialization",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictPropertyInitialization"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictPropertyInitialization",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictPropertyInitialization"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "useUnknownInCatchVariables",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.useUnknownInCatchVariables",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "useUnknownInCatchVariables"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.useUnknownInCatchVariables",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "useUnknownInCatchVariables"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.useUnknownInCatchVariables",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "useUnknownInCatchVariables"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "strictBuiltinIteratorReturn",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictBuiltinIteratorReturn",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictBuiltinIteratorReturn"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictBuiltinIteratorReturn",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictBuiltinIteratorReturn"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.strictBuiltinIteratorReturn",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "strictBuiltinIteratorReturn"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noImplicitReturns",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitReturns",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitReturns"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitReturns",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitReturns"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitReturns",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitReturns"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noUnusedLocals",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUnusedLocals",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUnusedLocals"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUnusedLocals",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUnusedLocals"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUnusedLocals",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUnusedLocals"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noUnusedParameters",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUnusedParameters",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUnusedParameters"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUnusedParameters",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUnusedParameters"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUnusedParameters",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUnusedParameters"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noUncheckedIndexedAccess",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUncheckedIndexedAccess",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUncheckedIndexedAccess"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUncheckedIndexedAccess",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUncheckedIndexedAccess"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noUncheckedIndexedAccess",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noUncheckedIndexedAccess"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "exactOptionalPropertyTypes",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.exactOptionalPropertyTypes",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "exactOptionalPropertyTypes"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.exactOptionalPropertyTypes",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "exactOptionalPropertyTypes"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.exactOptionalPropertyTypes",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "exactOptionalPropertyTypes"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noPropertyAccessFromIndexSignature",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noPropertyAccessFromIndexSignature",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noPropertyAccessFromIndexSignature"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noPropertyAccessFromIndexSignature",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noPropertyAccessFromIndexSignature"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noPropertyAccessFromIndexSignature",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noPropertyAccessFromIndexSignature"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noImplicitOverride",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitOverride",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitOverride"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitOverride",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitOverride"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noImplicitOverride",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noImplicitOverride"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noFallthroughCasesInSwitch",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.noFallthroughCasesInSwitch",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noFallthroughCasesInSwitch"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noFallthroughCasesInSwitch",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noFallthroughCasesInSwitch"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.noFallthroughCasesInSwitch",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noFallthroughCasesInSwitch"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "forceConsistentCasingInFileNames",
+              "required": true,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals true",
+                    "key": "compilerOptions.forceConsistentCasingInFileNames",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "forceConsistentCasingInFileNames"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "false",
+                    "expected": "equals true",
+                    "key": "compilerOptions.forceConsistentCasingInFileNames",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "forceConsistentCasingInFileNames"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals true",
+                    "key": "compilerOptions.forceConsistentCasingInFileNames",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "forceConsistentCasingInFileNames"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "allowUnreachableCode",
+              "required": false,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals false",
+                    "key": "compilerOptions.allowUnreachableCode",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "allowUnreachableCode"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "true",
+                    "expected": "equals false",
+                    "key": "compilerOptions.allowUnreachableCode",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "allowUnreachableCode"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals false",
+                    "key": "compilerOptions.allowUnreachableCode",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "allowUnreachableCode"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "allowUnusedLabels",
+              "required": false,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals false",
+                    "key": "compilerOptions.allowUnusedLabels",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "allowUnusedLabels"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "true",
+                    "expected": "equals false",
+                    "key": "compilerOptions.allowUnusedLabels",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "allowUnusedLabels"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals false",
+                    "key": "compilerOptions.allowUnusedLabels",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "allowUnusedLabels"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            },
+            {
+              "key": "noCheck",
+              "required": false,
+              "states": [
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": null,
+                    "expected": "equals false",
+                    "key": "compilerOptions.noCheck",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noCheck"
+                  },
+                  "stableRerun": true,
+                  "state": "missing"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "true",
+                    "expected": "equals false",
+                    "key": "compilerOptions.noCheck",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noCheck"
+                  },
+                  "stableRerun": true,
+                  "state": "reversed"
+                },
+                {
+                  "corrected": true,
+                  "finding": {
+                    "current": "\"wrong\"",
+                    "expected": "equals false",
+                    "key": "compilerOptions.noCheck",
+                    "kind": "mismatch",
+                    "policies": [
+                      "tsc-policy"
+                    ],
+                    "selector": "noCheck"
+                  },
+                  "stableRerun": true,
+                  "state": "wrong-type"
+                }
+              ]
+            }
+          ],
+          "count": 22
+        },
+        "downstreamPublicApi": {
+          "jsoncFacadeParsed": true,
+          "packageJsonEngineId": "aqc-package-json-engine",
+          "publicGetterCounts": {
+            "compilerOptions": 22,
+            "devDependencies": 1,
+            "scripts": 1
+          },
+          "registryOnlyDependencies": true,
+          "tsconfigEngineId": "aqc-tsconfig-json-engine"
+        },
+        "jsoncDialect": {
+          "accepted": [
+            {
+              "accepted": true,
+              "case": "comments",
+              "exactBytes": true
+            },
+            {
+              "accepted": true,
+              "case": "trailing-commas",
+              "exactBytes": true
+            },
+            {
+              "accepted": true,
+              "case": "hexadecimal",
+              "exactBytes": true
+            },
+            {
+              "accepted": true,
+              "case": "javascript-numbers",
+              "exactBytes": true
+            },
+            {
+              "accepted": true,
+              "case": "utf8-bom",
+              "exactBytes": true
+            }
+          ],
+          "rejected": [
+            {
+              "accepted": false,
+              "bytesPreserved": true,
+              "case": "single-quotes",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              }
+            },
+            {
+              "accepted": false,
+              "bytesPreserved": true,
+              "case": "loose-property-names",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              }
+            },
+            {
+              "accepted": false,
+              "bytesPreserved": true,
+              "case": "omitted-commas",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              }
+            },
+            {
+              "accepted": false,
+              "bytesPreserved": true,
+              "case": "unary-plus",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              }
+            },
+            {
+              "accepted": false,
+              "bytesPreserved": true,
+              "case": "bigint",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              }
+            },
+            {
+              "accepted": false,
+              "bytesPreserved": true,
+              "case": "legacy-octal",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              }
+            }
+          ]
+        },
+        "jsoncFailures": {
+          "compilerOptionsShapeFailures": [
+            {
+              "bytesPreserved": true,
+              "case": "null",
+              "finding": {
+                "current": "null",
+                "expected": "object",
+                "key": "compilerOptions",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": null
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "array",
+              "finding": {
+                "current": "[]",
+                "expected": "object",
+                "key": "compilerOptions",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": null
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "string",
+              "finding": {
+                "current": "\"wrong\"",
+                "expected": "object",
+                "key": "compilerOptions",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": null
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "boolean",
+              "finding": {
+                "current": "true",
+                "expected": "object",
+                "key": "compilerOptions",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": null
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "number",
+              "finding": {
+                "current": "1",
+                "expected": "object",
+                "key": "compilerOptions",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": null
+              },
+              "suppressedOptionFindings": true
+            }
+          ],
+          "parseAndRootFailures": [
+            {
+              "bytesPreserved": true,
+              "case": "empty-bytes",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: root value must be an object"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "invalid-utf8",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: invalid utf-8 sequence of 1 bytes from index 0"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "malformed",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: input is not valid JSONC syntax"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "non-object-array",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: root value must be an object"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "non-object-null",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: root value must be an object"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "non-object-string",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: root value must be an object"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "non-object-boolean",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: root value must be an object"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "non-object-number",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: root value must be an object"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "duplicate-root",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `x`"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "duplicate-nested",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `strict`"
+              },
+              "suppressedOptionFindings": true
+            },
+            {
+              "bytesPreserved": true,
+              "case": "duplicate-in-array",
+              "finding": {
+                "kind": "parse",
+                "message": "tsconfig.json is not a valid JSONC object: duplicate object member `x`"
+              },
+              "suppressedOptionFindings": true
+            }
+          ]
+        },
+        "jsoncPreservation": {
+          "changed": {
+            "bomPreserved": true,
+            "expected": "﻿{\n  // root comment\n  \"extends\": \"./base.json\",\n  \"binary\": 0b10,\n  \"separated\": 1_000,\n  \"compilerOptions\": {\n    // managed comment\n    \"strict\": true,\n    \"module\": \"preserve\",\n  },\n  \"references\": [{\"path\": \"./child\"}],\n}\n",
+            "extendedNumbersPreserved": true,
+            "findings": [
+              {
+                "current": "false",
+                "expected": "equals true",
+                "key": "compilerOptions.strict",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": "strict"
+              }
+            ],
+            "stableRerun": true
+          },
+          "inserted": {
+            "bomPreserved": true,
+            "expected": "﻿{\n  // root comment\n  \"extends\": \"./base.json\",\n  \"binary\": 0b10,\n  \"separated\": 1_000,\n  \"compilerOptions\": {\n    // managed comment\n    \"module\": \"preserve\",\n    \"strict\": true,\n  },\n  \"references\": [{\"path\": \"./child\"}],\n}\n",
+            "extendedNumbersPreserved": true,
+            "findings": [
+              {
+                "current": null,
+                "expected": "equals true",
+                "key": "compilerOptions.strict",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": "strict"
+              }
+            ],
+            "insertionPreserved": true
+          },
+          "unchanged": {
+            "exactBytes": true,
+            "findings": []
+          }
+        },
+        "mergeAndAttribution": {
+          "equalPackageAttribution": {
+            "devDependencies.typescript": [
+              "alpha",
+              "beta"
+            ],
+            "scripts.typecheck": [
+              "alpha",
+              "beta"
+            ]
+          },
+          "equalTsAttribution": [
+            {
+              "current": "false",
+              "expected": "equals true",
+              "key": "compilerOptions.strict",
+              "kind": "mismatch",
+              "policies": [
+                "alpha",
+                "beta"
+              ],
+              "selector": "strict"
+            }
+          ],
+          "orderedBooleanConflict": {
+            "contributors": [
+              [
+                "alpha",
+                "at least true"
+              ]
+            ],
+            "key": "compilerOptions.strict",
+            "reason": "scalar-order-unsupported"
+          },
+          "packageMapConflicts": {
+            "bytesPreserved": true,
+            "findings": [
+              {
+                "contributors": [
+                  [
+                    "alpha",
+                    "equals tsc --build tsconfig.json --noCheck false"
+                  ],
+                  [
+                    "beta",
+                    "equals other"
+                  ]
+                ],
+                "key": "scripts.typecheck",
+                "kind": "conflict",
+                "reason": "scalar-disagree"
+              },
+              {
+                "contributors": [
+                  [
+                    "alpha",
+                    "equals 7.0.2"
+                  ],
+                  [
+                    "beta",
+                    "equals 7.1.0"
+                  ]
+                ],
+                "key": "devDependencies.typescript",
+                "kind": "conflict",
+                "reason": "scalar-disagree"
+              }
+            ]
+          },
+          "tsBooleanConflict": {
+            "bytesPreserved": true,
+            "findings": [
+              {
+                "contributors": [
+                  [
+                    "alpha",
+                    "equals true"
+                  ],
+                  [
+                    "beta",
+                    "equals false"
+                  ]
+                ],
+                "key": "compilerOptions.strict",
+                "kind": "conflict",
+                "reason": "scalar-disagree"
+              }
+            ]
+          }
+        },
+        "packageJsonKeyedMaps": {
+          "leafCases": [
+            {
+              "case": "missing",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": null,
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": null,
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "different",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": "\"tsc -p other.json\"",
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": "\"next\"",
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "wrong-type-boolean",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": "true",
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": "false",
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "wrong-type-number",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": "1",
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": "2",
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "wrong-type-null",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": "null",
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": "null",
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "wrong-type-array",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": "[]",
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": "[]",
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "wrong-type-object",
+              "expected": "{\n  \"devDependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"scripts\": {\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": "{}",
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": "{}",
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            },
+            {
+              "case": "wrong-section-and-siblings",
+              "expected": "{\n  \"dependencies\": {\n    \"typescript\": \"7.0.2\"\n  },\n  \"devDependencies\": {\n    \"eslint\": \"9.0.0\",\n    \"typescript\": \"7.0.2\"\n  },\n  \"private\": true,\n  \"scripts\": {\n    \"lint\": \"eslint .\",\n    \"typecheck\": \"tsc --build tsconfig.json --noCheck false\"\n  }\n}\n",
+              "findings": [
+                {
+                  "current": null,
+                  "expected": "equals tsc --build tsconfig.json --noCheck false",
+                  "key": "scripts.typecheck",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typecheck"
+                },
+                {
+                  "current": null,
+                  "expected": "equals 7.0.2",
+                  "key": "devDependencies.typescript",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": "typescript"
+                }
+              ],
+              "stableRerun": true
+            }
+          ],
+          "parentShapeCases": [
+            {
+              "bytesPreserved": true,
+              "case": "null",
+              "findings": [
+                {
+                  "current": "null",
+                  "expected": "object",
+                  "key": "scripts",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                },
+                {
+                  "current": "null",
+                  "expected": "object",
+                  "key": "devDependencies",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                }
+              ]
+            },
+            {
+              "bytesPreserved": true,
+              "case": "array",
+              "findings": [
+                {
+                  "current": "[]",
+                  "expected": "object",
+                  "key": "scripts",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                },
+                {
+                  "current": "[]",
+                  "expected": "object",
+                  "key": "devDependencies",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                }
+              ]
+            },
+            {
+              "bytesPreserved": true,
+              "case": "string",
+              "findings": [
+                {
+                  "current": "\"wrong\"",
+                  "expected": "object",
+                  "key": "scripts",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                },
+                {
+                  "current": "\"wrong\"",
+                  "expected": "object",
+                  "key": "devDependencies",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                }
+              ]
+            },
+            {
+              "bytesPreserved": true,
+              "case": "boolean",
+              "findings": [
+                {
+                  "current": "true",
+                  "expected": "object",
+                  "key": "scripts",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                },
+                {
+                  "current": "false",
+                  "expected": "object",
+                  "key": "devDependencies",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                }
+              ]
+            },
+            {
+              "bytesPreserved": true,
+              "case": "number",
+              "findings": [
+                {
+                  "current": "1",
+                  "expected": "object",
+                  "key": "scripts",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                },
+                {
+                  "current": "2",
+                  "expected": "object",
+                  "key": "devDependencies",
+                  "kind": "mismatch",
+                  "policies": [
+                    "tsc-policy"
+                  ],
+                  "selector": null
+                }
+              ]
+            }
+          ],
+          "scalarAlgebra": {
+            "expected": "{\n  \"scripts\": {\n    \"kept\": \"yes\"\n  }\n}\n",
+            "findings": [
+              {
+                "current": null,
+                "expected": "one of [\"a\", \"b\"]",
+                "key": "scripts.oneOf",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": "oneOf"
+              },
+              {
+                "current": null,
+                "expected": "present",
+                "key": "scripts.present",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": "present"
+              },
+              {
+                "current": "\"old\"",
+                "expected": "absent",
+                "key": "scripts.remove",
+                "kind": "mismatch",
+                "policies": [
+                  "tsc-policy"
+                ],
+                "selector": "remove"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

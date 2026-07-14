@@ -1,6 +1,6 @@
 use aqc_file_engine_core::{
-    Finding, Provenance, ResolvedRequirement, ScalarAssertion, ScalarValue, Severity,
-    render_scalar_assertion, scalar_assertion_matches, scalar_assertion_writable_value,
+    Finding, ResolvedRequirement, ScalarAssertion, ScalarValue, Severity, render_scalar_assertion,
+    scalar_assertion_matches, scalar_assertion_writable_value,
 };
 
 use crate::{ParsedYamlMapping, YamlFieldValue};
@@ -72,11 +72,7 @@ pub fn apply_scalar_assertion<T: YamlScalar>(
         expected: render_scalar_assertion(&requirement.merged),
         message: requirement.merged.message().to_owned(),
         severity: Severity::Error,
-        attribution: requirement
-            .collected
-            .iter()
-            .map(|(provenance, _)| provenance.clone())
-            .collect::<Vec<Provenance>>(),
+        attribution: requirement.attribution(),
     });
     match scalar_assertion_writable_value(&requirement.merged) {
         Some(value) => T::write_yaml(document, key, value),

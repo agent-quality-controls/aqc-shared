@@ -24,11 +24,7 @@ pub(super) fn apply_forbidden_ignore_path_globs(
     }
     for entry in globs.globs.values() {
         let glob = &entry.merged;
-        let attribution = entry
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect::<Vec<_>>();
+        let attribution = entry.attribution();
         let message = entry
             .collected
             .first()
@@ -122,7 +118,7 @@ fn ignore_glob_attribution(
     globs
         .globs
         .values()
-        .flat_map(|entry| entry.collected.iter().map(|(prov, _)| prov.clone()))
+        .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution)
         .collect()
 }
 

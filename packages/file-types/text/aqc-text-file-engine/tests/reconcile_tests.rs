@@ -45,6 +45,43 @@ fn contained_contents_are_appended_once() -> Result<(), String> {
 }
 
 #[test]
+fn mismatch_attribution_preserves_all_resolved_contributors() -> Result<(), String> {
+    let exact = contents("required\n")?;
+    let required = item_requirements("required\n")?;
+    let make = || TextFileRequirements {
+        exact_contents: Some(ScalarAssertion::Equals(exact.clone(), "exact".to_owned())),
+        contents: required.clone(),
+    };
+    let first = provenance("first");
+    let second = provenance("second");
+    let resolved =
+        TextFileRequirements::merge(vec![(first.clone(), make()), (second.clone(), make())])
+            .expect("matching requirements must merge");
+
+    let output = reconcile_text_file(Some(b"old\n"), &resolved);
+    for key in ["exact_contents", "contents"] {
+        let attribution = output.findings.iter().find_map(|finding| {
+            if let Finding::Mismatch {
+                key: finding_key,
+                attribution,
+                ..
+            } = finding
+                && finding_key == key
+            {
+                return Some(attribution);
+            }
+            None
+        });
+        assert_eq!(
+            attribution,
+            Some(&vec![first.clone(), second.clone()]),
+            "Each text mismatch must preserve resolved contributor order."
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn exact_contents_must_contain_required_contents() -> Result<(), String> {
     let mut requirements = requirements_with_exact("exact\n")?;
     requirements.contents = item_requirements("missing\n")?;

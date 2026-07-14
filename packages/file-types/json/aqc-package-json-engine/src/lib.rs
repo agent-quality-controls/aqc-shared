@@ -8,6 +8,8 @@ pub use aqc_file_engine_core::ResolvedRequirement;
 #[cfg(feature = "api")]
 pub use aqc_file_engine_core::ScalarAssertion;
 #[cfg(feature = "api")]
+pub use aqc_file_engine_core::merge::ResolvedMap;
+#[cfg(feature = "api")]
 pub use aqc_file_engine_core::{ConflictEntry, Provenance};
 #[cfg(feature = "api")]
 pub use runtime::ENGINE_ID;

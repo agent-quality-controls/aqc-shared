@@ -21,11 +21,7 @@ pub(crate) fn apply(
     };
     match pairs {
         ResolvedPackageLintsAssertion::Inherit(resolved) => {
-            let attribution = resolved
-                .collected
-                .iter()
-                .map(|(prov, _)| prov.clone())
-                .collect::<Vec<_>>();
+            let attribution = resolved.attribution();
             let msg = resolved
                 .collected
                 .first()

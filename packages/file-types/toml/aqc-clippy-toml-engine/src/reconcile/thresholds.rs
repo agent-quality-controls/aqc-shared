@@ -47,11 +47,7 @@ fn attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        resolved
-            .collected
-            .iter()
-            .map(|(prov, _)| prov.clone())
-            .collect()
+        resolved.attribution()
     } else {
         filtered
     }

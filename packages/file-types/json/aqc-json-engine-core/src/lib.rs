@@ -10,11 +10,7 @@ pub use aqc_file_engine_core::Finding;
 #[cfg(feature = "api")]
 pub use aqc_file_engine_core::Provenance;
 #[cfg(feature = "api")]
-pub use runtime::attribution;
-#[cfg(feature = "api")]
 pub use runtime::parse_object_or_report;
-#[cfg(feature = "api")]
-pub use runtime::push_mismatch;
 #[cfg(feature = "api")]
 pub use runtime::reconcile_scalar_assertion;
 #[cfg(feature = "api")]

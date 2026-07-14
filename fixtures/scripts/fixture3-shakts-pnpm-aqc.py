@@ -1,39 +1,25 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+
+import json
+
+from local_cargo_source import fixture_cargo_home
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PROBE = ROOT / "fixtures/probes/shakts-pnpm-aqc/Cargo.toml"
 
 
-def local_packages() -> dict[str, Path]:
-    packages: dict[str, Path] = {}
-    for manifest in (ROOT / "packages").rglob("Cargo.toml"):
-        if "target" in manifest.parts or "fixtures" in manifest.parts:
-            continue
-        document = tomllib.loads(manifest.read_text())
-        name = document.get("package", {}).get("name")
-        if isinstance(name, str):
-            packages[name] = manifest.parent.resolve()
-    return packages
-
-
 def cargo_home() -> Path:
-    home = Path(tempfile.gettempdir()) / "shakts-pnpm-aqc-fixture-cargo-home"
-    home.mkdir(parents=True, exist_ok=True)
-    lines = ["[patch.crates-io]"]
-    for name, path in sorted(local_packages().items()):
-        lines.append(f"{json.dumps(name)} = {{ path = {json.dumps(str(path))} }}")
-    (home / "config.toml").write_text("\n".join(lines) + "\n")
-    return home
+    return fixture_cargo_home(ROOT, PROBE, "shakts-pnpm-aqc")
 
 
 def main() -> int:

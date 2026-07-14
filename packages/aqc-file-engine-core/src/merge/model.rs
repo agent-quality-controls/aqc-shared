@@ -147,6 +147,33 @@ pub struct ResolvedRequirement<Merged, A> {
     pub collected: Collected<A>,
 }
 
+impl<Merged, Assertion> ResolvedRequirement<Merged, Assertion> {
+    /// Return every contributor in the established collection order.
+    #[must_use]
+    pub fn attribution(&self) -> Vec<Provenance> {
+        self.collected
+            .iter()
+            .map(|(provenance, _)| provenance.clone())
+            .collect()
+    }
+}
+
+/// Return the distinct contributors to a resolved map in provenance order.
+#[must_use]
+pub fn resolved_map_attribution<K, A>(requirements: &ResolvedMap<K, A>) -> Vec<Provenance>
+where
+    K: Ord,
+    A: Resolve,
+{
+    let mut attribution = requirements
+        .values()
+        .flat_map(ResolvedRequirement::attribution)
+        .collect::<Vec<_>>();
+    attribution.sort();
+    attribution.dedup();
+    attribution
+}
+
 /// Product requirement for collections of identifiable file items.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemRequirements<Item> {

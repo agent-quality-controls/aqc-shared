@@ -5,6 +5,10 @@ features:
     spec: "specs/shakts-pnpm-aqc.spec.json"
     suites:
       - "shakts-pnpm-aqc"
+  shakts-tsc-aqc:
+    spec: "specs/shakts-tsc-aqc.spec.json"
+    suites:
+      - "shakts-tsc-aqc"
 
 suites:
   shakts-pnpm-aqc:
@@ -25,3 +29,23 @@ suites:
       approved_dir: "fixtures/approved/shakts-pnpm-aqc"
       received_dir: ".fixture3/shakts-pnpm-aqc"
       diff_dir: ".fixture3/shakts-pnpm-aqc"
+
+  shakts-tsc-aqc:
+    tags:
+      - "file-engines"
+      - "json"
+      - "jsonc"
+      - "typescript"
+    fixtures:
+      - "fixtures/shakts-tsc-aqc/*.json"
+    command:
+      argv:
+        - "python3"
+        - "fixtures/scripts/fixture3-shakts-tsc-aqc.py"
+        - "{fixtures}"
+      ok_exit_codes:
+        - 0
+    storage:
+      approved_dir: "fixtures/approved/shakts-tsc-aqc"
+      received_dir: ".fixture3/shakts-tsc-aqc"
+      diff_dir: ".fixture3/shakts-tsc-aqc"

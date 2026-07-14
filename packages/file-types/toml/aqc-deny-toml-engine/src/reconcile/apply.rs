@@ -1,7 +1,6 @@
 //! Apply resolved deny.toml requirements to a TOML document.
 
-use aqc_file_engine_core::Finding;
-use aqc_toml_engine_core::push_mismatch;
+use aqc_file_engine_core::{Finding, Severity};
 use toml_edit::{DocumentMut, Item};
 
 use crate::requirement::ResolvedDenyTomlRequirements;
@@ -32,13 +31,14 @@ fn reject_unsupported_source_key(doc: &mut DocumentMut, findings: &mut Vec<Findi
         return;
     };
     if sources.remove("unused-allowed-org").is_some() {
-        push_mismatch(
-            findings,
-            "sources.unused-allowed-org".to_owned(),
-            Some("present".to_owned()),
-            "absent".to_owned(),
-            "unsupported by cargo-deny 0.19.4".to_owned(),
-            &[],
-        );
+        findings.push(Finding::Mismatch {
+            key: "sources.unused-allowed-org".to_owned(),
+            selector: None,
+            current: Some("present".to_owned()),
+            expected: "absent".to_owned(),
+            message: "unsupported by cargo-deny 0.19.4".to_owned(),
+            severity: Severity::Error,
+            attribution: Vec::new(),
+        });
     }
 }

@@ -23,6 +23,10 @@ skip = []
 deny = [
     { name = "shakts-pnpm-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakts-pnpm-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "shakts-tsc-policy", wrappers = [], reason = "AQC shared crates must not depend on policies" },
+    { name = "shakts-tsc-adapter", wrappers = [], reason = "AQC shared crates must not depend on adapters" },
+    { name = "aqc-tsconfig-json-engine", wrappers = [], reason = "File engines do not depend on sibling engines" },
+    { name = "aqc-jsonc-engine-core", wrappers = [], reason = "JSON engines do not depend on JSONC format infrastructure" },
     { name = "aqc-pnpm-workspace-yaml-engine", wrappers = [], reason = "Forbidden by AQC package dependency boundary" },
     { name = "aqc-yaml-engine-core", wrappers = [], reason = "JSON file engines must not depend on YAML engine infrastructure" },
     { name = "aqc-text-file-engine", wrappers = [], reason = "Forbidden by AQC package dependency boundary" },

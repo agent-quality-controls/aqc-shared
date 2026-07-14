@@ -7,10 +7,11 @@
 
 use std::collections::BTreeMap;
 
-use aqc_file_engine_core::{FileItemRequirement, Finding, Provenance, ResolvedItemRequirements};
+use aqc_file_engine_core::{
+    FileItemRequirement, Finding, Provenance, ResolvedItemRequirements, Severity,
+};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, Item, Table, TableLike, Value};
 
-use crate::finding::{attribution, push_mismatch};
 use crate::items::types::TomlItemField;
 use crate::scalars::render_item;
 use crate::tables::{ensure_array_of_tables, ensure_table_at, table_at_mut};
@@ -98,14 +99,15 @@ where
     if item.is_array() {
         return false;
     }
-    push_mismatch(
-        findings,
-        field.display_key().to_owned(),
-        render_item(item),
-        "array".to_owned(),
-        first_message(requirements),
-        &item_attribution(requirements),
-    );
+    findings.push(Finding::Mismatch {
+        key: field.display_key().to_owned(),
+        selector: None,
+        current: render_item(item),
+        expected: "array".to_owned(),
+        message: first_message(requirements),
+        severity: Severity::Error,
+        attribution: item_attribution(requirements),
+    });
     true
 }
 
@@ -211,8 +213,13 @@ where
     requirements
         .required
         .values()
-        .flat_map(attribution)
-        .chain(requirements.forbidden.values().flat_map(attribution))
+        .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution)
+        .chain(
+            requirements
+                .forbidden
+                .values()
+                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
+        )
         .chain(exact_attribution(requirements))
         .collect()
 }
@@ -227,7 +234,7 @@ where
         .exact
         .iter()
         .flat_map(|exact| exact.collected.iter())
-        .map(|(prov, _)| prov.clone())
+        .map(|(provenance, _)| provenance.clone())
         .collect()
 }
 

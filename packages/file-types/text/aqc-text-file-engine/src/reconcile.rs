@@ -76,11 +76,7 @@ fn apply_exact_contents(
             expected: format!("{} bytes", contents.as_bytes().len()),
             message: message.clone(),
             severity: Severity::Error,
-            attribution: assertion
-                .collected
-                .iter()
-                .map(|(prov, _)| prov.clone())
-                .collect(),
+            attribution: assertion.attribution(),
         });
     }
 }
@@ -149,11 +145,7 @@ fn apply_required_contents(
                 expected: "required contents present".to_owned(),
                 message,
                 severity: Severity::Error,
-                attribution: entry
-                    .collected
-                    .iter()
-                    .map(|(prov, _)| prov.clone())
-                    .collect(),
+                attribution: entry.attribution(),
             });
             if !exact_mode && !contains_bytes(expected, required) {
                 expected.extend_from_slice(required);

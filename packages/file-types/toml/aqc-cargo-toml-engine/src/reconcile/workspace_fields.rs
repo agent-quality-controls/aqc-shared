@@ -69,7 +69,7 @@ fn attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        aqc_toml_engine_core::attribution(resolved)
+        resolved.attribution()
     } else {
         filtered
     }

@@ -9,8 +9,6 @@
 )]
 
 #[cfg(feature = "api")]
-mod finding;
-#[cfg(feature = "api")]
 mod items;
 #[cfg(feature = "api")]
 mod lists;
@@ -19,8 +17,6 @@ mod scalars;
 #[cfg(feature = "api")]
 mod tables;
 
-#[cfg(feature = "api")]
-pub use finding::{attribution, push_mismatch};
 #[cfg(feature = "api")]
 pub use items::{
     TomlArrayItem, TomlArrayTableItem, TomlItemError, TomlItemField, reconcile_array_items,

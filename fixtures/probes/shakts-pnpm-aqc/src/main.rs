@@ -85,6 +85,7 @@ fn main() {
                 "fail mismatch".to_owned(),
             )),
         },
+        ..PackageJsonRequirements::default()
     };
     let package =
         PackageJsonRequirements::merge(vec![(provenance(), package)]).expect("package merge");

@@ -2,10 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, ResolvedItemRequirements};
+use aqc_file_engine_core::{Finding, ResolvedItemRequirements, Severity};
 use toml_edit::{ArrayOfTables, DocumentMut};
 
-use crate::finding::{attribution, push_mismatch};
 use crate::items::support::{
     CurrentItems, array_item, ensure_array_table, exact_attribution, first_exact_message,
     forbidden_message, item_key, item_message, remove_array_table_items, report_duplicate_identity,
@@ -64,14 +63,15 @@ where
         let current = match ItemType::read_table(table) {
             Ok(item) => item,
             Err(error) => {
-                push_mismatch(
-                    findings,
-                    format!("{}[{index}]", field.display_key()),
-                    Some(table.to_string()),
-                    "valid table item".to_owned(),
-                    error.message().to_owned(),
-                    &crate::items::support::item_attribution(requirements),
-                );
+                findings.push(Finding::Mismatch {
+                    key: format!("{}[{index}]", field.display_key()),
+                    selector: None,
+                    current: Some(table.to_string()),
+                    expected: "valid table item".to_owned(),
+                    message: error.message().to_owned(),
+                    severity: Severity::Error,
+                    attribution: crate::items::support::item_attribution(requirements),
+                });
                 continue;
             }
         };
@@ -104,18 +104,19 @@ fn apply_required_array_table_items<ItemType>(
             .flat_map(|items| items.iter())
             .filter(|(identity, _)| !requirements.required.contains_key(*identity)),
     ) {
-        let attribution = attribution(entry);
+        let attribution = entry.attribution();
         let key = item_key::<ItemType>(field, identity);
         let Some(index) = current.get(identity).copied() else {
             array.push(entry.merged.write_table());
-            push_mismatch(
-                findings,
+            findings.push(Finding::Mismatch {
                 key,
-                None,
-                entry.merged.render_table(),
-                item_message(&entry.collected),
-                &attribution,
-            );
+                selector: None,
+                current: None,
+                expected: entry.merged.render_table(),
+                message: item_message(&entry.collected),
+                severity: Severity::Error,
+                attribution,
+            });
             continue;
         };
         let Some(table) = array.get(index) else {
@@ -129,14 +130,15 @@ fn apply_required_array_table_items<ItemType>(
         }
         let current_rendered = Some(table.to_string());
         let _ = array.replace(index, entry.merged.write_table());
-        push_mismatch(
-            findings,
+        findings.push(Finding::Mismatch {
             key,
-            current_rendered,
-            entry.merged.render_table(),
-            item_message(&entry.collected),
-            &attribution,
-        );
+            selector: None,
+            current: current_rendered,
+            expected: entry.merged.render_table(),
+            message: item_message(&entry.collected),
+            severity: Severity::Error,
+            attribution,
+        });
     }
 }
 
@@ -163,14 +165,15 @@ fn apply_forbidden_array_table_items<ItemType>(
         let Some(entry) = requirements.forbidden.get(&identity) else {
             continue;
         };
-        push_mismatch(
-            findings,
-            item_key::<ItemType>(field, &identity),
-            Some(identity.to_string()),
-            "absent".to_owned(),
-            forbidden_message(&entry.collected),
-            &attribution(entry),
-        );
+        findings.push(Finding::Mismatch {
+            key: item_key::<ItemType>(field, &identity),
+            selector: None,
+            current: Some(identity.to_string()),
+            expected: "absent".to_owned(),
+            message: forbidden_message(&entry.collected),
+            severity: Severity::Error,
+            attribution: entry.attribution(),
+        });
     }
 }
 
@@ -193,13 +196,14 @@ fn apply_exact_array_table_items<ItemType>(
             .map(|item| item.merge_identity())
             .filter(|identity| !allowed.contains(identity))
     }) {
-        push_mismatch(
-            findings,
-            item_key::<ItemType>(field, &identity),
-            Some(identity.to_string()),
-            "absent (exact collection)".to_owned(),
-            first_exact_message(requirements),
-            &exact_attribution(requirements),
-        );
+        findings.push(Finding::Mismatch {
+            key: item_key::<ItemType>(field, &identity),
+            selector: None,
+            current: Some(identity.to_string()),
+            expected: "absent (exact collection)".to_owned(),
+            message: first_exact_message(requirements),
+            severity: Severity::Error,
+            attribution: exact_attribution(requirements),
+        });
     }
 }

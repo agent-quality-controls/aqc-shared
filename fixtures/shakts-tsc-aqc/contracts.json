@@ -1,0 +1,36 @@
+{
+  "layers": [
+    "jsonc-dialect",
+    "jsonc-preservation",
+    "jsonc-failures",
+    "compiler-options",
+    "package-json-keyed-maps",
+    "merge-and-attribution",
+    "absent-file-init",
+    "downstream-public-api"
+  ],
+  "compilerOptions": [
+    { "name": "Strict", "key": "strict", "required": true },
+    { "name": "AlwaysStrict", "key": "alwaysStrict", "required": true },
+    { "name": "NoImplicitAny", "key": "noImplicitAny", "required": true },
+    { "name": "NoImplicitThis", "key": "noImplicitThis", "required": true },
+    { "name": "StrictBindCallApply", "key": "strictBindCallApply", "required": true },
+    { "name": "StrictFunctionTypes", "key": "strictFunctionTypes", "required": true },
+    { "name": "StrictNullChecks", "key": "strictNullChecks", "required": true },
+    { "name": "StrictPropertyInitialization", "key": "strictPropertyInitialization", "required": true },
+    { "name": "UseUnknownInCatchVariables", "key": "useUnknownInCatchVariables", "required": true },
+    { "name": "StrictBuiltinIteratorReturn", "key": "strictBuiltinIteratorReturn", "required": true },
+    { "name": "NoImplicitReturns", "key": "noImplicitReturns", "required": true },
+    { "name": "NoUnusedLocals", "key": "noUnusedLocals", "required": true },
+    { "name": "NoUnusedParameters", "key": "noUnusedParameters", "required": true },
+    { "name": "NoUncheckedIndexedAccess", "key": "noUncheckedIndexedAccess", "required": true },
+    { "name": "ExactOptionalPropertyTypes", "key": "exactOptionalPropertyTypes", "required": true },
+    { "name": "NoPropertyAccessFromIndexSignature", "key": "noPropertyAccessFromIndexSignature", "required": true },
+    { "name": "NoImplicitOverride", "key": "noImplicitOverride", "required": true },
+    { "name": "NoFallthroughCasesInSwitch", "key": "noFallthroughCasesInSwitch", "required": true },
+    { "name": "ForceConsistentCasingInFileNames", "key": "forceConsistentCasingInFileNames", "required": true },
+    { "name": "AllowUnreachableCode", "key": "allowUnreachableCode", "required": false },
+    { "name": "AllowUnusedLabels", "key": "allowUnusedLabels", "required": false },
+    { "name": "NoCheck", "key": "noCheck", "required": false }
+  ]
+}

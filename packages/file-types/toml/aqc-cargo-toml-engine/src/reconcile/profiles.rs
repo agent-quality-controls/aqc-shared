@@ -18,8 +18,7 @@ use aqc_file_engine_core::{
     ConfigScalar, Finding, Provenance, ResolvedRequirement, ScalarAssertion,
 };
 use aqc_toml_engine_core::{
-    ScalarFieldEdit, attribution as resolved_attribution, ensure_table_at, scalar_field_edit,
-    table_at, table_at_mut,
+    ScalarFieldEdit, ensure_table_at, scalar_field_edit, table_at, table_at_mut,
 };
 use toml_edit::{DocumentMut, Item};
 
@@ -111,7 +110,7 @@ fn profile_field_attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        resolved_attribution(resolved)
+        resolved.attribution()
     } else {
         filtered
     }

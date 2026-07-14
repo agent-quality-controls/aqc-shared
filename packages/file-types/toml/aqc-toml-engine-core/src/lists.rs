@@ -2,10 +2,11 @@
 
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedListRequirements, merge::Contributor};
+use aqc_file_engine_core::{
+    Finding, Provenance, ResolvedListRequirements, Severity, merge::Contributor,
+};
 use toml_edit::{Array, DocumentMut, Item, Table, TableLike, Value};
 
-use crate::finding::{attribution, push_mismatch};
 use crate::scalars::render_item;
 
 /// Finding key shape for per-item list mismatches.
@@ -103,21 +104,22 @@ pub fn reconcile_list_field(
     let mut out = current;
 
     for (item, entry) in &requirements.contains {
-        let attribution = attribution(entry);
+        let attribution = entry.attribution();
         let msg = first_item_message(&entry.collected);
         let present: BTreeSet<&str> = out.iter().map(String::as_str).collect();
         if present.contains(item.as_str()) {
             continue;
         }
         let key = list_item_key(&display_key, item, key_style);
-        push_mismatch(
-            findings,
+        findings.push(Finding::Mismatch {
             key,
-            Some(format!("{out:?}")),
-            format!("contains {item:?}"),
-            msg,
-            &attribution,
-        );
+            selector: None,
+            current: Some(format!("{out:?}")),
+            expected: format!("contains {item:?}"),
+            message: msg,
+            severity: Severity::Error,
+            attribution,
+        });
         out.push(item.clone());
         changed = true;
     }
@@ -126,17 +128,18 @@ pub fn reconcile_list_field(
         if !out.contains(item) {
             continue;
         }
-        let attribution = attribution(entry);
+        let attribution = entry.attribution();
         let msg = first_item_message(&entry.collected);
         let key = list_item_key(&display_key, item, key_style);
-        push_mismatch(
-            findings,
+        findings.push(Finding::Mismatch {
             key,
-            Some(format!("{out:?}")),
-            format!("excludes {item:?}"),
-            msg,
-            &attribution,
-        );
+            selector: None,
+            current: Some(format!("{out:?}")),
+            expected: format!("excludes {item:?}"),
+            message: msg,
+            severity: Severity::Error,
+            attribution,
+        });
         out.retain(|value| value != item);
         changed = true;
     }
@@ -144,20 +147,21 @@ pub fn reconcile_list_field(
     if let Some(exact) = &requirements.exact {
         let expected = exact.merged.clone();
         if out != expected {
-            let attribution = attribution(exact);
+            let attribution = exact.attribution();
             let msg = exact
                 .collected
                 .first()
                 .map(|(_, (_, msg))| msg.clone())
                 .unwrap_or_default();
-            push_mismatch(
-                findings,
-                display_key,
-                Some(format!("{out:?}")),
-                format!("{expected:?}"),
-                msg,
-                &attribution,
-            );
+            findings.push(Finding::Mismatch {
+                key: display_key,
+                selector: None,
+                current: Some(format!("{out:?}")),
+                expected: format!("{expected:?}"),
+                message: msg,
+                severity: Severity::Error,
+                attribution,
+            });
             out = expected;
             changed = true;
         }
@@ -237,14 +241,15 @@ pub fn report_list_shape_with_message(
         return false;
     };
     let Some(array) = item.as_array() else {
-        push_mismatch(
-            findings,
-            key.to_owned(),
-            render_item(item),
-            "array of strings".to_owned(),
+        findings.push(Finding::Mismatch {
+            key: key.to_owned(),
+            selector: None,
+            current: render_item(item),
+            expected: "array of strings".to_owned(),
             message,
-            attr,
-        );
+            severity: Severity::Error,
+            attribution: attr.to_vec(),
+        });
         return true;
     };
     let mut malformed = false;
@@ -253,14 +258,15 @@ pub fn report_list_shape_with_message(
             continue;
         }
         malformed = true;
-        push_mismatch(
-            findings,
-            format!("{key}[{index}]"),
-            Some(value.to_string()),
-            "string".to_owned(),
-            message.clone(),
-            attr,
-        );
+        findings.push(Finding::Mismatch {
+            key: format!("{key}[{index}]"),
+            selector: None,
+            current: Some(value.to_string()),
+            expected: "string".to_owned(),
+            message: message.clone(),
+            severity: Severity::Error,
+            attribution: attr.to_vec(),
+        });
     }
     malformed
 }
@@ -270,8 +276,18 @@ fn list_attribution(requirements: &ResolvedListRequirements) -> Vec<Provenance> 
     requirements
         .contains
         .values()
-        .flat_map(attribution)
-        .chain(requirements.excludes.values().flat_map(attribution))
-        .chain(requirements.exact.iter().flat_map(attribution))
+        .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution)
+        .chain(
+            requirements
+                .excludes
+                .values()
+                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
+        )
+        .chain(
+            requirements
+                .exact
+                .iter()
+                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
+        )
         .collect()
 }

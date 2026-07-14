@@ -1,4 +1,6 @@
-use aqc_file_engine_core::{ConflictEntry, Provenance, ScalarAssertion, resolve_maybe};
+use aqc_file_engine_core::{
+    ConflictEntry, Provenance, ScalarAssertion, resolve_map, resolve_maybe,
+};
 
 use crate::types::{
     PackageJsonRequirements, ResolvedDevEnginePackageManagerRequirements,
@@ -48,6 +50,26 @@ impl PackageJsonRequirements {
                     &mut conflicts,
                 ),
             },
+            scripts: resolve_map(
+                requirements
+                    .iter()
+                    .map(|(provenance, requirement)| {
+                        (provenance.clone(), requirement.scripts.clone())
+                    })
+                    .collect(),
+                |key| format!("scripts.{key}"),
+                &mut conflicts,
+            ),
+            dev_dependencies: resolve_map(
+                requirements
+                    .iter()
+                    .map(|(provenance, requirement)| {
+                        (provenance.clone(), requirement.dev_dependencies.clone())
+                    })
+                    .collect(),
+                |key| format!("devDependencies.{key}"),
+                &mut conflicts,
+            ),
         };
         if conflicts.is_empty() {
             Ok(resolved)

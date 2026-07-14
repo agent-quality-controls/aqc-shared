@@ -29,7 +29,7 @@ pub(crate) fn apply(
             expected: "table present".to_owned(),
             message: item_message(&entry.collected),
             severity: Severity::Error,
-            attribution: item_attribution(&entry.collected),
+            attribution: entry.attribution(),
         });
         ensure_table(doc, "lints")[tool] = Item::Table(toml_edit::Table::new());
     }
@@ -58,11 +58,7 @@ pub(crate) fn apply(
                     .map(|(_, message)| message.clone())
                     .unwrap_or_default(),
                 severity: Severity::Error,
-                attribution: entry
-                    .collected
-                    .iter()
-                    .map(|(prov, _)| prov.clone())
-                    .collect(),
+                attribution: entry.attribution(),
             });
         } else if exact_identities.is_some_and(|allowed| !allowed.contains(&tool)) {
             let Some(exact) = requirements.exact.as_ref() else {
@@ -83,7 +79,7 @@ pub(crate) fn apply(
                 attribution: exact
                     .collected
                     .iter()
-                    .map(|(prov, _)| prov.clone())
+                    .map(|(provenance, _)| provenance.clone())
                     .collect(),
             });
         }
@@ -108,9 +104,4 @@ fn item_message(collected: &[(Provenance, (KeyedItem<()>, String))]) -> String {
         .first()
         .map(|(_, (_, message))| message.clone())
         .unwrap_or_default()
-}
-
-/// Return all contributors to a resolved lint-table identity.
-fn item_attribution(collected: &[(Provenance, (KeyedItem<()>, String))]) -> Vec<Provenance> {
-    collected.iter().map(|(prov, _)| prov.clone()).collect()
 }

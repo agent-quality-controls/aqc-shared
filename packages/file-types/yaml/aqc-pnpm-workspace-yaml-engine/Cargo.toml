@@ -1,6 +1,6 @@
 [package]
 name = "aqc-pnpm-workspace-yaml-engine"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
@@ -20,8 +20,8 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = "0.7.0"
-aqc-yaml-engine-core = "0.7.0"
+aqc-file-engine-core = "0.7.1"
+aqc-yaml-engine-core = "0.7.1"
 globset = "0.4"
 schemars = "1"
 serde = { version = "1", features = ["derive"] }

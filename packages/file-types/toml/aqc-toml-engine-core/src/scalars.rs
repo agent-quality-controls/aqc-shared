@@ -6,8 +6,6 @@ use aqc_file_engine_core::{
 };
 use toml_edit::{DocumentMut, Item, value as toml_value};
 
-use crate::finding::push_mismatch;
-
 /// Write/remove action needed to satisfy a scalar field assertion.
 #[derive(Debug)]
 pub enum ScalarFieldEdit {
@@ -128,14 +126,15 @@ pub fn scalar_field_edit(
     if scalar_assertion_matches(assertion, decoded.as_ref(), current.is_some()) {
         return None;
     }
-    push_mismatch(
-        findings,
-        display_key,
-        current.and_then(render_item),
-        render_scalar_assertion(assertion),
-        assertion.message().to_owned(),
-        attribution,
-    );
+    findings.push(Finding::Mismatch {
+        key: display_key,
+        selector: None,
+        current: current.and_then(render_item),
+        expected: render_scalar_assertion(assertion),
+        message: assertion.message().to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
     scalar_assertion_writable_value(assertion)
         .map(|value| ScalarFieldEdit::Write(scalar_item(value)))
         .or_else(|| {

@@ -219,22 +219,23 @@ pub(super) fn apply_closed(
         .filter(|key| !allowed.contains(key.as_str()))
         .collect::<Vec<_>>();
     for extra in extras {
-        toml_core::push_mismatch(
-            findings,
-            format!("toolchain.{extra}"),
-            table.get(&extra).and_then(toml_core::render_item),
-            "absent because rust-toolchain.toml fields are exact".to_owned(),
-            requirement
+        findings.push(file_core::Finding::Mismatch {
+            key: format!("toolchain.{extra}"),
+            selector: None,
+            current: table.get(&extra).and_then(toml_core::render_item),
+            expected: "absent because rust-toolchain.toml fields are exact".to_owned(),
+            message: requirement
                 .exact_settings
                 .first()
                 .map(|(_, msg)| msg.clone())
                 .unwrap_or_default(),
-            &requirement
+            severity: file_core::Severity::Error,
+            attribution: requirement
                 .exact_settings
                 .iter()
                 .map(|(prov, _)| prov.clone())
                 .collect::<Vec<_>>(),
-        );
+        });
         let _ = table.remove(&extra);
     }
 }
@@ -271,7 +272,7 @@ pub(super) fn scalar_attribution_for<T>(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        toml_core::attribution(resolved)
+        resolved.attribution()
     } else {
         filtered
     }
@@ -324,14 +325,19 @@ pub(super) fn list_attribution(
     requirements
         .contains
         .values()
-        .flat_map(toml_core::attribution)
+        .flat_map(file_core::ResolvedRequirement::attribution)
         .chain(
             requirements
                 .excludes
                 .values()
-                .flat_map(toml_core::attribution),
+                .flat_map(file_core::ResolvedRequirement::attribution),
         )
-        .chain(requirements.exact.iter().flat_map(toml_core::attribution))
+        .chain(
+            requirements
+                .exact
+                .iter()
+                .flat_map(file_core::ResolvedRequirement::attribution),
+        )
         .collect()
 }
 
@@ -375,9 +381,19 @@ pub(super) fn requirement_attribution(
     requirement
         .channel
         .iter()
-        .flat_map(toml_core::attribution)
-        .chain(requirement.path.iter().flat_map(toml_core::attribution))
-        .chain(requirement.profile.iter().flat_map(toml_core::attribution))
+        .flat_map(file_core::ResolvedRequirement::attribution)
+        .chain(
+            requirement
+                .path
+                .iter()
+                .flat_map(file_core::ResolvedRequirement::attribution),
+        )
+        .chain(
+            requirement
+                .profile
+                .iter()
+                .flat_map(file_core::ResolvedRequirement::attribution),
+        )
         .chain(list_attribution(&requirement.components))
         .chain(list_attribution(&requirement.targets))
         .chain(

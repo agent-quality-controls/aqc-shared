@@ -2,8 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, Provenance};
-use aqc_toml_engine_core::push_mismatch;
+use aqc_file_engine_core::{Finding, Provenance, Severity};
 use toml_edit::DocumentMut;
 
 use crate::requirement::ResolvedDenyTomlRequirements;
@@ -43,14 +42,15 @@ pub(super) fn apply_exact_settings(
     for key in extras {
         let current = doc.get(&key).map(ToString::to_string);
         let _ = doc.remove(&key);
-        push_mismatch(
-            findings,
+        findings.push(Finding::Mismatch {
             key,
+            selector: None,
             current,
-            "absent (exact settings)".to_owned(),
-            message.clone(),
-            &attribution,
-        );
+            expected: "absent (exact settings)".to_owned(),
+            message: message.clone(),
+            severity: Severity::Error,
+            attribution: attribution.clone(),
+        });
     }
     exact_table(
         doc,
@@ -90,13 +90,14 @@ fn exact_table(
     for key in extras {
         let current = table.get(&key).map(ToString::to_string);
         let _ = table.remove(&key);
-        push_mismatch(
-            findings,
-            format!("{}.{}", table_path.join("."), key),
+        findings.push(Finding::Mismatch {
+            key: format!("{}.{}", table_path.join("."), key),
+            selector: None,
             current,
-            "absent (exact settings)".to_owned(),
-            message.to_owned(),
-            attribution,
-        );
+            expected: "absent (exact settings)".to_owned(),
+            message: message.to_owned(),
+            severity: Severity::Error,
+            attribution: attribution.to_vec(),
+        });
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "aqc-yaml-engine-core"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
@@ -20,7 +20,7 @@ all = ["api"]
 api = []
 
 [dependencies]
-aqc-file-engine-core = "0.7.0"
+aqc-file-engine-core = "0.7.1"
 yaml-edit = "0.2.3"
 
 [lints.rust]

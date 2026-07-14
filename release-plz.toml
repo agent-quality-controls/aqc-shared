@@ -20,6 +20,9 @@ name = "aqc-file-engine-core"
 name = "aqc-json-engine-core"
 
 [[package]]
+name = "aqc-jsonc-engine-core"
+
+[[package]]
 name = "aqc-package-json-engine"
 
 [[package]]
@@ -45,6 +48,9 @@ name = "aqc-rustfmt-toml-engine"
 
 [[package]]
 name = "aqc-toml-engine-core"
+
+[[package]]
+name = "aqc-tsconfig-json-engine"
 
 [[package]]
 name = "aqc-yaml-engine-core"

@@ -10,7 +10,7 @@ use super::ignore::apply_forbidden_ignore_path_globs;
 use super::list::apply_list;
 use super::scalar::apply_scalar;
 use crate::requirement::ResolvedRustfmtTomlRequirements;
-use aqc_toml_engine_core::{attribution, scalar_assertion_fails};
+use aqc_toml_engine_core::scalar_assertion_fails;
 
 /// Resolved rustfmt scalar-setting assertion.
 type ResolvedRustfmtScalarSetting =
@@ -48,7 +48,7 @@ fn scalar_attribution_for(
         .map(|(prov, _)| prov.clone())
         .collect::<Vec<_>>();
     if filtered.is_empty() {
-        attribution(resolved)
+        resolved.attribution()
     } else {
         filtered
     }

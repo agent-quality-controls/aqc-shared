@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
     Finding, KeyedItem, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedListRequirements, Severity,
+    ResolvedListRequirements, ResolvedRequirement, Severity,
 };
 use globset::GlobMatcher;
 
@@ -70,11 +70,7 @@ pub(super) fn compile_globs(
                     .collected
                     .first()
                     .map_or_else(String::new, |(_, message)| message.clone()),
-                attribution: glob
-                    .collected
-                    .iter()
-                    .map(|(provenance, _)| provenance.clone())
-                    .collect(),
+                attribution: glob.attribution(),
             }),
             Err(error) => findings.push(Finding::InvalidRequirements {
                 key: key.to_owned(),
@@ -132,13 +128,13 @@ pub(super) fn list_attribution(
     let mut out = requirement
         .contains
         .values()
-        .flat_map(|item| item.collected.iter().map(|(p, _)| p.clone()))
+        .flat_map(ResolvedRequirement::attribution)
         .collect::<Vec<_>>();
     out.extend(
         requirement
             .excludes
             .values()
-            .flat_map(|item| item.collected.iter().map(|(p, _)| p.clone())),
+            .flat_map(ResolvedRequirement::attribution),
     );
     out.extend(
         requirement
@@ -150,7 +146,7 @@ pub(super) fn list_attribution(
         globs
             .globs
             .values()
-            .flat_map(|item| item.collected.iter().map(|(p, _)| p.clone())),
+            .flat_map(ResolvedRequirement::attribution),
     );
     out.sort();
     out.dedup();
@@ -164,19 +160,19 @@ pub(super) fn item_attribution(
     let mut out = requirement
         .required
         .values()
-        .flat_map(|item| item.collected.iter().map(|(p, _)| p.clone()))
+        .flat_map(ResolvedRequirement::attribution)
         .collect::<Vec<_>>();
     out.extend(
         requirement
             .forbidden
             .values()
-            .flat_map(|item| item.collected.iter().map(|(p, _)| p.clone())),
+            .flat_map(ResolvedRequirement::attribution),
     );
     out.extend(
         globs
             .globs
             .values()
-            .flat_map(|item| item.collected.iter().map(|(p, _)| p.clone())),
+            .flat_map(ResolvedRequirement::attribution),
     );
     out.extend(
         requirement
