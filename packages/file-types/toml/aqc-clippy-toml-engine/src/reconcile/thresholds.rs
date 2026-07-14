@@ -129,6 +129,7 @@ fn apply_at_most(
     }
     findings.push(Finding::Mismatch {
         key: key.to_owned(),
+        selector: None,
         current: current.map(|n| n.to_string()),
         expected: format!("at most {ceiling}"),
         message: message.to_owned(),
@@ -153,6 +154,7 @@ fn apply_at_least(
     }
     findings.push(Finding::Mismatch {
         key: key.to_owned(),
+        selector: None,
         current: current.map(|n| n.to_string()),
         expected: format!("at least {floor}"),
         message: message.to_owned(),
@@ -179,6 +181,7 @@ fn apply_range(
     }
     findings.push(Finding::Mismatch {
         key: key.to_owned(),
+        selector: None,
         current: current.map(|n| n.to_string()),
         expected: format!("between {floor} and {ceiling}"),
         message: message.to_owned(),
@@ -200,6 +203,7 @@ fn apply_unrepresentable_equals(
     let current = doc.get(key).and_then(Item::as_integer);
     findings.push(Finding::Mismatch {
         key: key.to_owned(),
+        selector: None,
         current: current.map(|n| n.to_string()),
         expected: want.to_string(),
         message: message.to_owned(),

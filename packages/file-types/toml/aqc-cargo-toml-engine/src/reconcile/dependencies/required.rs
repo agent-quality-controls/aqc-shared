@@ -121,6 +121,7 @@ pub(super) fn apply_required(
 
     findings.push(Finding::Mismatch {
         key: format!("{display_path}.{name}"),
+        selector: None,
         current: current.as_ref().map(|(_, s)| format!("{s:?}")),
         expected: if writable {
             format!("{spec:?}")

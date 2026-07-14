@@ -94,6 +94,7 @@ fn apply_required(
     }
     findings.push(Finding::Mismatch {
         key: format!("[features].{feature}"),
+        selector: None,
         current: current.map(|items| format!("{items:?}")),
         expected: format!("{:?}", want.members),
         message: msg.to_owned(),
@@ -119,6 +120,7 @@ fn apply_forbidden(
         table_ref(doc, "features").map_or_else(Vec::new, |t| table_list_values(t, feature));
     findings.push(Finding::Mismatch {
         key: format!("[features].{feature}"),
+        selector: None,
         current: Some(format!("{current:?}")),
         expected: "absent".to_owned(),
         message: msg.to_owned(),
@@ -148,6 +150,7 @@ fn apply_exact_extras(
             table_ref(doc, "features").map_or_else(Vec::new, |t| table_list_values(t, extra));
         findings.push(Finding::Mismatch {
             key: format!("[features].{extra}"),
+            selector: None,
             current: Some(format!("{current:?}")),
             expected: "absent (exact collection)".to_owned(),
             message: message.to_owned(),

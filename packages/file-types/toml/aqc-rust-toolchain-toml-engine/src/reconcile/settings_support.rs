@@ -245,6 +245,7 @@ pub(super) fn report_empty_table(table: &Table, findings: &mut Vec<file_core::Fi
     }
     findings.push(file_core::Finding::Mismatch {
         key: "toolchain".to_owned(),
+        selector: None,
         current: Some("{}".to_owned()),
         expected: "at least one supported property".to_owned(),
         message: "rust-toolchain.toml [toolchain] table cannot be empty.".to_owned(),

@@ -78,6 +78,7 @@ fn remove_matching_ignore_values(
     for path in matching_values {
         findings.push(Finding::Mismatch {
             key: format!("ignore.{path}"),
+            selector: None,
             current: Some(path),
             expected: "absent (path glob)".to_owned(),
             message: message.to_owned(),

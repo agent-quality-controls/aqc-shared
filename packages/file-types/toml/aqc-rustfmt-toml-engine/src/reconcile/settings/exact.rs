@@ -33,6 +33,7 @@ pub(super) fn apply_exact(
     for extra in extras {
         findings.push(Finding::Mismatch {
             key: extra.clone(),
+            selector: None,
             current: doc.get(&extra).and_then(render_item),
             expected: "absent because rustfmt.toml settings are exact".to_owned(),
             message: requirement

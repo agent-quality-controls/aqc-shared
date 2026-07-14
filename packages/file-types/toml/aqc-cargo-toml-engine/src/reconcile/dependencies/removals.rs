@@ -204,6 +204,7 @@ pub(super) fn remove_dependency_entries_once(
     for (file_key, removal) in removals {
         findings.push(Finding::Mismatch {
             key: format!("{display_path}.{file_key}"),
+            selector: None,
             current: Some(format!("{:?}", removal.current)),
             expected: removal.expected.into_iter().collect::<Vec<_>>().join("; "),
             message: removal.messages.into_iter().collect::<Vec<_>>().join("; "),

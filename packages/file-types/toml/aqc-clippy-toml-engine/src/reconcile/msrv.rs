@@ -118,6 +118,7 @@ fn apply_at_least(
     }
     findings.push(Finding::Mismatch {
         key: "msrv".into(),
+        selector: None,
         current: current.map(ToOwned::to_owned),
         expected: format!("at least {}", min.as_str()),
         message: message.to_owned(),
@@ -140,6 +141,7 @@ fn apply_at_most(
     }
     findings.push(Finding::Mismatch {
         key: "msrv".into(),
+        selector: None,
         current: current.map(ToOwned::to_owned),
         expected: format!("at most {}", max.as_str()),
         message: message.to_owned(),
@@ -176,6 +178,7 @@ fn apply_range(
     }
     findings.push(Finding::Mismatch {
         key: "msrv".into(),
+        selector: None,
         current: current.map(ToOwned::to_owned),
         expected: format!("between {} and {}", min.as_str(), max.as_str()),
         message: message.to_owned(),

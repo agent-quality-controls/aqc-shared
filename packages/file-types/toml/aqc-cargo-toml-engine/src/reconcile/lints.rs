@@ -163,6 +163,7 @@ fn apply_required(
     }
     findings.push(Finding::Mismatch {
         key: format!("[{}.{tool}].{lint}", root.prefix()),
+        selector: None,
         current: on_disk.map(|entry| display_entry(&entry)),
         expected: display_expected(level, priority),
         message: message.to_owned(),
@@ -193,6 +194,7 @@ fn apply_forbidden(
     };
     findings.push(Finding::Mismatch {
         key: format!("[{}.{tool}].{lint}", root.prefix()),
+        selector: None,
         current: Some(current),
         expected: "absent".to_owned(),
         message: message.to_owned(),
@@ -227,6 +229,7 @@ fn apply_exact_extras(
             .map(|entry| display_entry(&entry));
         findings.push(Finding::Mismatch {
             key: format!("[{}.{tool}].{extra}", root.prefix()),
+            selector: None,
             current,
             expected: "absent (exact collection)".to_owned(),
             message: message.to_owned(),

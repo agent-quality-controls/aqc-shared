@@ -112,6 +112,7 @@ fn apply_forbidden_path_globs(
             let _ = array.remove(i);
             findings.push(Finding::Mismatch {
                 key: format!("{table_key}[?path == \"{path}\"]"),
+                selector: None,
                 current: Some(path),
                 expected: "absent (path glob)".into(),
                 message: message.clone(),

@@ -199,7 +199,9 @@ fn exact_only_disallowed_path_matching_glob_conflicts() {
         [conflict] if conflict.key == "disallowed-methods.std::env::set_var"
     ));
     assert_eq!(
-        conflicts[0]
+        conflicts
+            .first()
+            .expect("the matched conflict must be present")
             .contributors
             .iter()
             .map(|(source, value)| (source.policy.as_str(), value.as_str()))
@@ -242,14 +244,16 @@ fn required_and_exact_disallowed_path_glob_conflict_preserves_all_attribution() 
     .expect_err("forbidden path glob should conflict with required exact method");
 
     assert_eq!(
-        conflicts[0]
+        conflicts
+            .first()
+            .expect("the merge must report a conflict")
             .contributors
             .iter()
             .map(|(source, value)| (source.policy.as_str(), value.as_str()))
             .collect::<Vec<_>>(),
         vec![
-            ("required-policy", "required"),
             ("exact-policy", "required"),
+            ("required-policy", "required"),
             ("forbidden-policy", "forbidden")
         ]
     );

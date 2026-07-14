@@ -24,6 +24,7 @@ pub(crate) fn apply(
         }
         findings.push(Finding::Mismatch {
             key: format!("[lints.{tool}]"),
+            selector: None,
             current: None,
             expected: "table present".to_owned(),
             message: item_message(&entry.collected),
@@ -48,6 +49,7 @@ pub(crate) fn apply(
             remove_table(doc, &tool);
             findings.push(Finding::Mismatch {
                 key: format!("[lints.{tool}]"),
+                selector: None,
                 current: Some("table present".to_owned()),
                 expected: "absent".to_owned(),
                 message: entry
@@ -69,6 +71,7 @@ pub(crate) fn apply(
             remove_table(doc, &tool);
             findings.push(Finding::Mismatch {
                 key: format!("[lints.{tool}]"),
+                selector: None,
                 current: Some("table present".to_owned()),
                 expected: "absent (exact collection)".to_owned(),
                 message: exact
