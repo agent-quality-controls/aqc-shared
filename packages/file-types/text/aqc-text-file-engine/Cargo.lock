@@ -5,8 +5,6 @@ version = 4
 [[package]]
 name = "aqc-file-engine-core"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78a36e5570d9f8122a2f796d7ee15913f55da8f7af24ad00db3ae4560f1a04a5"
 dependencies = [
  "schemars",
  "serde",
