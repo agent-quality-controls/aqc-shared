@@ -1,8 +1,5 @@
-//! Shared TOML finding helpers.
-
 use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, Severity};
 
-/// Collect provenance from a resolved requirement.
 #[must_use]
 pub fn attribution<Merged, Assertion>(
     resolved: &ResolvedRequirement<Merged, Assertion>,
@@ -10,11 +7,10 @@ pub fn attribution<Merged, Assertion>(
     resolved
         .collected
         .iter()
-        .map(|(prov, _)| prov.clone())
+        .map(|(provenance, _)| provenance.clone())
         .collect()
 }
 
-/// Push a writable-key mismatch finding.
 pub fn push_mismatch(
     findings: &mut Vec<Finding>,
     key: String,

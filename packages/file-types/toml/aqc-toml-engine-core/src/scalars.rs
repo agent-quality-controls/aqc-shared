@@ -1,8 +1,9 @@
 //! Shared TOML scalar helpers.
 
-use std::collections::BTreeSet;
-
-use aqc_file_engine_core::{ConfigScalar, Finding, Provenance, ScalarAssertion, Severity};
+use aqc_file_engine_core::{
+    ConfigScalar, Finding, Provenance, ScalarAssertion, Severity, render_scalar_assertion,
+    scalar_assertion_matches, scalar_assertion_writable_value,
+};
 use toml_edit::{DocumentMut, Item, value as toml_value};
 
 use crate::finding::push_mismatch;
@@ -65,11 +66,14 @@ pub fn scalar_item(scalar: &ConfigScalar) -> Item {
 /// Return true when a TOML item equals the config scalar.
 #[must_use]
 pub fn scalar_matches(item: &Item, scalar: &ConfigScalar) -> bool {
-    match scalar {
-        ConfigScalar::Str(value) => item.as_str() == Some(value.as_str()),
-        ConfigScalar::Int(value) => item.as_integer() == Some(*value),
-        ConfigScalar::Bool(value) => item.as_bool() == Some(*value),
-    }
+    decode_scalar(item).as_ref() == Some(scalar)
+}
+
+fn decode_scalar(item: &Item) -> Option<ConfigScalar> {
+    item.as_str()
+        .map(|value| ConfigScalar::Str(value.to_owned()))
+        .or_else(|| item.as_integer().map(ConfigScalar::Int))
+        .or_else(|| item.as_bool().map(ConfigScalar::Bool))
 }
 
 /// Render a config scalar for finding output.
@@ -97,21 +101,18 @@ pub fn apply_scalar_assertion(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) {
-    match assertion {
-        ScalarAssertion::Equals(want, message) => {
-            apply_scalar_equals(doc, key, want, message, attribution, findings);
+    match scalar_field_edit(
+        key.to_owned(),
+        doc.get(key),
+        assertion,
+        attribution,
+        findings,
+    ) {
+        Some(ScalarFieldEdit::Write(item)) => doc[key] = item,
+        Some(ScalarFieldEdit::Remove) => {
+            let _ = doc.remove(key);
         }
-        ScalarAssertion::OneOf(allowed, message) => {
-            apply_scalar_one_of(doc, key, allowed, message, attribution, findings);
-        }
-        ScalarAssertion::Present(message) => {
-            apply_scalar_present(doc, key, message, attribution, findings);
-        }
-        ScalarAssertion::Absent(message) => {
-            apply_scalar_absent(doc, key, message, attribution, findings);
-        }
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-        }
+        None => {}
     }
 }
 
@@ -123,66 +124,23 @@ pub fn scalar_field_edit(
     attribution: &[Provenance],
     findings: &mut Vec<Finding>,
 ) -> Option<ScalarFieldEdit> {
-    match assertion {
-        ScalarAssertion::Equals(want, message) => {
-            if current.is_some_and(|item| scalar_matches(item, want)) {
-                return None;
-            }
-            push_mismatch(
-                findings,
-                display_key,
-                current.and_then(render_item),
-                render_scalar(want),
-                message.to_owned(),
-                attribution,
-            );
-            Some(ScalarFieldEdit::Write(scalar_item(want)))
-        }
-        ScalarAssertion::OneOf(allowed, message) => {
-            if current.is_some_and(|item| allowed.iter().any(|want| scalar_matches(item, want))) {
-                return None;
-            }
-            let rendered = allowed.iter().map(render_scalar).collect::<Vec<_>>();
-            push_mismatch(
-                findings,
-                display_key,
-                current.and_then(render_item),
-                format!("one of {rendered:?}"),
-                message.to_owned(),
-                attribution,
-            );
-            None
-        }
-        ScalarAssertion::Present(message) => {
-            if current.is_some() {
-                return None;
-            }
-            push_mismatch(
-                findings,
-                display_key,
-                None,
-                "present".to_owned(),
-                message.to_owned(),
-                attribution,
-            );
-            None
-        }
-        ScalarAssertion::Absent(message) => {
-            let rendered = current.and_then(render_item)?;
-            push_mismatch(
-                findings,
-                display_key,
-                Some(rendered),
-                "absent".to_owned(),
-                message.to_owned(),
-                attribution,
-            );
-            Some(ScalarFieldEdit::Remove)
-        }
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            None
-        }
+    let decoded = current.and_then(decode_scalar);
+    if scalar_assertion_matches(assertion, decoded.as_ref(), current.is_some()) {
+        return None;
     }
+    push_mismatch(
+        findings,
+        display_key,
+        current.and_then(render_item),
+        render_scalar_assertion(assertion),
+        assertion.message().to_owned(),
+        attribution,
+    );
+    scalar_assertion_writable_value(assertion)
+        .map(|value| ScalarFieldEdit::Write(scalar_item(value)))
+        .or_else(|| {
+            matches!(assertion, ScalarAssertion::Absent(_)).then_some(ScalarFieldEdit::Remove)
+        })
 }
 
 /// Return true when one assertion fails against an optional TOML item.
@@ -191,92 +149,6 @@ pub fn scalar_assertion_fails(
     current: Option<&Item>,
     assertion: &ScalarAssertion<ConfigScalar>,
 ) -> bool {
-    match assertion {
-        ScalarAssertion::Equals(want, _) => !current.is_some_and(|item| scalar_matches(item, want)),
-        ScalarAssertion::OneOf(allowed, _) => {
-            !current.is_some_and(|item| allowed.iter().any(|allowed| scalar_matches(item, allowed)))
-        }
-        ScalarAssertion::Present(_) => current.is_none(),
-        ScalarAssertion::Absent(_) => current.is_some(),
-        ScalarAssertion::AtLeast(..) | ScalarAssertion::AtMost(..) | ScalarAssertion::Range(..) => {
-            true
-        }
-    }
-}
-
-/// Applies an `Equals` scalar assertion to a top-level TOML key.
-fn apply_scalar_equals(
-    doc: &mut DocumentMut,
-    key: &str,
-    want: &ConfigScalar,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if let Some(ScalarFieldEdit::Write(item)) = scalar_field_edit(
-        key.to_owned(),
-        doc.get(key),
-        &ScalarAssertion::Equals(want.clone(), message.to_owned()),
-        attribution,
-        findings,
-    ) {
-        doc[key] = item;
-    }
-}
-
-/// Reports a `OneOf` scalar assertion on a top-level TOML key without choosing a value.
-fn apply_scalar_one_of(
-    doc: &DocumentMut,
-    key: &str,
-    allowed: &BTreeSet<ConfigScalar>,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let _ = scalar_field_edit(
-        key.to_owned(),
-        doc.get(key),
-        &ScalarAssertion::OneOf(allowed.clone(), message.to_owned()),
-        attribution,
-        findings,
-    );
-}
-
-/// Reports a missing top-level TOML scalar key.
-fn apply_scalar_present(
-    doc: &DocumentMut,
-    key: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    let _ = scalar_field_edit(
-        key.to_owned(),
-        doc.get(key),
-        &ScalarAssertion::Present(message.to_owned()),
-        attribution,
-        findings,
-    );
-}
-
-/// Removes a top-level TOML scalar key when an `Absent` assertion requires it.
-fn apply_scalar_absent(
-    doc: &mut DocumentMut,
-    key: &str,
-    message: &str,
-    attribution: &[Provenance],
-    findings: &mut Vec<Finding>,
-) {
-    if matches!(
-        scalar_field_edit(
-            key.to_owned(),
-            doc.get(key),
-            &ScalarAssertion::Absent(message.to_owned()),
-            attribution,
-            findings,
-        ),
-        Some(ScalarFieldEdit::Remove)
-    ) {
-        let _ = doc.remove(key);
-    }
+    let decoded = current.and_then(decode_scalar);
+    !scalar_assertion_matches(assertion, decoded.as_ref(), current.is_some())
 }

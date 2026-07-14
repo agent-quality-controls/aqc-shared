@@ -1,4 +1,4 @@
-# aqc-text-engine-core
+# aqc-text-file-engine
 
 Reusable AQC file engine for exact text files and required contained byte sequences.
 

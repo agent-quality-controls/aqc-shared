@@ -25,6 +25,7 @@ deny = [
     { name = "shakts-pnpm-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "aqc-package-json-engine", wrappers = [], reason = "Forbidden by AQC package dependency boundary" },
     { name = "aqc-pnpm-workspace-yaml-engine", wrappers = [], reason = "Forbidden by AQC package dependency boundary" },
+    { name = "aqc-json-engine-core", wrappers = [], reason = "YAML engine infrastructure must not depend on JSON engine infrastructure" },
     { name = "aqc-text-file-engine", wrappers = [], reason = "Forbidden by AQC package dependency boundary" },
     { crate = "shakts-hooks-policy", reason = "Forbidden by Shackles package dependency boundary" },
     { crate = "shakts", reason = "Forbidden by Shackles package dependency boundary" },

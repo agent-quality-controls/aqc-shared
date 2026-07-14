@@ -8,7 +8,7 @@ mod reconcile;
 mod requirement;
 
 #[cfg(feature = "api")]
-pub const ENGINE_ID: &str = "aqc-text-engine-core";
+pub const ENGINE_ID: &str = "aqc-text-file-engine";
 #[cfg(feature = "api")]
 pub use aqc_file_engine_core::{Finding, ItemRequirements, Provenance, ScalarAssertion};
 #[cfg(feature = "api")]

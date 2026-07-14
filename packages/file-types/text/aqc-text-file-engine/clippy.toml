@@ -8,6 +8,7 @@ disallowed-methods = [
     { path = "std::fs::write", reason = "Pure layers return data; they do not write files." },
     { path = "std::env::var", reason = "Pure layers receive configuration as data; they do not inspect process state." },
     { path = "std::process::exit", reason = "`std::process::exit` skips destructors. Return a `Result` from `main` (or call `std::process::Termination`) so cleanup runs." },
+    { path = "std::process::abort", reason = "`std::process::abort` terminates without cleanup. Return a typed error and let the process exit normally." },
     {path = "std::fs::metadata", reason = "Filesystem metadata access belongs in AQC filesystem utility boundaries."},
     {path = "std::fs::symlink_metadata", reason = "Filesystem metadata access belongs in AQC filesystem utility boundaries."},
 ]

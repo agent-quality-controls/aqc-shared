@@ -71,6 +71,7 @@ fn apply_exact_contents(
     if current_bytes != Some(contents.as_bytes()) {
         findings.push(Finding::Mismatch {
             key: "exact_contents".to_owned(),
+            selector: None,
             current: current_bytes.map(|bytes| format!("{} bytes", bytes.len())),
             expected: format!("{} bytes", contents.as_bytes().len()),
             message: message.clone(),
@@ -143,6 +144,7 @@ fn apply_required_contents(
         if !contains_bytes(current_bytes.unwrap_or_default(), required) {
             findings.push(Finding::Mismatch {
                 key: "contents".to_owned(),
+                selector: None,
                 current: current_bytes.map(|bytes| format!("{} bytes", bytes.len())),
                 expected: "required contents present".to_owned(),
                 message,

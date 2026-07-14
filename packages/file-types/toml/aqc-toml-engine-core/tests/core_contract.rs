@@ -257,6 +257,33 @@ fn scalar_assertion_fails_matches_core_scalar_verbs() {
 }
 
 #[test]
+fn present_requires_a_typed_scalar_and_absent_removes_any_shape() {
+    let table = "[setting]\nvalue = true\n"
+        .parse::<toml_edit::DocumentMut>()
+        .expect("The rendered scalar fixture must remain valid TOML.");
+    let item = table
+        .get("setting")
+        .expect("The rendered TOML table must contain the setting key.");
+    assert!(aqc_toml_engine_core::scalar_assertion_fails(
+        Some(item),
+        &ScalarAssertion::Present("scalar required".to_owned())
+    ));
+
+    let mut findings = Vec::new();
+    assert!(matches!(
+        scalar_field_edit(
+            "setting".to_owned(),
+            Some(item),
+            &ScalarAssertion::Absent("remove".to_owned()),
+            &[provenance()],
+            &mut findings,
+        ),
+        Some(ScalarFieldEdit::Remove)
+    ));
+    assert_eq!(findings.len(), 1);
+}
+
+#[test]
 fn scalar_field_edit_reports_and_returns_write_remove_actions() {
     let item = aqc_toml_engine_core::scalar_item(&ConfigScalar::Str("old".to_owned()));
     let mut findings = Vec::new();

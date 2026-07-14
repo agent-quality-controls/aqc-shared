@@ -1,5 +1,5 @@
 use aqc_file_engine_core::{ItemRequirements, Provenance, ScalarAssertion};
-use aqc_text_engine_core::{TextFileContents, TextFileRequirements};
+use aqc_text_file_engine::{TextFileContents, TextFileRequirements};
 
 #[test]
 fn merges_exact_and_contained_contents() -> Result<(), String> {

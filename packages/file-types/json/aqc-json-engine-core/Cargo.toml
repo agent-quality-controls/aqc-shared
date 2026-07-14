@@ -1,14 +1,14 @@
 [package]
-name = "aqc-toml-engine-core"
+name = "aqc-json-engine-core"
 version = "0.7.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 repository = "https://github.com/agent-quality-controls/aqc-shared"
-description = "Shared TOML IO and application helpers for AQC TOML file engines."
+description = "Reusable JSON parsing and scalar reconciliation for AQC file engines."
 publish = true
 readme = "README.md"
-keywords = ["aqc", "toml", "file-engine", "config"]
+keywords = ["aqc", "json", "file-engine", "config"]
 categories = ["development-tools", "config", "parser-implementations"]
 include = ["src/**", "tests/**", "Cargo.toml", "README.md", "LICENSE"]
 
@@ -82,8 +82,9 @@ type_complexity = "allow"
 [features]
 default = ["all"]
 all = ["api"]
-api = []
+api = ["dep:aqc-file-engine-core", "dep:serde", "dep:serde_json"]
 
 [dependencies]
-aqc-file-engine-core = "0.7.0"
-toml_edit = "0.25"
+aqc-file-engine-core = { version = "0.7.0", optional = true }
+serde = { version = "1", optional = true }
+serde_json = { version = "1", optional = true }

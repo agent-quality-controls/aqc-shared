@@ -1,5 +1,5 @@
 use aqc_file_engine_core::{Finding, ItemRequirements, Provenance, ScalarAssertion};
-use aqc_text_engine_core::{TextFileContents, TextFileRequirements, reconcile_text_file};
+use aqc_text_file_engine::{TextFileContents, TextFileRequirements, reconcile_text_file};
 
 #[test]
 fn exact_contents_reports_mismatch_and_expected_bytes() -> Result<(), String> {

@@ -1,0 +1,86 @@
+profile = "library"
+
+allowed_deps = [
+  "aqc-file-engine-core",
+  "yaml-edit",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:missing_docs_in_private_items"
+reason = "Private YAML mechanics are documented at module and public API boundaries."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:module_name_repetitions"
+reason = "Canonical YAML requirement names retain the engine vocabulary."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:multiple_crate_versions"
+reason = "yaml-edit's dependency graph contains upstream version splits outside this crate's control."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:result_large_err"
+reason = "YAML parser errors preserve the upstream structured error without boxing."
+
+[[waivers]]
+rule = "g3rs-cargo/approved-allow-inventory"
+subject = "Cargo.toml"
+selector = "clippy:type_complexity"
+reason = "YAML node relationships are kept explicit instead of hidden behind local aliases."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:result_large_err"
+reason = "YAML parser errors preserve the upstream structured error without boxing."
+
+[[waivers]]
+rule = "g3rs-cargo/unapproved-allow-entries"
+subject = "Cargo.toml"
+selector = "clippy:type_complexity"
+reason = "YAML node relationships are kept explicit instead of hidden behind local aliases."
+
+[[waivers]]
+rule = "g3rs-deny/advisories-baseline"
+subject = "deny.toml"
+selector = "title:advisories-unmaintained-has-wrong-value"
+reason = "A universal library audits unmaintained dependencies across its complete dependency graph."
+
+[[waivers]]
+rule = "g3rs-deny/allow-wildcard-paths"
+subject = "deny.toml"
+selector = "title:allow-wildcard-paths-must-be-true"
+reason = "Published AQC crates forbid wildcard path dependencies."
+
+[[waivers]]
+rule = "g3rs-deny/license-allow-baseline"
+subject = "deny.toml"
+selector = "title:licenses-private-ignore-must-be-true"
+reason = "Published AQC crates audit private-package licenses."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:canonical-registry-missing"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."
+
+[[waivers]]
+rule = "g3rs-deny/allow-registry-baseline"
+subject = "deny.toml"
+selector = "title:unexpected-registry-allowed"
+reason = "The source-shaped cargo-deny configuration uses the canonical Git index registry identity."

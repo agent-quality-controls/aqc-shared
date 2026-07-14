@@ -69,37 +69,53 @@ probe_head_path() {
   fi
 }
 
-marker_exists() {
+marker_path_for() {
   marker_dir_rel="$1"
   marker_name="$2"
   if [ -n "$marker_dir_rel" ]; then
-    marker_path="$marker_dir_rel/$marker_name"
+    printf '%s/%s\n' "$marker_dir_rel" "$marker_name"
   else
-    marker_path="$marker_name"
+    printf '%s\n' "$marker_name"
   fi
-  if probe_index_path "$marker_path"; then
-    return 0
-  else
-    status=$?
-    [ "$status" -ne 1 ] && return "$status"
-  fi
-  probe_head_path "$marker_path"
 }
 
 marker_pair_exists() {
   marker_dir_rel="$1"
-  if marker_exists "$marker_dir_rel" Cargo.toml; then
+  primary_path="$(marker_path_for "$marker_dir_rel" Cargo.toml)"
+  config_path="$(marker_path_for "$marker_dir_rel" shakrs.json)"
+
+  if probe_index_path "$primary_path"; then
+    index_primary=true
+  else
+    status=$?
+    [ "$status" -ne 1 ] && return "$status"
+    index_primary=false
+  fi
+
+  if probe_index_path "$config_path"; then
+    index_config=true
+  else
+    status=$?
+    [ "$status" -ne 1 ] && return "$status"
+    index_config=false
+  fi
+
+  if [ "$index_primary" = true ] && [ "$index_config" = true ]; then
+    return 0
+  fi
+  if [ "$index_primary" = false ] && [ "$index_config" = false ]; then
+    return 1
+  fi
+  [ "$has_head" = false ] && return 1
+
+  if probe_head_path "$primary_path"; then
     :
   else
     status=$?
     [ "$status" -eq 1 ] && return 1
     return "$status"
   fi
-  if marker_exists "$marker_dir_rel" shakrs.json; then
-    return 0
-  else
-    return $?
-  fi
+  probe_head_path "$config_path"
 }
 
 is_fixture_workspace() {
