@@ -1,0 +1,262 @@
+{
+  "version": 4,
+  "requirements": {
+    "tree": {
+      "verifier": ["builtin:tree"],
+      "reason": "Complete independent workspace, core extension, release, plan, spec, and coverage inventory.",
+      "required": [
+        ".github/workflows/release.yml",
+        ".plans/2026-07-15-142457-generic-json-file-engine.md",
+        ".worklogs/2026-07-15-161958-generic-json-file-engine.md",
+        "fixture3.yaml",
+        "fixtures/approved/generic-json-file-engine/approved.meta.json",
+        "fixtures/approved/generic-json-file-engine/approved.normalized.json",
+        "fixtures/generic-json-file-engine/contracts.json",
+        "fixtures/probes/generic-json-file-engine/Cargo.lock",
+        "fixtures/probes/generic-json-file-engine/Cargo.toml",
+        "fixtures/probes/generic-json-file-engine/guardrail3-rs.toml",
+        "fixtures/probes/generic-json-file-engine/src/main.rs",
+        "fixtures/scripts/fixture3-generic-json-file-engine.py",
+        "packages/file-types/json/aqc-json-engine-core/src/types/object.rs",
+        "packages/file-types/json/aqc-json-engine-core/src/runtime/scalar.rs",
+        "packages/file-types/json/aqc-json-engine-core/tests/core_contract.rs",
+        "packages/aqc-file-engine-core/src/finding.rs",
+        "packages/aqc-file-engine-core/src/lib.rs",
+        "packages/aqc-file-engine-core/src/merge/items.rs",
+        "packages/aqc-file-engine-core/src/merge/lists.rs",
+        "packages/aqc-file-engine-core/src/merge/mod.rs",
+        "packages/aqc-file-engine-core/src/merge/scalar.rs",
+        "packages/aqc-file-engine-core/tests/public_contract.rs",
+        "packages/aqc-file-engine-core/deny.toml",
+        "packages/aqc-filetree/deny.toml",
+        "packages/aqc-fs-utils/deny.toml",
+        "packages/aqc-git-helpers/deny.toml",
+        "packages/file-types/json/aqc-json-engine-core/deny.toml",
+        "packages/file-types/json/aqc-package-json-engine/deny.toml",
+        "packages/file-types/jsonc/aqc-tsconfig-json-engine/deny.toml",
+        "packages/file-types/text/aqc-text-file-engine/deny.toml",
+        "packages/file-types/toml/aqc-cargo-toml-engine/deny.toml",
+        "packages/file-types/toml/aqc-clippy-toml-engine/deny.toml",
+        "packages/file-types/toml/aqc-deny-toml-engine/deny.toml",
+        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/deny.toml",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/deny.toml",
+        "packages/file-types/toml/aqc-toml-engine-core/deny.toml",
+        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/deny.toml",
+        "packages/file-types/yaml/aqc-yaml-engine-core/deny.toml",
+        "packages/source/rust/aqc-rust-syntax/deny.toml",
+        "packages/file-types/json/aqc-json-file-engine/Cargo.lock",
+        "packages/file-types/json/aqc-json-file-engine/Cargo.toml",
+        "packages/file-types/json/aqc-json-file-engine/LICENSE",
+        "packages/file-types/json/aqc-json-file-engine/README.md",
+        "packages/file-types/json/aqc-json-file-engine/deny.toml",
+        "packages/file-types/json/aqc-json-file-engine/guardrail3-rs.toml",
+        "packages/file-types/json/aqc-json-file-engine/src/lib.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/engine.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/merge/collect.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/merge/conflicts.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/merge/mod.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/merge/required_globs.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/merge/resolve.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/mod.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/types/mod.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/types/model.rs",
+        "packages/file-types/json/aqc-json-file-engine/tests/contract.rs",
+        "packages/file-types/json/aqc-json-file-engine/tests/engine_requirement.rs",
+        "packages/file-types/json/aqc-package-json-engine/src/runtime/reconcile.rs",
+        "packages/file-types/jsonc/aqc-tsconfig-json-engine/src/runtime/reconcile.rs",
+        "release-plz.toml",
+        "specs/generic-json-file-engine.spec.coverage.md",
+        "specs/generic-json-file-engine.spec.json",
+        "specs/verifiers/verify-generic-json-file-engine.py"
+      ],
+      "forbidden": [
+        "packages/file-types/json/aqc-prettier-json-engine/**",
+        "packages/file-types/json/aqc-cspell-json-engine/**",
+        "packages/file-types/json/aqc-jscpd-json-engine/**"
+      ]
+    },
+    "content": [
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-json-file-engine/Cargo.toml"],
+        "required": [
+          "name = \"aqc-json-file-engine\"",
+          "publish = true",
+          "rust-version = \"1.88\"",
+          "edition = \"2024\"",
+          "resolver = \"3\""
+        ],
+        "forbidden": ["path =", "serde", "schemars"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/src/finding.rs"],
+        "exists": [
+          "pub trait FindingKey",
+          "fn key(&self) -> String",
+          "fn child_key(&self, child: &str) -> String"
+        ]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-json-file-engine/src/**/*.rs"],
+        "exists": [
+          "pub struct JsonPath",
+          "pub struct JsonStringGlob",
+          "pub struct JsonFileRequirements",
+          "pub struct ResolvedJsonFileRequirements",
+          "pub struct JsonFileEngine",
+          "scalar_values",
+          "string_lists",
+          "forbidden_string_list_globs",
+          "object_keys",
+          "resolve_map",
+          "resolve_list",
+          "resolve_forbidden_globs",
+          "resolve_items",
+          "JsonParseOptions",
+          "impl FindingKey for JsonPath",
+          "allow_comments: false",
+          "allow_trailing_commas: false",
+          "InvalidRequirements"
+        ],
+        "forbidden": [
+          "Prettier",
+          "prettier",
+          "CSpell",
+          "cspell",
+          "jscpd",
+          "Syncpack",
+          "syncpack",
+          "package.json",
+          "tsconfig",
+          "std::fs",
+          "std::path",
+          "std::process",
+          "std::env",
+          "std::net",
+          "Command::new",
+          "serde_json::Value"
+        ]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-json-engine-core/src/**/*.rs"],
+        "exists": [
+          "pub fn string_list(",
+          "pub fn value_is_array(",
+          "pub fn set_string_list(",
+          "pub fn object_keys(",
+          "pub fn remove_object_key("
+          ,"pub fn set_object("
+        ],
+        "forbidden": ["JsonFileRequirements", "JsonStringGlob", "Prettier", "prettier"]
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["release-plz.toml", ".github/workflows/release.yml"],
+        "required": ["aqc-json-file-engine"]
+      }
+    ],
+    "dependencies": [
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/json/aqc-json-file-engine/Cargo.toml"],
+        "required": ["aqc-file-engine-core", "aqc-json-engine-core", "globset"],
+        "forbidden": [
+          "aqc-package-json-engine",
+          "aqc-tsconfig-json-engine",
+          "aqc-toml-engine-core",
+          "schemars",
+          "serde"
+        ],
+        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"]
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/json/aqc-json-engine-core/Cargo.toml"],
+        "required": ["aqc-file-engine-core", "jsonc-parser"],
+        "forbidden": ["aqc-json-file-engine"]
+      }
+    ],
+    "custom": [
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "public-api"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "behavior-contract"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "file-core-gates"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "core-gates"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "engine-gates"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "package-json-gates"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "tsconfig-gates"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/text/aqc-text-file-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/toml/aqc-cargo-toml-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/toml/aqc-clippy-toml-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/toml/aqc-deny-toml-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/toml/aqc-rust-toolchain-toml-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/toml/aqc-rustfmt-toml-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/toml/aqc-toml-engine-core"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "affected-caller-gate",
+        "workspace": "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "fixture-gate"
+      },
+      {
+        "verifier": ["specs/verifiers/verify-generic-json-file-engine.py"],
+        "check": "changed-path-scope"
+      }
+    ]
+  }
+}

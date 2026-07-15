@@ -116,6 +116,7 @@ jobs:
           - packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml
           - packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml
           - packages/file-types/json/aqc-package-json-engine/Cargo.toml
+          - packages/file-types/json/aqc-json-file-engine/Cargo.toml
           - packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.toml
           - packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml
     permissions:

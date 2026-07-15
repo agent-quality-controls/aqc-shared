@@ -20,6 +20,9 @@ name = "aqc-file-engine-core"
 name = "aqc-json-engine-core"
 
 [[package]]
+name = "aqc-json-file-engine"
+
+[[package]]
 name = "aqc-package-json-engine"
 
 [[package]]

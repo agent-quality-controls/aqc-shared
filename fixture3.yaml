@@ -1,6 +1,10 @@
 version: 1
 
 features:
+  generic-json-file-engine:
+    spec: "specs/generic-json-file-engine.spec.json"
+    suites:
+      - "generic-json-file-engine"
   shakts-pnpm-aqc:
     spec: "specs/shakts-pnpm-aqc.spec.json"
     suites:
@@ -11,6 +15,24 @@ features:
       - "shakts-tsc-aqc"
 
 suites:
+  generic-json-file-engine:
+    tags:
+      - "file-engines"
+      - "json"
+    fixtures:
+      - "fixtures/generic-json-file-engine/*.json"
+    command:
+      argv:
+        - "python3"
+        - "fixtures/scripts/fixture3-generic-json-file-engine.py"
+        - "{fixtures}"
+      ok_exit_codes:
+        - 0
+    storage:
+      approved_dir: "fixtures/approved/generic-json-file-engine"
+      received_dir: ".fixture3/generic-json-file-engine"
+      diff_dir: ".fixture3/generic-json-file-engine"
+
   shakts-pnpm-aqc:
     tags:
       - "file-engines"

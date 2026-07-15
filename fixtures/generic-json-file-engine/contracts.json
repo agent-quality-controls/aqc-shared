@@ -1,0 +1,11 @@
+{
+  "cases": [
+    "exact-empty-list",
+    "exact-empty-object",
+    "descendant-object-order",
+    "invalid-glob-atomicity",
+    "empty-requirements",
+    "collection-selectors",
+    "finding-keys"
+  ]
+}

@@ -1,0 +1,12 @@
+profile = "library"
+
+[checks]
+code = false
+cargo = false
+deny = false
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false

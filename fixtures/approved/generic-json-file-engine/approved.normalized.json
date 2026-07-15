@@ -1,0 +1,85 @@
+{
+  "cases": [
+    {
+      "fixture": "contracts.json",
+      "result": {
+        "collection-selectors": [
+          {
+            "key": "/items",
+            "kind": "mismatch",
+            "selector": null
+          },
+          {
+            "key": "/items",
+            "kind": "mismatch",
+            "selector": ""
+          }
+        ],
+        "descendant-object-order": {
+          "expected": "{\n  \"parent\": {\n    \"child\": {}\n  }\n}",
+          "findings": [
+            {
+              "key": "/parent/child",
+              "kind": "mismatch",
+              "selector": null
+            }
+          ],
+          "secondFindings": 0
+        },
+        "empty-requirements": {
+          "expected": "{\"value\":false}",
+          "findings": 0
+        },
+        "exact-empty-list": {
+          "expected": "{\n  \"items\": []\n}",
+          "findings": [
+            {
+              "key": "/items",
+              "kind": "mismatch",
+              "selector": null
+            }
+          ],
+          "secondFindings": 0
+        },
+        "exact-empty-object": {
+          "expected": "{\n  \"nested\": {}\n}",
+          "findings": [
+            {
+              "key": "/nested",
+              "kind": "mismatch",
+              "selector": null
+            }
+          ],
+          "secondFindings": 0
+        },
+        "finding-keys": [
+          {
+            "key": "/a~1b/~0key",
+            "kind": "mismatch",
+            "selector": "~key"
+          },
+          {
+            "key": "$",
+            "kind": "mismatch",
+            "selector": "extra"
+          }
+        ],
+        "invalid-glob-atomicity": {
+          "bytesPreserved": true,
+          "findings": [
+            {
+              "contributors": [
+                [
+                  "fixture-policy",
+                  "invalid"
+                ]
+              ],
+              "key": "/items",
+              "kind": "invalid"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

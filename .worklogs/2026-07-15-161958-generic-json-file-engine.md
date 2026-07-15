@@ -24,7 +24,7 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 
 ## Verification
 
-- `specular lint` and `specular verify` pass for spec SHA-256 `0b3c3a793edc0794598a4f105b3aad9a53a3595bf68bee393a7cdbdd036bc739` and verifier SHA-256 `c8d6ea26c0defdcc0e26ca447f52c889cf82d32f2313e4b3db3d69ee7bfd4b5b`.
+- `specular lint` and `specular verify` pass for spec SHA-256 `1dd1d18299318fda118af3f0a36f314a447fcf02c1e01e3894050a60f90a49f3` and verifier SHA-256 `287db2cdec3d71070d5ea47e08ed065de91d843ee7cbf1430556a94914842913`.
 - All three AQC Fixture3 suites match approved output.
 - File-engine core, JSON core, generic JSON engine, Package JSON, TSConfig, and every affected resolver caller pass the spec's format, test, Clippy, deny, and package gates.
 - Independent review confirmed conflict identity, attribution, deterministic ordering, caller coverage, and exact changed-file scope, then reported no findings.
@@ -43,7 +43,6 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 
 - Publish the coordinated AQC release before publishing downstream Shackles crates.
 - Commits are split by dependency tier so each pre-commit Cargo gate resolves only its unpublished upstream crates through the approved local-source configuration.
-- Core and JSON-core tiers are committed; the generic engine is the next independent release tier.
-- Split generic JSON merge collection, conflict classification, required-glob conflicts, and resolution into private modules after the package hook rejected the oversized combined file.
-- Generic engine tier committed with a clean hook; downstream existing engines now receive the explicit finding-key call-site update.
-- Package JSON finding identity is committed; TSConfig is the final concrete-engine call-site tier.
+- Core, JSON core, generic engine, Package JSON, and TSConfig tiers are committed with clean hooks.
+- Generic JSON merge collection, conflict classification, required-glob conflicts, and resolution are split into private modules to satisfy package structure gates.
+- The remaining integration tier contains release metadata, repository dependency policy, fixtures, plan, spec, verifier, and this worklog.
