@@ -49,3 +49,4 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 - Integration artifacts are committed separately from repository dependency-policy updates so each hook runs against the dependency source appropriate to its staged workspaces.
 - Dependency-policy updates are split again between independent utilities and format engines that require the coordinated local AQC release graph.
 - Text-engine dependency policy is committed; TOML and YAML format families remain.
+- TOML-engine dependency policy is committed; YAML is the final dependency-policy family.

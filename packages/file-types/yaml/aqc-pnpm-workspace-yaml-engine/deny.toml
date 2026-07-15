@@ -103,6 +103,9 @@ deny = [
     { name = "shackles-runner", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakrs-toolchain-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakrs-toolchain-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
+    { name = "aqc-json-file-engine", wrappers = [], reason = "Forbidden by repository dependency boundary" },
+    { name = "shakts-prettier-adapter", wrappers = [], reason = "Forbidden by repository dependency boundary" },
+    { name = "shakts-prettier-policy", wrappers = [], reason = "Forbidden by repository dependency boundary" },
 ]
 multiple-versions-include-dev = true
 workspace-default-features = "allow"
