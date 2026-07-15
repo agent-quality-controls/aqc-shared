@@ -42,6 +42,7 @@ pub(super) fn reconcile_document(
         reconcile_scalar_assertion(
             &mut document,
             &["compilerOptions", option.file_key()],
+            format!("compilerOptions.{}", option.file_key()),
             Some(option.file_key().to_owned()),
             NonObjectParentAction::Preserve,
             resolved,

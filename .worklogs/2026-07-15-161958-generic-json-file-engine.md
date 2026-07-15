@@ -46,3 +46,4 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 - Core and JSON-core tiers are committed; the generic engine is the next independent release tier.
 - Split generic JSON merge collection, conflict classification, required-glob conflicts, and resolution into private modules after the package hook rejected the oversized combined file.
 - Generic engine tier committed with a clean hook; downstream existing engines now receive the explicit finding-key call-site update.
+- Package JSON finding identity is committed; TSConfig is the final concrete-engine call-site tier.
