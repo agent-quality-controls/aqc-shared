@@ -1,10 +1,36 @@
 use aqc_file_engine_core::{
     ConflictEntry, Engine, EngineOutput, EngineRequirement, FileEngine, Finding, Provenance,
-    ResolvedRequirement, ScalarAssertion, merged_reconcile, resolved_map_attribution,
-    scalar_assertion_matches, scalar_assertion_writable_value,
+    ResolvedRequirement, ScalarAssertion, merged_reconcile, push_rendered_conflict,
+    resolved_map_attribution, scalar_assertion_matches, scalar_assertion_writable_value,
 };
 use core::cell::Cell;
 use serde as _;
+
+#[test]
+fn rendered_conflict_contributors_are_deterministic() {
+    let mut conflicts = Vec::new();
+    push_rendered_conflict(
+        "key",
+        "reason",
+        vec![
+            (provenance("z-policy"), "first".to_owned()),
+            (provenance("a-policy"), "second".to_owned()),
+        ],
+        &mut conflicts,
+    );
+    let contributors = &conflicts
+        .first()
+        .expect("rendered conflict input must emit one conflict")
+        .contributors;
+    assert_eq!(
+        contributors.first().expect("first contributor").0.policy,
+        "a-policy"
+    );
+    assert_eq!(
+        contributors.get(1).expect("second contributor").0.policy,
+        "z-policy"
+    );
+}
 
 #[test]
 fn mismatch_preserves_optional_selector() {

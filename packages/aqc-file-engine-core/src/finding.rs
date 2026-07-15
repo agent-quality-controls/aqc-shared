@@ -19,6 +19,33 @@ use crate::types::{Provenance, Severity};
 /// Rendered policy contributors for a requirement-level finding.
 pub type RenderedContributors = Vec<(String, String)>;
 
+/// Renders a collection location and its member identities for findings.
+pub trait FindingKey {
+    fn key(&self) -> String;
+
+    fn child_key(&self, child: &str) -> String;
+}
+
+impl FindingKey for str {
+    fn key(&self) -> String {
+        self.to_owned()
+    }
+
+    fn child_key(&self, child: &str) -> String {
+        format!("{self}.{child}")
+    }
+}
+
+impl FindingKey for String {
+    fn key(&self) -> String {
+        self.clone()
+    }
+
+    fn child_key(&self, child: &str) -> String {
+        self.as_str().child_key(child)
+    }
+}
+
 /// A structured finding emitted by a `FileEngine` or a linter adapter.
 #[derive(Debug, Clone)]
 pub enum Finding {

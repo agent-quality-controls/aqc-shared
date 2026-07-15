@@ -7,13 +7,16 @@ use super::{
     ResolvedExactList, ResolvedListRequirements, ResolvedRequirement, ResolvedStringMembers,
     resolve_all_equal, sort_provenanced,
 };
-use crate::types::Provenance;
+use crate::{FindingKey, types::Provenance};
 
-pub fn resolve_list(
-    key: &str,
+pub fn resolve_list<Key>(
+    key: &Key,
     mut items: Vec<ListInput>,
     conflicts: &mut Vec<ConflictEntry>,
-) -> ResolvedListRequirements {
+) -> ResolvedListRequirements
+where
+    Key: FindingKey + ?Sized,
+{
     sort_provenanced(&mut items);
     let mut grouped = ListGroups::default();
     collect_list_groups(items, &mut grouped);
@@ -23,7 +26,7 @@ pub fn resolve_list(
 
     report_contains_excludes_conflicts(key, &resolved_contains, &resolved_excludes, conflicts);
 
-    let exact = resolve_exact_list(key, grouped.exact_items, conflicts);
+    let exact = resolve_exact_list(&key.key(), grouped.exact_items, conflicts);
     if let Some(exact) = &exact {
         report_exact_conflicts(
             key,
@@ -144,12 +147,14 @@ fn resolve_members(grouped: MemberInputs) -> ResolvedStringMembers {
 }
 
 /// Report members that are both contained and excluded.
-fn report_contains_excludes_conflicts(
-    key: &str,
+fn report_contains_excludes_conflicts<Key>(
+    key: &Key,
     resolved_contains: &ResolvedStringMembers,
     resolved_excludes: &ResolvedStringMembers,
     conflicts: &mut Vec<ConflictEntry>,
-) {
+) where
+    Key: FindingKey + ?Sized,
+{
     for name in resolved_contains.keys() {
         if let Some(exclude) = resolved_excludes.get(name) {
             let mut contributors = Vec::new();
@@ -168,7 +173,7 @@ fn report_contains_excludes_conflicts(
                     .map(|(prov, _)| excludes_contributor(prov)),
             );
             conflicts.push(ConflictEntry {
-                key: format!("{key}.{name}"),
+                key: key.child_key(name),
                 reason: "list-contains-and-excludes".to_owned(),
                 contributors,
             });
@@ -177,26 +182,30 @@ fn report_contains_excludes_conflicts(
 }
 
 /// Report conflicts between exact lists and member assertions.
-fn report_exact_conflicts(
-    key: &str,
+fn report_exact_conflicts<Key>(
+    key: &Key,
     exact: &ResolvedExactList,
     resolved_contains: &ResolvedStringMembers,
     resolved_excludes: &ResolvedStringMembers,
     conflicts: &mut Vec<ConflictEntry>,
-) {
+) where
+    Key: FindingKey + ?Sized,
+{
     let allowed = exact.merged.iter().cloned().collect::<BTreeSet<_>>();
     report_missing_exact_contains(key, exact, resolved_contains, &allowed, conflicts);
     report_excluded_exact_members(key, exact, resolved_excludes, &allowed, conflicts);
 }
 
 /// Report contained members missing from an exact list.
-fn report_missing_exact_contains(
-    key: &str,
+fn report_missing_exact_contains<Key>(
+    key: &Key,
     exact: &ResolvedExactList,
     resolved_contains: &ResolvedStringMembers,
     allowed: &BTreeSet<String>,
     conflicts: &mut Vec<ConflictEntry>,
-) {
+) where
+    Key: FindingKey + ?Sized,
+{
     for (name, include) in resolved_contains {
         if allowed.contains(name) {
             continue;
@@ -209,7 +218,7 @@ fn report_missing_exact_contains(
                 .map(|(prov, _)| contains_contributor(prov)),
         );
         conflicts.push(ConflictEntry {
-            key: format!("{key}.{name}"),
+            key: key.child_key(name),
             reason: "list-exact-missing-contained-item".to_owned(),
             contributors,
         });
@@ -217,13 +226,15 @@ fn report_missing_exact_contains(
 }
 
 /// Report excluded members present in an exact list.
-fn report_excluded_exact_members(
-    key: &str,
+fn report_excluded_exact_members<Key>(
+    key: &Key,
     exact: &ResolvedExactList,
     resolved_excludes: &ResolvedStringMembers,
     allowed: &BTreeSet<String>,
     conflicts: &mut Vec<ConflictEntry>,
-) {
+) where
+    Key: FindingKey + ?Sized,
+{
     for (name, exclude) in resolved_excludes {
         if !allowed.contains(name) {
             continue;
@@ -236,7 +247,7 @@ fn report_excluded_exact_members(
                 .map(|(prov, _)| excludes_contributor(prov)),
         );
         conflicts.push(ConflictEntry {
-            key: format!("{key}.{name}"),
+            key: key.child_key(name),
             reason: "list-exact-contains-excluded-item".to_owned(),
             contributors,
         });

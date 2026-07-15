@@ -33,8 +33,8 @@ pub use model::{
 };
 pub use scalar::{
     compose_optional_field, compose_string_list, compose_string_set, keyed_entries_eq,
-    push_conflict, resolve_all_equal, resolve_map, resolve_maybe, resolve_scalar,
-    strongest_version_floor,
+    push_conflict, push_rendered_conflict, resolve_all_equal, resolve_map, resolve_maybe,
+    resolve_scalar, strongest_version_floor,
 };
 pub use scalar_assertion::{
     render_scalar_assertion, scalar_assertion_matches, scalar_assertion_writable_value,

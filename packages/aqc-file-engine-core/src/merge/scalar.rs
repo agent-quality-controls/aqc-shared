@@ -103,16 +103,31 @@ pub fn push_conflict<T>(
     render: impl Fn(&T) -> String,
     conflicts: &mut Vec<ConflictEntry>,
 ) {
-    if items.is_empty() {
+    push_rendered_conflict(
+        key,
+        reason,
+        items
+            .iter()
+            .map(|(provenance, value)| (provenance.clone(), render(value)))
+            .collect(),
+        conflicts,
+    );
+}
+
+pub fn push_rendered_conflict(
+    key: impl Into<String>,
+    reason: impl Into<String>,
+    mut contributors: Vec<(crate::Provenance, String)>,
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    if contributors.is_empty() {
         return;
     }
+    contributors.sort();
     conflicts.push(ConflictEntry {
         key: key.into(),
         reason: reason.into(),
-        contributors: items
-            .iter()
-            .map(|(prov, value)| (prov.clone(), render(value)))
-            .collect(),
+        contributors,
     });
 }
 

@@ -9,7 +9,7 @@ use super::{
     ResolvedExactItems, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
     ResolvedRequirement, sort_provenanced,
 };
-use crate::types::Provenance;
+use crate::{FindingKey, types::Provenance};
 
 /// Every positively asserted item, whether supplied through `required` or
 /// through a complete `exact` collection, with each identity returned once.
@@ -30,7 +30,7 @@ where
 }
 
 pub fn resolve_items<Item>(
-    key: &str,
+    key: &(impl FindingKey + ?Sized),
     mut input: Vec<ItemInput<Item>>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ResolvedItemRequirements<Item>
@@ -228,18 +228,19 @@ where
 }
 
 /// Resolve required item assertions for each item identity.
-fn resolve_required_items<Item>(
-    key: &str,
+fn resolve_required_items<Item, Key>(
+    key: &Key,
     required: ItemAssertionGroups<Item>,
     conflicts: &mut Vec<ConflictEntry>,
 ) -> ItemRequirementMap<Item>
 where
     Item: FileItemRequirement,
     Item::Identity: ToString,
+    Key: FindingKey + ?Sized,
 {
     let mut resolved_required = ItemRequirementMap::<Item>::new();
     for (identity, items) in required {
-        let path = format!("{}.{}", key, identity.to_string());
+        let path = key.child_key(&identity.to_string());
         if let Some(resolved) = Item::compose_item(&path, items, conflicts) {
             let _ = resolved_required.insert(identity, resolved);
         }
@@ -272,14 +273,15 @@ where
 }
 
 /// Report identities that are both required and forbidden.
-fn report_required_forbidden_conflicts<Item>(
-    key: &str,
+fn report_required_forbidden_conflicts<Item, Key>(
+    key: &Key,
     resolved_required: &ItemRequirementMap<Item>,
     resolved_forbidden: &ForbiddenItemMap<Item>,
     conflicts: &mut Vec<ConflictEntry>,
 ) where
     Item: FileItemRequirement,
     Item::Identity: ToString,
+    Key: FindingKey + ?Sized,
 {
     for identity in resolved_required.keys() {
         if let Some(forbidden) = resolved_forbidden.get(identity) {
@@ -298,7 +300,7 @@ fn report_required_forbidden_conflicts<Item>(
                     .map(|(prov, _)| forbidden_contributor(prov)),
             );
             conflicts.push(ConflictEntry {
-                key: format!("{}.{}", key, identity.to_string()),
+                key: key.child_key(&identity.to_string()),
                 reason: "item-required-and-forbidden".to_owned(),
                 contributors,
             });
@@ -307,8 +309,8 @@ fn report_required_forbidden_conflicts<Item>(
 }
 
 /// Report identity disagreements and exact conflicts with required/forbidden assertions.
-fn report_exact_conflicts<Item>(
-    key: &str,
+fn report_exact_conflicts<Item, Key>(
+    key: &Key,
     exact_inputs: &[ExactItemsInput<Item>],
     resolved_required: &ItemRequirementMap<Item>,
     resolved_forbidden: &ForbiddenItemMap<Item>,
@@ -316,6 +318,7 @@ fn report_exact_conflicts<Item>(
 ) where
     Item: FileItemRequirement,
     Item::Identity: ToString,
+    Key: FindingKey + ?Sized,
 {
     let identity_sets = exact_inputs
         .iter()
@@ -332,7 +335,7 @@ fn report_exact_conflicts<Item>(
         .any(|sets| sets.first() != sets.get(1))
     {
         conflicts.push(ConflictEntry {
-            key: key.to_owned(),
+            key: key.key(),
             reason: "exact-item-identities-disagree".to_owned(),
             contributors: exact_inputs
                 .iter()
@@ -353,7 +356,7 @@ fn report_exact_conflicts<Item>(
                     .map(|(prov, _)| required_contributor(prov)),
             );
             conflicts.push(ConflictEntry {
-                key: format!("{}.{}", key, identity.to_string()),
+                key: key.child_key(&identity.to_string()),
                 reason: "exact-items-reject-unlisted-required-item".to_owned(),
                 contributors,
             });
@@ -369,7 +372,7 @@ fn report_exact_conflicts<Item>(
                         .map(|(prov, _)| forbidden_contributor(prov)),
                 );
                 conflicts.push(ConflictEntry {
-                    key: format!("{}.{}", key, identity.to_string()),
+                    key: key.child_key(&identity.to_string()),
                     reason: "exact-item-is-forbidden".to_owned(),
                     contributors,
                 });
@@ -379,8 +382,8 @@ fn report_exact_conflicts<Item>(
 }
 
 /// Build resolved exact state from agreeing identities and composed values.
-fn resolve_exact_items<Item>(
-    key: &str,
+fn resolve_exact_items<Item, Key>(
+    key: &Key,
     mut required: ItemAssertionGroups<Item>,
     exact_items: ItemAssertionGroups<Item>,
     exact_inputs: &[ExactItemsInput<Item>],
@@ -389,6 +392,7 @@ fn resolve_exact_items<Item>(
 where
     Item: FileItemRequirement,
     Item::Identity: ToString,
+    Key: FindingKey + ?Sized,
 {
     let (_, (first, _)) = exact_inputs.first()?;
     let identities = first
