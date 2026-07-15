@@ -45,3 +45,4 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 - Commits are split by dependency tier so each pre-commit Cargo gate resolves only its unpublished upstream crates through the approved local-source configuration.
 - Core and JSON-core tiers are committed; the generic engine is the next independent release tier.
 - Split generic JSON merge collection, conflict classification, required-glob conflicts, and resolution into private modules after the package hook rejected the oversized combined file.
+- Generic engine tier committed with a clean hook; downstream existing engines now receive the explicit finding-key call-site update.

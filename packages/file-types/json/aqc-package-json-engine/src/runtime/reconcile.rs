@@ -15,6 +15,7 @@ pub(super) fn reconcile_document(
         reconcile_scalar_assertion(
             document,
             &["packageManager"],
+            "packageManager".to_owned(),
             None,
             NonObjectParentAction::Replace,
             resolved,
@@ -47,6 +48,7 @@ pub(super) fn reconcile_document(
         reconcile_scalar_assertion(
             document,
             &["devEngines", "packageManager", "onFail"],
+            "devEngines.packageManager.onFail".to_owned(),
             None,
             NonObjectParentAction::Replace,
             resolved,
@@ -92,6 +94,7 @@ fn reconcile_string_map(
         reconcile_scalar_assertion(
             document,
             &[parent, key],
+            format!("{parent}.{key}"),
             Some(key.to_owned()),
             NonObjectParentAction::Preserve,
             resolved,
@@ -114,6 +117,7 @@ fn reconcile_string(
     reconcile_scalar_assertion(
         document,
         path,
+        path.join("."),
         None,
         NonObjectParentAction::Replace,
         resolved,
