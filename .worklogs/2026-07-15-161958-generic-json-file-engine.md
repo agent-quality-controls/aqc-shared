@@ -42,3 +42,4 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 ## Next Steps
 
 - Publish the coordinated AQC release before publishing downstream Shackles crates.
+- Commits are split by dependency tier so each pre-commit Cargo gate resolves only its unpublished upstream crates through the approved local-source configuration.

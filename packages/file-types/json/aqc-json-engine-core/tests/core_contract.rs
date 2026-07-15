@@ -240,6 +240,56 @@ fn replacing_an_unrepresentable_string_discards_its_mask_metadata() {
 }
 
 #[test]
+fn string_lists_are_read_and_written_without_replacing_non_object_parents() {
+    let mut object = parse(br#"{"nested":{"items":["a","b"]},"blocked":1}"#);
+    assert_eq!(
+        object.string_list(&["nested", "items"]),
+        Some(vec!["a".to_owned(), "b".to_owned()])
+    );
+    assert!(object.value_is_array(&["nested", "items"]));
+    assert!(!object.set_string_list(
+        &["blocked", "items"],
+        &["c".to_owned()],
+        NonObjectParentAction::Preserve,
+    ));
+    assert_eq!(object.scalar(&["blocked"]), Some(ConfigScalar::Int(1)));
+    assert!(object.set_string_list(
+        &["nested", "items"],
+        &["c".to_owned(), "d".to_owned()],
+        NonObjectParentAction::Preserve,
+    ));
+    assert_eq!(
+        object.string_list(&["nested", "items"]),
+        Some(vec!["c".to_owned(), "d".to_owned()])
+    );
+}
+
+#[test]
+fn string_list_rejects_arrays_with_non_string_members() {
+    let object = parse(br#"{"items":["a",1]}"#);
+    assert!(object.value_is_array(&["items"]));
+    assert_eq!(object.string_list(&["items"]), None);
+}
+
+#[test]
+fn replacing_masked_parent_discards_stale_metadata() {
+    let mut object = parse(br#"{"parent":0b1}"#);
+    assert!(object.set_string_list(
+        &["parent", "items"],
+        &["value".to_owned()],
+        NonObjectParentAction::Replace,
+    ));
+    assert_eq!(
+        object.rendered_value(&["parent"]),
+        Some("{\n    \"items\": [\"value\"]\n  }".to_owned())
+    );
+    assert_eq!(
+        object.string_list(&["parent", "items"]),
+        Some(vec!["value".to_owned()])
+    );
+}
+
+#[test]
 fn extended_string_normalization_errors_report_source_locations() {
     let bytes = b"{\n\"value\":\"\\u{110000}\"\n}";
     let (object, findings) = parse_object_or_report(Some(bytes), "test.jsonc", options());
@@ -793,6 +843,7 @@ fn scalar_reconciliation_reports_selector_attribution_and_writes() {
     reconcile_scalar_assertion(
         &mut object,
         &["compiler", "strict"],
+        "compiler.strict".to_owned(),
         Some("strict".to_owned()),
         NonObjectParentAction::Preserve,
         &requirement,
@@ -812,6 +863,17 @@ fn scalar_reconciliation_reports_selector_attribution_and_writes() {
         object.scalar(&["compiler", "strict"]),
         Some(ConfigScalar::Bool(true))
     );
+}
+
+#[test]
+fn object_creation_uses_shared_parent_write_rules() {
+    let mut object = parse(br#"{"existing":true}"#);
+    assert!(object.set_object(&["nested", "empty"], NonObjectParentAction::Preserve));
+    assert!(object.object_exists(&["nested", "empty"]));
+
+    let mut blocked = parse(br#"{"nested":false}"#);
+    assert!(!blocked.set_object(&["nested", "empty"], NonObjectParentAction::Preserve));
+    assert_eq!(blocked.render(), br#"{"nested":false}"#);
 }
 
 fn parse(bytes: &[u8]) -> JsonObject {

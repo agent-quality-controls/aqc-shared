@@ -81,10 +81,36 @@ impl JsonObject {
 
     #[must_use]
     pub fn object_exists(&self, path: &[&str]) -> bool {
+        if path.is_empty() {
+            return self.root.object_value().is_some();
+        }
         self.root
             .object_value()
             .and_then(|object| value_at(&object, path))
             .is_some_and(|value| value.as_object().is_some())
+    }
+
+    #[must_use]
+    pub fn object_keys(&self, path: &[&str]) -> Option<Vec<String>> {
+        object_at(&self.root, path)?
+            .properties()
+            .into_iter()
+            .map(|property| property.name()?.decoded_value().ok())
+            .collect()
+    }
+
+    pub fn remove_object_key(&mut self, path: &[&str], key: &str) -> bool {
+        let Some(object) = object_at(&self.root, path) else {
+            return false;
+        };
+        let Some(property) = object.get(key) else {
+            return false;
+        };
+        property.remove();
+        let mut metadata_path = path.to_vec();
+        metadata_path.push(key);
+        self.discard_path_metadata(&metadata_path);
+        true
     }
 
     pub fn set_scalar(
@@ -96,29 +122,92 @@ impl JsonObject {
         let Some((last, parents)) = path.split_last() else {
             return false;
         };
-        let Some(mut object) = self.root.object_value() else {
+        let Some((object, replaced_parent_depth)) =
+            object_for_write(&self.root, parents, parent_action)
+        else {
             return false;
         };
-        let mut replaced_parent_depth = None;
-        for (index, parent) in parents.iter().enumerate() {
-            let replaces_existing_value = parent_action == NonObjectParentAction::Replace
-                && object.get(parent).is_some()
-                && object.object_value(parent).is_none();
-            let next = match parent_action {
-                NonObjectParentAction::Preserve => object.object_value_or_create(parent),
-                NonObjectParentAction::Replace => Some(object.object_value_or_set(parent)),
-            };
-            let Some(next) = next else { return false };
-            if replaces_existing_value && replaced_parent_depth.is_none() {
-                replaced_parent_depth = Some(index.saturating_add(1));
-            }
-            object = next;
-        }
         let input = scalar_input(value);
         if let Some(property) = object.get(last) {
             property.set_value(input);
         } else {
             let _ = object.append(last, input);
+        }
+        let metadata_path = replaced_parent_depth
+            .and_then(|depth| path.get(..depth))
+            .unwrap_or(path);
+        self.discard_path_metadata(metadata_path);
+        true
+    }
+
+    #[must_use]
+    pub fn string_list(&self, path: &[&str]) -> Option<Vec<String>> {
+        value_at(&self.root.object_value()?, path)?
+            .as_array()?
+            .elements()
+            .into_iter()
+            .map(|node| node.as_string_lit()?.decoded_value().ok())
+            .collect()
+    }
+
+    #[must_use]
+    pub fn value_is_array(&self, path: &[&str]) -> bool {
+        self.root
+            .object_value()
+            .and_then(|object| value_at(&object, path))
+            .is_some_and(|value| value.as_array().is_some())
+    }
+
+    pub fn set_string_list(
+        &mut self,
+        path: &[&str],
+        values: &[String],
+        parent_action: NonObjectParentAction,
+    ) -> bool {
+        let Some((last, parents)) = path.split_last() else {
+            return false;
+        };
+        let Some((object, replaced_parent_depth)) =
+            object_for_write(&self.root, parents, parent_action)
+        else {
+            return false;
+        };
+        let input =
+            CstInputValue::Array(values.iter().cloned().map(CstInputValue::String).collect());
+        if let Some(property) = object.get(last) {
+            property.set_value(input);
+        } else {
+            let _ = object.append(last, input);
+        }
+        let metadata_path = replaced_parent_depth
+            .and_then(|depth| path.get(..depth))
+            .unwrap_or(path);
+        self.discard_path_metadata(metadata_path);
+        true
+    }
+
+    pub fn set_object(&mut self, path: &[&str], parent_action: NonObjectParentAction) -> bool {
+        if path.is_empty() {
+            return self.root.object_value().is_some();
+        }
+        let Some((last, parents)) = path.split_last() else {
+            return false;
+        };
+        let Some((object, replaced_parent_depth)) =
+            object_for_write(&self.root, parents, parent_action)
+        else {
+            return false;
+        };
+        if object.object_value(last).is_some() {
+            return true;
+        }
+        if object.get(last).is_some() && parent_action == NonObjectParentAction::Preserve {
+            return false;
+        }
+        if let Some(property) = object.get(last) {
+            property.set_value(CstInputValue::Object(Vec::new()));
+        } else {
+            let _ = object.append(last, CstInputValue::Object(Vec::new()));
         }
         let metadata_path = replaced_parent_depth
             .and_then(|depth| path.get(..depth))
@@ -215,6 +304,29 @@ impl JsonObject {
     }
 }
 
+fn object_for_write(
+    root: &CstRootNode,
+    parents: &[&str],
+    parent_action: NonObjectParentAction,
+) -> Option<(CstObject, Option<usize>)> {
+    let mut object = root.object_value()?;
+    let mut replaced_parent_depth = None;
+    for (index, parent) in parents.iter().enumerate() {
+        let replaces_existing_value = parent_action == NonObjectParentAction::Replace
+            && object.get(parent).is_some()
+            && object.object_value(parent).is_none();
+        let next = match parent_action {
+            NonObjectParentAction::Preserve => object.object_value_or_create(parent),
+            NonObjectParentAction::Replace => Some(object.object_value_or_set(parent)),
+        }?;
+        if replaces_existing_value && replaced_parent_depth.is_none() {
+            replaced_parent_depth = Some(index.saturating_add(1));
+        }
+        object = next;
+    }
+    Some((object, replaced_parent_depth))
+}
+
 fn value_at(object: &CstObject, path: &[&str]) -> Option<CstNode> {
     let (first, rest) = path.split_first()?;
     let mut value = object.get(first)?.value()?;
@@ -222,6 +334,15 @@ fn value_at(object: &CstObject, path: &[&str]) -> Option<CstNode> {
         value = value.as_object()?.get(key)?.value()?;
     }
     Some(value)
+}
+
+fn object_at(root: &CstRootNode, path: &[&str]) -> Option<CstObject> {
+    let root_object = root.object_value()?;
+    if path.is_empty() {
+        Some(root_object)
+    } else {
+        value_at(&root_object, path)?.as_object()
+    }
 }
 
 fn scalar_input(value: ConfigScalar) -> CstInputValue {

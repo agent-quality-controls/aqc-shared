@@ -12,6 +12,7 @@ use crate::{JsonObject, NonObjectParentAction};
 pub fn reconcile_scalar_assertion<T: ScalarValue>(
     document: &mut JsonObject,
     path: &[&str],
+    finding_key: String,
     selector: Option<String>,
     parent_action: NonObjectParentAction,
     requirement: &ResolvedRequirement<ScalarAssertion<T>, ScalarAssertion<T>>,
@@ -25,7 +26,7 @@ pub fn reconcile_scalar_assertion<T: ScalarValue>(
         return;
     }
     findings.push(Finding::Mismatch {
-        key: path.join("."),
+        key: finding_key,
         selector,
         current: document.rendered_value(path),
         expected: render_scalar_assertion(&requirement.merged),
