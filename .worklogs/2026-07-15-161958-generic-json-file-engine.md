@@ -34,7 +34,7 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 
 - `.plans/2026-07-15-142457-generic-json-file-engine.md`
 - `packages/file-types/json/aqc-json-file-engine/src/types/model.rs`
-- `packages/file-types/json/aqc-json-file-engine/src/runtime/merge.rs`
+- `packages/file-types/json/aqc-json-file-engine/src/runtime/merge/mod.rs`
 - `packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile.rs`
 - `fixtures/probes/generic-json-file-engine/src/main.rs`
 - `specs/generic-json-file-engine.spec.json`
@@ -43,3 +43,5 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 
 - Publish the coordinated AQC release before publishing downstream Shackles crates.
 - Commits are split by dependency tier so each pre-commit Cargo gate resolves only its unpublished upstream crates through the approved local-source configuration.
+- Core and JSON-core tiers are committed; the generic engine is the next independent release tier.
+- Split generic JSON merge collection, conflict classification, required-glob conflicts, and resolution into private modules after the package hook rejected the oversized combined file.
