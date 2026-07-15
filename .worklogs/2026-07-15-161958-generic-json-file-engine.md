@@ -46,3 +46,4 @@ Added a reusable strict JSON file engine over existing AQC requirement and JSON 
 - Core, JSON core, generic engine, Package JSON, and TSConfig tiers are committed with clean hooks.
 - Generic JSON merge collection, conflict classification, required-glob conflicts, and resolution are split into private modules to satisfy package structure gates.
 - The remaining integration tier contains release metadata, repository dependency policy, fixtures, plan, spec, verifier, and this worklog.
+- Integration artifacts are committed separately from repository dependency-policy updates so each hook runs against the dependency source appropriate to its staged workspaces.
