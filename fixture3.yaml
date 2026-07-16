@@ -1,6 +1,10 @@
 version: 1
 
 features:
+  exact-list-differences:
+    spec: "specs/exact-list-differences.spec.json"
+    suites:
+      - "exact-list-differences"
   generic-json-file-engine:
     spec: "specs/generic-json-file-engine.spec.json"
     suites:
@@ -15,6 +19,26 @@ features:
       - "shakts-tsc-aqc"
 
 suites:
+  exact-list-differences:
+    tags:
+      - "file-engines"
+      - "json"
+      - "toml"
+      - "yaml"
+    fixtures:
+      - "fixtures/exact-list-differences/*.json"
+    command:
+      argv:
+        - "python3"
+        - "fixtures/scripts/fixture3-exact-list-differences.py"
+        - "{fixtures}"
+      ok_exit_codes:
+        - 0
+    storage:
+      approved_dir: "fixtures/approved/exact-list-differences"
+      received_dir: ".fixture3/exact-list-differences"
+      diff_dir: ".fixture3/exact-list-differences"
+
   generic-json-file-engine:
     tags:
       - "file-engines"

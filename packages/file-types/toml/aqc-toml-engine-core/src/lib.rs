@@ -25,7 +25,8 @@ pub use items::{
 #[cfg(feature = "api")]
 pub use lists::{
     ListFieldKeyStyle, list_contains, list_item, list_message, list_values, reconcile_list_field,
-    reconcile_table_list_field, render_list, report_list_shape, report_list_shape_with_message,
+    reconcile_optional_list_field, reconcile_optional_table_list_field, reconcile_table_list_field,
+    render_list, report_list_item_shape, report_list_shape, report_list_shape_with_message,
     table_list_values, table_list_values_optional, write_list, write_table_list,
 };
 #[cfg(feature = "api")]

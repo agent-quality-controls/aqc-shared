@@ -167,11 +167,27 @@ fn apply_one(
             apply_dotted_version(doc, scope, field, assertion, attribution, findings);
         }
         ResolvedPackageFieldAssertion::List(list) => {
-            let current = target_ref(doc, scope).map_or_else(Vec::new, |t| {
-                aqc_toml_engine_core::table_list_values(t, field)
-            });
-            if let Some(updated) = aqc_toml_engine_core::reconcile_table_list_field(
-                format!("[{}].{field}", scope.prefix()),
+            let display_key = format!("[{}].{field}", scope.prefix());
+            let target = target_ref(doc, scope);
+            if aqc_toml_engine_core::report_list_item_shape(
+                target.and_then(|table| table.get(field)),
+                &display_key,
+                list,
+                findings,
+            ) {
+                let current = target
+                    .and_then(|table| {
+                        aqc_toml_engine_core::table_list_values_optional(table, field)
+                    })
+                    .unwrap_or_default();
+                let updated = aqc_file_engine_core::apply_list_requirements(&current, list);
+                aqc_toml_engine_core::write_table_list(ensure_target(doc, scope), field, &updated);
+                return;
+            }
+            let current = target
+                .and_then(|table| aqc_toml_engine_core::table_list_values_optional(table, field));
+            if let Some(updated) = aqc_toml_engine_core::reconcile_optional_table_list_field(
+                display_key,
                 current,
                 list,
                 findings,

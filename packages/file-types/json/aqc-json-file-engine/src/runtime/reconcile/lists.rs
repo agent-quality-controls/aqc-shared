@@ -1,66 +1,15 @@
-use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    Finding, KeyedItem, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedListRequirements, Severity, asserted_items,
+    Finding, Provenance, ResolvedExactList, ResolvedForbiddenGlobRequirements,
+    ResolvedListRequirements, Severity, apply_list_requirements, exact_list_difference,
 };
-use aqc_json_engine_core::{JsonObject, NonObjectParentAction, reconcile_scalar_assertion};
+use aqc_json_engine_core::{JsonObject, NonObjectParentAction};
 use globset::{GlobBuilder, GlobMatcher};
 
 use crate::types::{JsonPath, JsonStringGlob, ResolvedJsonFileRequirements};
 
-pub(super) fn reconcile_document(
-    document: &mut JsonObject,
-    requirement: &ResolvedJsonFileRequirements,
-    findings: &mut Vec<Finding>,
-) {
-    let Some(compiled_globs) = compile_all_globs(requirement, findings) else {
-        return;
-    };
-    for (path, assertion) in requirement.scalar_values() {
-        let components = path.components().collect::<Vec<_>>();
-        reconcile_scalar_assertion(
-            document,
-            &components,
-            path.finding_key(),
-            Some(path.selector()),
-            NonObjectParentAction::Preserve,
-            assertion,
-            |value| Some(value.clone()),
-            Some,
-            findings,
-        );
-    }
-
-    let paths = requirement
-        .string_lists()
-        .keys()
-        .chain(requirement.forbidden_string_list_globs().keys())
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    for path in paths {
-        let lists = requirement
-            .string_lists()
-            .get(&path)
-            .cloned()
-            .unwrap_or_default();
-        let globs = requirement
-            .forbidden_string_list_globs()
-            .get(&path)
-            .cloned()
-            .unwrap_or_default();
-        let compiled = compiled_globs.get(&path).map_or(&[][..], Vec::as_slice);
-        reconcile_string_list(document, &path, &lists, &globs, compiled, findings);
-    }
-    let mut objects = requirement.object_keys().iter().collect::<Vec<_>>();
-    objects.sort_by_key(|(path, _)| Reverse(path.components().count()));
-    for (path, keys) in objects {
-        reconcile_object_keys(document, path, keys, findings);
-    }
-}
-
-fn reconcile_string_list(
+pub(super) fn reconcile_string_list(
     document: &mut JsonObject,
     path: &JsonPath,
     requirement: &ResolvedListRequirements,
@@ -90,16 +39,7 @@ fn reconcile_string_list(
     push_list_findings(path, &current, exists, requirement, findings);
     push_glob_findings(path, &current, compiled_globs, findings);
 
-    let mut desired = requirement
-        .exact
-        .as_ref()
-        .map_or_else(|| current.clone(), |exact| exact.merged.clone());
-    for item in requirement.contains.keys() {
-        if !desired.contains(item) {
-            desired.push(item.clone());
-        }
-    }
-    desired.retain(|item| !requirement.excludes.contains_key(item));
+    let mut desired = apply_list_requirements(&current, requirement);
     desired.retain(|item| {
         !compiled_globs
             .iter()
@@ -108,157 +48,6 @@ fn reconcile_string_list(
     if desired != current || (!exists && requirement.exact.is_some()) {
         let _ = document.set_string_list(&components, &desired, NonObjectParentAction::Preserve);
     }
-}
-
-fn reconcile_object_keys(
-    document: &mut JsonObject,
-    path: &JsonPath,
-    requirement: &ResolvedItemRequirements<KeyedItem<()>>,
-    findings: &mut Vec<Finding>,
-) {
-    let components = path.components().collect::<Vec<_>>();
-    let exists = components.is_empty() || document.value_exists(&components);
-    if !exists {
-        let constructive = requirement.exact.is_some() || !requirement.required.is_empty();
-        if !constructive {
-            return;
-        }
-        findings.push(Finding::Mismatch {
-            key: path.finding_key(),
-            selector: None,
-            current: None,
-            expected: "object".to_owned(),
-            message: object_message(requirement),
-            severity: Severity::Error,
-            attribution: object_attribution(requirement),
-        });
-        if !document.set_object(&components, NonObjectParentAction::Preserve) {
-            return;
-        }
-    }
-    let Some(current) = document.object_keys(&components) else {
-        findings.push(Finding::Mismatch {
-            key: path.finding_key(),
-            selector: None,
-            current: document.rendered_value(&components),
-            expected: "object".to_owned(),
-            message: object_message(requirement),
-            severity: Severity::Error,
-            attribution: object_attribution(requirement),
-        });
-        return;
-    };
-    let current = current.into_iter().collect::<BTreeSet<_>>();
-    for (key, resolved) in asserted_items(requirement) {
-        if !current.contains(key) {
-            findings.push(Finding::UnwritableRequiredKey {
-                key: child_finding_key(path, key),
-                expected: "present object key".to_owned(),
-                attribution: resolved.attribution(),
-            });
-        }
-    }
-    for (key, resolved) in &requirement.forbidden {
-        if current.contains(key) {
-            push_object_key_finding(
-                path,
-                key,
-                "absent",
-                resolved
-                    .collected
-                    .first()
-                    .map_or_else(String::new, |(_, message)| message.clone()),
-                resolved.attribution(),
-                findings,
-            );
-            let _ = document.remove_object_key(&components, key);
-        }
-    }
-    if let Some(exact) = &requirement.exact {
-        for key in current.difference(&exact.identities) {
-            push_object_key_finding(
-                path,
-                key,
-                "absent (exact keys)",
-                exact
-                    .collected
-                    .first()
-                    .map_or_else(String::new, |(_, (_, message))| message.clone()),
-                exact_attribution(exact),
-                findings,
-            );
-            let _ = document.remove_object_key(&components, key);
-        }
-    }
-}
-
-fn push_object_key_finding(
-    path: &JsonPath,
-    key: &str,
-    expected: &str,
-    message: String,
-    attribution: Vec<Provenance>,
-    findings: &mut Vec<Finding>,
-) {
-    findings.push(Finding::Mismatch {
-        key: path.finding_key(),
-        selector: Some(key.to_owned()),
-        current: Some("present".to_owned()),
-        expected: expected.to_owned(),
-        message,
-        severity: Severity::Error,
-        attribution,
-    });
-}
-
-fn object_message(requirement: &ResolvedItemRequirements<KeyedItem<()>>) -> String {
-    requirement
-        .required
-        .values()
-        .flat_map(|resolved| resolved.collected.iter().map(|(_, (_, message))| message))
-        .chain(
-            requirement
-                .forbidden
-                .values()
-                .flat_map(|resolved| resolved.collected.iter().map(|(_, message)| message)),
-        )
-        .chain(
-            requirement
-                .exact
-                .iter()
-                .flat_map(|resolved| resolved.collected.iter().map(|(_, (_, message))| message)),
-        )
-        .next()
-        .cloned()
-        .unwrap_or_default()
-}
-
-fn object_attribution(requirement: &ResolvedItemRequirements<KeyedItem<()>>) -> Vec<Provenance> {
-    let mut attribution = requirement
-        .required
-        .values()
-        .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution)
-        .chain(
-            requirement
-                .forbidden
-                .values()
-                .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
-        )
-        .chain(requirement.exact.iter().flat_map(exact_attribution))
-        .collect::<Vec<_>>();
-    attribution.sort();
-    attribution.dedup();
-    attribution
-}
-
-fn exact_attribution(
-    exact: &aqc_file_engine_core::ResolvedExactItems<KeyedItem<()>>,
-) -> Vec<Provenance> {
-    exact
-        .collected
-        .iter()
-        .map(|(provenance, _)| provenance.clone())
-        .collect()
 }
 
 fn blocked_parent(document: &JsonObject, path: &[&str]) -> bool {
@@ -273,18 +62,6 @@ fn blocked_parent(document: &JsonObject, path: &[&str]) -> bool {
     false
 }
 
-fn escape_pointer(component: &str) -> String {
-    component.replace('~', "~0").replace('/', "~1")
-}
-
-fn child_finding_key(path: &JsonPath, child: &str) -> String {
-    if path == &JsonPath::root() {
-        format!("/{}", escape_pointer(child))
-    } else {
-        format!("{}/{}", path.pointer(), escape_pointer(child))
-    }
-}
-
 fn push_list_findings(
     path: &JsonPath,
     current: &[String],
@@ -292,6 +69,20 @@ fn push_list_findings(
     requirement: &ResolvedListRequirements,
     findings: &mut Vec<Finding>,
 ) {
+    if let Some(exact) = &requirement.exact
+        && !exists
+    {
+        findings.push(Finding::Mismatch {
+            key: path.finding_key(),
+            selector: None,
+            current: None,
+            expected: format!("exact [{}]", exact.merged.join(", ")),
+            message: exact_message(exact),
+            severity: Severity::Error,
+            attribution: exact.attribution(),
+        });
+        return;
+    }
     for (item, resolved) in &requirement.contains {
         if !current.contains(item) {
             push_item_finding(path, item, None, "present", resolved, findings);
@@ -302,23 +93,80 @@ fn push_list_findings(
             push_item_finding(path, item, Some(item.clone()), "absent", resolved, findings);
         }
     }
-    if let Some(exact) = &requirement.exact
-        && (!exists || current != exact.merged)
-    {
+    if let Some(exact) = &requirement.exact {
+        push_exact_list_findings(path, current, exact, findings);
+    }
+}
+
+fn push_exact_list_findings(
+    path: &JsonPath,
+    current: &[String],
+    exact: &ResolvedExactList,
+    findings: &mut Vec<Finding>,
+) {
+    let difference = exact_list_difference(current, &exact.merged);
+    let message = exact_message(exact);
+    for item in difference.missing().keys() {
+        push_exact_member_finding(
+            path,
+            item,
+            difference.current_count(item),
+            difference.expected_count(item),
+            &message,
+            exact.attribution(),
+            findings,
+        );
+    }
+    for item in difference.unexpected().keys() {
+        push_exact_member_finding(
+            path,
+            item,
+            difference.current_count(item),
+            difference.expected_count(item),
+            &message,
+            exact.attribution(),
+            findings,
+        );
+    }
+    if difference.order_mismatch() {
         findings.push(Finding::Mismatch {
             key: path.finding_key(),
             selector: None,
             current: Some(format!("[{}]", current.join(", "))),
             expected: format!("exact [{}]", exact.merged.join(", ")),
-            message: exact
-                .collected
-                .first()
-                .map(|(_, (_, message))| message.clone())
-                .unwrap_or_default(),
+            message,
             severity: Severity::Error,
             attribution: exact.attribution(),
         });
     }
+}
+
+fn push_exact_member_finding(
+    path: &JsonPath,
+    item: &str,
+    current_count: usize,
+    expected_count: usize,
+    message: &str,
+    attribution: Vec<Provenance>,
+    findings: &mut Vec<Finding>,
+) {
+    findings.push(Finding::Mismatch {
+        key: path.finding_key(),
+        selector: Some(item.to_owned()),
+        current: Some(format!("count {current_count}")),
+        expected: format!("count {expected_count}"),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution,
+    });
+}
+
+fn exact_message(exact: &ResolvedExactList) -> String {
+    exact
+        .collected
+        .first()
+        .map(|(_, (_, message))| message.clone())
+        .unwrap_or_default()
 }
 
 fn push_item_finding(
@@ -344,7 +192,7 @@ fn push_item_finding(
     });
 }
 
-struct CompiledGlob {
+pub(super) struct CompiledGlob {
     matcher: GlobMatcher,
     message: String,
     attribution: Vec<Provenance>,
@@ -353,7 +201,7 @@ struct CompiledGlob {
 type CompiledGlobsByPath = BTreeMap<JsonPath, Vec<CompiledGlob>>;
 type CompiledGlobResult = Result<Vec<CompiledGlob>, Vec<Finding>>;
 
-fn compile_all_globs(
+pub(super) fn compile_all_globs(
     requirement: &ResolvedJsonFileRequirements,
     findings: &mut Vec<Finding>,
 ) -> Option<CompiledGlobsByPath> {

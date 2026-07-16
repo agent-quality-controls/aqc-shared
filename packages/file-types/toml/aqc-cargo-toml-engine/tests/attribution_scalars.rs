@@ -163,6 +163,70 @@ fn target_table_list_fields_use_unified_list_rules() {
 }
 
 #[test]
+fn cargo_list_fields_report_malformed_shape_without_treating_it_as_absent() {
+    let exact = || engine_core::ListRequirements {
+        exact: Some((vec!["required".to_owned()], "exact list".to_owned())),
+        ..engine_core::ListRequirements::default()
+    };
+
+    let mut package = cargo::CargoTomlRequirements::default();
+    let _ = package.package_fields.insert(
+        "keywords".to_owned(),
+        cargo::PackageFieldAssertion::List(exact()),
+    );
+
+    let mut workspace = cargo::CargoTomlRequirements::default();
+    let _ = workspace.workspace_fields.insert(
+        "members".to_owned(),
+        cargo::WorkspaceFieldAssertion::List(exact()),
+    );
+
+    let mut target_requirements = cargo::TargetRequirements::default();
+    let _ = target_requirements.lib_fields.insert(
+        "required-features".to_owned(),
+        cargo::TargetFieldAssertion::List(exact()),
+    );
+    let mut target = cargo::CargoTomlRequirements::default();
+    target.targets = target_requirements;
+
+    for (input, requirement, key) in [
+        (
+            b"[package]\nkeywords = false\n".as_slice(),
+            package,
+            "[package].keywords",
+        ),
+        (
+            b"[workspace]\nmembers = [\"ok\", 1]\n".as_slice(),
+            workspace,
+            "[workspace].members[1]",
+        ),
+        (
+            b"[lib]\nrequired-features = false\n".as_slice(),
+            target,
+            "[lib].required-features",
+        ),
+    ] {
+        let output = cargo_output(Some(input), vec![(prov("policy"), requirement)]);
+        assert!(output.findings.iter().any(|finding| matches!(
+            finding,
+            engine_core::Finding::Mismatch {
+                key: found,
+                current: Some(_),
+                ..
+            } if found == key
+        )));
+        assert!(output.findings.iter().all(|finding| !matches!(
+            finding,
+            engine_core::Finding::Mismatch { current: None, .. }
+        )));
+        let expected = String::from_utf8(output.expected_bytes).expect("Cargo TOML is UTF-8");
+        assert!(expected.contains("required"));
+        assert!(!expected.contains("false"));
+        assert!(!expected.contains("1]"));
+    }
+}
+
+#[test]
 fn scalar_implication_cases_compose() {
     let mut set = BTreeSet::new();
     let _ = set.insert(engine_core::ConfigScalar::Str("2021".to_owned()));

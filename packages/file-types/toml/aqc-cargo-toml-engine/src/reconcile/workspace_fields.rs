@@ -105,11 +105,31 @@ fn apply_one(
             apply_scalar(doc, key, assertion, attribution, findings);
         }
         req::ResolvedWorkspaceFieldAssertion::List(list) => {
-            let current = aqc_toml_engine_core::table_ref(doc, PREFIX).map_or_else(Vec::new, |t| {
-                aqc_toml_engine_core::table_list_values(t, key)
-            });
-            if let Some(updated) = aqc_toml_engine_core::reconcile_table_list_field(
-                format!("[{PREFIX}].{key}"),
+            let display_key = format!("[{PREFIX}].{key}");
+            let table = aqc_toml_engine_core::table_ref(doc, PREFIX);
+            if aqc_toml_engine_core::report_list_item_shape(
+                table.and_then(|current| current.get(key)),
+                &display_key,
+                list,
+                findings,
+            ) {
+                let current = table
+                    .and_then(|current| {
+                        aqc_toml_engine_core::table_list_values_optional(current, key)
+                    })
+                    .unwrap_or_default();
+                let updated = core_types::apply_list_requirements(&current, list);
+                aqc_toml_engine_core::write_table_list(
+                    aqc_toml_engine_core::ensure_table(doc, PREFIX),
+                    key,
+                    &updated,
+                );
+                return;
+            }
+            let current = table
+                .and_then(|current| aqc_toml_engine_core::table_list_values_optional(current, key));
+            if let Some(updated) = aqc_toml_engine_core::reconcile_optional_table_list_field(
+                display_key,
                 current,
                 list,
                 findings,

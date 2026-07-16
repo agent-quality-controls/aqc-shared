@@ -1,0 +1,16 @@
+[package]
+name = "exact-list-differences-fixture-probe"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+aqc-file-engine-core = "0.7.2"
+aqc-json-file-engine = "0.1.1"
+aqc-pnpm-workspace-yaml-engine = "0.7.2"
+aqc-rustfmt-toml-engine = "0.7.2"
+serde_json = "1"

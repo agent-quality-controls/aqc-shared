@@ -863,7 +863,7 @@ fn empty_collection_requirements_are_no_ops() {
 }
 
 #[test]
-fn collection_findings_distinguish_whole_collection_from_empty_members() {
+fn exact_and_glob_findings_keep_member_selectors_including_empty_values() {
     let path = JsonPath::new("items");
     let requirement = JsonFileRequirements {
         string_lists: BTreeMap::from([(
@@ -889,12 +889,13 @@ fn collection_findings_distinguish_whole_collection_from_empty_members() {
     let resolved = JsonFileRequirements::merge(vec![(provenance("policy"), requirement)])
         .expect("requirements must resolve");
     let output = JsonFileEngine::reconcile(Some(br#"{"items":[""]}"#), &resolved);
-    assert!(
-        output
-            .findings
-            .iter()
-            .any(|finding| matches!(finding, Finding::Mismatch { selector: None, .. }))
-    );
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch {
+            selector: Some(selector),
+            ..
+        } if selector == "required"
+    )));
     assert!(output.findings.iter().any(|finding| matches!(
         finding,
         Finding::Mismatch {
@@ -902,6 +903,139 @@ fn collection_findings_distinguish_whole_collection_from_empty_members() {
             ..
         } if selector.is_empty()
     )));
+}
+
+#[test]
+fn exact_list_findings_are_member_specific_order_aware_and_constructive() {
+    let path = JsonPath::new("items");
+    let requirement = JsonFileRequirements {
+        string_lists: BTreeMap::from([(
+            path,
+            ListRequirements {
+                exact: Some((
+                    vec!["a".to_owned(), "a".to_owned(), "b".to_owned()],
+                    "exact list".to_owned(),
+                )),
+                ..ListRequirements::default()
+            },
+        )]),
+        ..JsonFileRequirements::default()
+    };
+    let resolved = JsonFileRequirements::merge(vec![(provenance("policy"), requirement)])
+        .expect("requirements must resolve");
+
+    let membership = JsonFileEngine::reconcile(Some(br#"{"items":["a","c"]}"#), &resolved);
+    assert_eq!(membership.findings.len(), 3);
+    let selectors = membership
+        .findings
+        .iter()
+        .filter_map(|finding| match finding {
+            Finding::Mismatch { selector, .. } => selector.clone(),
+            Finding::UnwritableRequiredKey { .. }
+            | Finding::InvalidRequirements { .. }
+            | Finding::ParseError { .. }
+            | Finding::ConflictingRequirements { .. }
+            | Finding::InternalError { .. } => None,
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        selectors,
+        BTreeSet::from(["a".to_owned(), "b".to_owned(), "c".to_owned()])
+    );
+    assert!(membership.findings.iter().all(|finding| matches!(
+        finding,
+        Finding::Mismatch {
+            attribution,
+            ..
+        } if attribution == &vec![provenance("policy")]
+    )));
+
+    let order = JsonFileEngine::reconcile(Some(br#"{"items":["b","a","a"]}"#), &resolved);
+    assert!(matches!(
+        order.findings.as_slice(),
+        [Finding::Mismatch { selector: None, .. }]
+    ));
+
+    let missing = JsonFileEngine::reconcile(Some(br"{}"), &resolved);
+    assert!(matches!(
+        missing.findings.as_slice(),
+        [Finding::Mismatch {
+            selector: None,
+            current: None,
+            ..
+        }]
+    ));
+    assert!(
+        String::from_utf8(missing.expected_bytes)
+            .expect("JSON is UTF-8")
+            .contains(r#""items": ["#)
+    );
+}
+
+#[test]
+fn compatible_exact_member_assertions_share_json_selector_identity() {
+    let exact = JsonFileRequirements {
+        string_lists: BTreeMap::from([(
+            JsonPath::new("items"),
+            ListRequirements {
+                exact: Some((vec!["react".to_owned()], "exact".to_owned())),
+                ..ListRequirements::default()
+            },
+        )]),
+        ..JsonFileRequirements::default()
+    };
+    let contains = JsonFileRequirements {
+        string_lists: BTreeMap::from([(
+            JsonPath::new("items"),
+            ListRequirements {
+                contains: BTreeMap::from([("react".to_owned(), "contains".to_owned())]),
+                ..ListRequirements::default()
+            },
+        )]),
+        ..JsonFileRequirements::default()
+    };
+    let excludes = JsonFileRequirements {
+        string_lists: BTreeMap::from([(
+            JsonPath::new("items"),
+            ListRequirements {
+                excludes: BTreeMap::from([("blocked".to_owned(), "excludes".to_owned())]),
+                ..ListRequirements::default()
+            },
+        )]),
+        ..JsonFileRequirements::default()
+    };
+    let resolved = JsonFileRequirements::merge(vec![
+        (provenance("exact-policy"), exact),
+        (provenance("contains-policy"), contains),
+        (provenance("excludes-policy"), excludes),
+    ])
+    .expect("compatible requirements must resolve");
+
+    for (input, selector, expected) in [
+        (
+            br#"{"items":[]}"#.as_slice(),
+            "react",
+            [("exact", "exact-policy"), ("contains", "contains-policy")],
+        ),
+        (
+            br#"{"items":["react","blocked"]}"#.as_slice(),
+            "blocked",
+            [("exact", "exact-policy"), ("excludes", "excludes-policy")],
+        ),
+    ] {
+        let output = JsonFileEngine::reconcile(Some(input), &resolved);
+        assert_eq!(output.findings.len(), 2);
+        for (message, policy) in expected {
+            assert!(output.findings.iter().any(|finding| matches!(
+                finding,
+                Finding::Mismatch { key, selector: Some(found), message: found_message, attribution, .. }
+                    if key == "/items"
+                        && found == selector
+                        && found_message == message
+                        && attribution == &vec![provenance(policy)]
+            )));
+        }
+    }
 }
 
 #[test]

@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "aqc-file-engine-core"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "schemars",
  "serde",
@@ -12,7 +12,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-rust-toolchain-toml-engine"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "aqc-file-engine-core",
  "aqc-toml-engine-core",
@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "aqc-toml-engine-core"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "aqc-file-engine-core",
  "toml_edit",

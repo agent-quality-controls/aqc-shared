@@ -184,23 +184,3 @@ pub(super) fn item_attribution(
     out.dedup();
     out
 }
-
-pub(super) fn list_message(requirement: &ResolvedListRequirements) -> String {
-    requirement
-        .contains
-        .values()
-        .flat_map(|item| item.collected.iter().map(|(_, message)| message.clone()))
-        .chain(
-            requirement
-                .excludes
-                .values()
-                .flat_map(|item| item.collected.iter().map(|(_, message)| message.clone())),
-        )
-        .chain(requirement.exact.iter().flat_map(|item| {
-            item.collected
-                .iter()
-                .map(|(_, (_, message))| message.clone())
-        }))
-        .next()
-        .unwrap_or_else(|| "list does not satisfy the resolved requirement".to_owned())
-}

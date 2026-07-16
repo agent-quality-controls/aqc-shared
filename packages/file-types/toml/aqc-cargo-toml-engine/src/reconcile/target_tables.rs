@@ -222,10 +222,21 @@ fn apply_field(
             apply_scalar_field(doc, loc, field, path, assertion, attribution, findings);
         }
         ResolvedTargetFieldAssertion::List(list) => {
+            if aqc_toml_engine_core::report_list_item_shape(
+                read_field(doc, loc, field),
+                &path,
+                list,
+                findings,
+            ) {
+                let current = read_field_array(doc, loc, field).unwrap_or_default();
+                let updated = aqc_file_engine_core::apply_list_requirements(&current, list);
+                aqc_toml_engine_core::write_table_list(ensure_loc(doc, loc), field, &updated);
+                return;
+            }
             let current = read_field_array(doc, loc, field);
-            if let Some(updated) =
-                aqc_toml_engine_core::reconcile_table_list_field(path, current, list, findings)
-            {
+            if let Some(updated) = aqc_toml_engine_core::reconcile_optional_table_list_field(
+                path, current, list, findings,
+            ) {
                 aqc_toml_engine_core::write_table_list(ensure_loc(doc, loc), field, &updated);
             }
         }
@@ -266,15 +277,13 @@ fn read_field<'a>(doc: &'a DocumentMut, loc: &FieldLoc<'_>, field: &str) -> Opti
     }
 }
 
-/// Read the current string array for `field` at `loc` (empty when absent).
-fn read_field_array(doc: &DocumentMut, loc: &FieldLoc<'_>, field: &str) -> Vec<String> {
+/// Read the current string array for `field` at `loc` without erasing absence.
+fn read_field_array(doc: &DocumentMut, loc: &FieldLoc<'_>, field: &str) -> Option<Vec<String>> {
     match loc {
-        FieldLoc::Lib => aqc_toml_engine_core::table_ref(doc, "lib").map_or_else(Vec::new, |t| {
-            aqc_toml_engine_core::table_list_values(t, field)
-        }),
-        FieldLoc::Entry { kind, name } => entry_ref(doc, kind, name).map_or_else(Vec::new, |t| {
-            aqc_toml_engine_core::table_list_values(t, field)
-        }),
+        FieldLoc::Lib => aqc_toml_engine_core::table_ref(doc, "lib")
+            .and_then(|t| aqc_toml_engine_core::table_list_values_optional(t, field)),
+        FieldLoc::Entry { kind, name } => entry_ref(doc, kind, name)
+            .and_then(|t| aqc_toml_engine_core::table_list_values_optional(t, field)),
     }
 }
 

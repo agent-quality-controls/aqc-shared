@@ -21,6 +21,8 @@ highlight = "all"
 skip = []
 
 deny = [
+    { name = "shakts-cspell-policy", wrappers = [], reason = "Forbidden by repository dependency boundary: policies" },
+    { name = "shakts-cspell-adapter", wrappers = [], reason = "Forbidden by repository dependency boundary: sibling adapters" },
     { name = "shakts-pnpm-policy", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakts-pnpm-adapter", wrappers = [], reason = "Forbidden by package dependency boundary" },
     { name = "shakts-tsc-policy", wrappers = [], reason = "AQC shared crates must not depend on policies" },

@@ -42,7 +42,8 @@ The requirement model is sufficient. The defect is reconciliation reporting.
 ### Current Reconciliation Duplication
 - `aqc-toml-engine-core` emits one selectorless mismatch for any exact-list difference.
 - `aqc-json-file-engine` independently emits the same whole-list mismatch.
-- `aqc-pnpm-workspace-yaml-engine` independently emits one collection mismatch.
+- `aqc-pnpm-workspace-yaml-engine` independently emits one collection mismatch for exact,
+  contains, and excludes drift.
 - all three compute desired exact bytes separately after reporting.
 
 The whole-list finding makes a waiver overbroad: waiving one intentional extra member suppresses every other difference in that list.
@@ -56,6 +57,8 @@ Add one universal core result and function:
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExactListDifference {
+    current_counts: BTreeMap<String, usize>,
+    expected_counts: BTreeMap<String, usize>,
     missing: BTreeMap<String, usize>,
     unexpected: BTreeMap<String, usize>,
     order_mismatch: bool,
@@ -66,10 +69,17 @@ pub fn exact_list_difference(
     expected: &[String],
 ) -> ExactListDifference;
 
+pub fn apply_list_requirements(
+    current: &[String],
+    requirements: &ResolvedListRequirements,
+) -> Vec<String>;
+
 impl ExactListDifference {
     pub const fn missing(&self) -> &BTreeMap<String, usize>;
     pub const fn unexpected(&self) -> &BTreeMap<String, usize>;
     pub const fn order_mismatch(&self) -> bool;
+    pub fn current_count(&self, value: &str) -> usize;
+    pub fn expected_count(&self, value: &str) -> usize;
     pub fn is_empty(&self) -> bool;
 }
 ```
@@ -85,6 +95,10 @@ Rules:
 - `order_mismatch` cannot coexist with missing or unexpected members;
 - empty strings and duplicate values are valid identities and retain correct counts;
 - the function performs no rendering and creates no findings.
+- `apply_list_requirements` is the one universal desired-value operation: exact replaces the
+  current list, contains adds absent members in lexical requirement order, and excludes removes
+  every matching member;
+- JSON, TOML, and YAML reconcilers reuse this operation instead of implementing list mutation.
 
 Examples:
 ```text
@@ -154,14 +168,17 @@ Format engines retain ownership of:
 - Desired bytes remain the resolved exact list after findings are created.
 - Missing exact-empty lists remain constructive and initialize as empty arrays/sequences.
 - Wrong list value kinds keep the existing shape finding; no member difference is emitted when members cannot be read.
-- Contains/excludes findings remain unchanged. Compatible overlap with exact remains separately attributed as defined in D2; contradictory combinations still fail merge.
+- Contains/excludes reconciliation remains unchanged. YAML finding granularity becomes member-specific so compatible overlap with exact retains separate attribution under the same key and selector; contradictory combinations still fail merge.
 - Forbidden-glob findings remain member-specific and may coexist with compatible exact findings only where current bytes violate both requirements; each requirement retains its own attribution.
 
 ## Package Scope
+The coordinated Shakts CSpell vertical adds only mechanical `deny.toml` reverse-edge entries to other AQC workspaces in the same repository state. Those files contain no runtime or public API changes.
+
 ### Core Runtime/API
 Change `aqc-file-engine-core`:
 - add `ExactListDifference` beside list requirement/resolution types;
 - add `exact_list_difference` in list merge/support code;
+- keep current and expected member counts inside `ExactListDifference` so format integrations do not rescan lists or duplicate count mechanics;
 - re-export both from the facade;
 - add unit tests for equality, missing, unexpected, replacement, duplicates, empty strings, order only, and deterministic ordering.
 
@@ -188,7 +205,8 @@ pub fn reconcile_optional_table_list_field(
     findings: &mut Vec<Finding>,
 ) -> Option<Vec<String>>;
 ```
-- retain `reconcile_list_field` and `reconcile_table_list_field` only as lower-level known-present APIs;
+- retain `reconcile_list_field` and `reconcile_table_list_field` only as lower-level known-present APIs; all four APIs keep the existing owned `display_key: String` public contract so the patch release does not break downstream calls;
+- add a shared TOML item-shape check and require Cargo package, workspace, and target list callers to report present non-arrays and non-string members before optional reconciliation;
 - make optional entry points handle absence once, then delegate member/order reconciliation to the known-present primitive;
 - migrate every concrete caller that reads an optional TOML field without erasing `None` to an empty vector;
 - add contract tests for member selectors, duplicate counts, order-only mismatch, exact-empty initialization, attribution, and no duplicate whole finding.
@@ -198,6 +216,7 @@ Runtime callers change in Cargo TOML, deny TOML, rust-toolchain TOML, and rustfm
 ### JSON
 Change `aqc-json-file-engine`:
 - replace `push_list_findings` exact whole-list branch with the core difference result;
+- keep list and glob reconciliation in the private `runtime::reconcile::lists` submodule so the document orchestrator stays within package structure gates;
 - keep RFC 6901 path keys and put member identity in `selector`;
 - add exact-empty, sibling-waiver-ready, duplicate, empty-string, and order tests.
 
@@ -212,7 +231,7 @@ Change `aqc-pnpm-workspace-yaml-engine`:
 `aqc-yaml-engine-core` moves to the coherent core dependency generation; no YAML-core runtime behavior changes.
 
 ### Dependency Generation
-The API addition is backward-compatible and the behavior change fixes overbroad diagnostics without changing resolved requirements or expected bytes. Use one patch generation:
+The API additions preserve existing signatures, and the behavior change fixes overbroad diagnostics without changing resolved requirements or expected bytes. Use one patch generation:
 - `aqc-file-engine-core 0.7.2`;
 - `aqc-json-file-engine 0.1.1`;
 - `aqc-toml-engine-core 0.8.1`;

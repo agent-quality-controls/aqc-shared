@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::types::{PnpmPackageSelectorGlob, ResolvedPnpmWorkspaceYamlRequirements};
 use aqc_file_engine_core::{
     Finding, KeyedItem, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedListRequirements, Severity,
+    ResolvedListRequirements, Severity, apply_list_requirements, exact_list_difference,
 };
 use aqc_yaml_engine_core::{
     ParsedYamlMapping, YamlFieldValue, apply_scalar_assertion, parse_yaml_mapping,
@@ -141,52 +141,157 @@ fn apply_list(
     }
     let compiled_globs = support::compile_globs(key, forbidden_globs, findings);
     let field = document.field(key);
-    let (current, valid_shape) = match &field {
-        Ok(Some(YamlFieldValue::StringSequence(values))) => (values.clone(), true),
-        Ok(None) => (Vec::new(), true),
+    let (current, valid_shape, exists) = match &field {
+        Ok(Some(YamlFieldValue::StringSequence(values))) => (values.clone(), true, true),
+        Ok(None) => (Vec::new(), true, false),
         Ok(Some(_)) | Err(_) => {
             support::push_shape_finding(
                 key,
                 support::list_attribution(requirement, forbidden_globs),
                 findings,
             );
-            (Vec::new(), false)
+            (Vec::new(), false, true)
         }
     };
-    support::push_forbidden_selector_findings(key, &current, &compiled_globs, findings);
-    let mut desired = desired_list(&current, requirement);
-    let requirement_changed = desired != current;
+    if valid_shape {
+        push_list_findings(key, &current, exists, requirement, findings);
+        support::push_forbidden_selector_findings(key, &current, &compiled_globs, findings);
+    }
+    let mut desired = apply_list_requirements(&current, requirement);
     desired.retain(|item| {
         !compiled_globs
             .iter()
             .any(|glob| glob.matcher.is_match(item))
     });
-    if requirement_changed {
-        support::push_collection_mismatch(
-            key,
-            support::list_message(requirement),
-            support::list_attribution(requirement, forbidden_globs),
-            None,
-            findings,
-        );
-    }
-    if desired != current || !valid_shape {
+    if desired != current || !valid_shape || (!exists && requirement.exact.is_some()) {
         document.set_string_sequence(key, &desired);
     }
 }
 
-fn desired_list(current: &[String], requirement: &ResolvedListRequirements) -> Vec<String> {
-    let mut desired = requirement
-        .exact
-        .as_ref()
-        .map_or_else(|| current.to_vec(), |exact| exact.merged.clone());
-    for item in requirement.contains.keys() {
-        if !desired.contains(item) {
-            desired.push(item.clone());
+fn push_list_findings(
+    key: &str,
+    current: &[String],
+    exists: bool,
+    requirement: &ResolvedListRequirements,
+    findings: &mut Vec<Finding>,
+) {
+    if !exists {
+        if let Some(exact) = &requirement.exact {
+            findings.push(Finding::Mismatch {
+                key: key.to_owned(),
+                selector: None,
+                current: None,
+                expected: format!("{:?}", exact.merged),
+                message: exact_message(exact),
+                severity: Severity::Error,
+                attribution: exact.attribution(),
+            });
+            return;
         }
     }
-    desired.retain(|item| !requirement.excludes.contains_key(item));
-    desired
+    for (item, resolved) in &requirement.contains {
+        if !current.contains(item) {
+            push_list_member_finding(
+                key,
+                item,
+                None,
+                "present".to_owned(),
+                first_member_message(resolved),
+                resolved.attribution(),
+                findings,
+            );
+        }
+    }
+    for (item, resolved) in &requirement.excludes {
+        if current.contains(item) {
+            push_list_member_finding(
+                key,
+                item,
+                Some(item.clone()),
+                "absent".to_owned(),
+                first_member_message(resolved),
+                resolved.attribution(),
+                findings,
+            );
+        }
+    }
+    let Some(exact) = &requirement.exact else {
+        return;
+    };
+    let difference = exact_list_difference(current, &exact.merged);
+    let message = exact_message(exact);
+    for item in difference.missing().keys() {
+        push_list_member_finding(
+            key,
+            item,
+            Some(format!("count {}", difference.current_count(item))),
+            format!("count {}", difference.expected_count(item)),
+            message.clone(),
+            exact.attribution(),
+            findings,
+        );
+    }
+    for item in difference.unexpected().keys() {
+        push_list_member_finding(
+            key,
+            item,
+            Some(format!("count {}", difference.current_count(item))),
+            format!("count {}", difference.expected_count(item)),
+            message.clone(),
+            exact.attribution(),
+            findings,
+        );
+    }
+    if difference.order_mismatch() {
+        findings.push(Finding::Mismatch {
+            key: key.to_owned(),
+            selector: None,
+            current: Some(format!("{current:?}")),
+            expected: format!("{:?}", exact.merged),
+            message,
+            severity: Severity::Error,
+            attribution: exact.attribution(),
+        });
+    }
+}
+
+#[allow(clippy::too_many_arguments)] // reason: finding construction keeps every reported field explicit.
+fn push_list_member_finding(
+    key: &str,
+    item: &str,
+    current: Option<String>,
+    expected: String,
+    message: String,
+    attribution: Vec<aqc_file_engine_core::Provenance>,
+    findings: &mut Vec<Finding>,
+) {
+    findings.push(Finding::Mismatch {
+        key: key.to_owned(),
+        selector: Some(item.to_owned()),
+        current,
+        expected,
+        message,
+        severity: Severity::Error,
+        attribution,
+    });
+}
+
+fn first_member_message(
+    resolved: &aqc_file_engine_core::ResolvedRequirement<(), String>,
+) -> String {
+    resolved
+        .collected
+        .first()
+        .map_or_else(String::new, |(_, message)| message.clone())
+}
+
+fn exact_message(
+    exact: &aqc_file_engine_core::ResolvedRequirement<Vec<String>, (Vec<String>, String)>,
+) -> String {
+    exact
+        .collected
+        .first()
+        .map_or_else(String::new, |(_, (_, message))| message.clone())
 }
 
 fn apply_allow_builds(

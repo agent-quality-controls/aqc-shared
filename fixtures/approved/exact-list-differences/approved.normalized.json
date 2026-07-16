@@ -1,0 +1,180 @@
+{
+  "cases": [
+    {
+      "fixture": "contracts.json",
+      "result": {
+        "absentExactEmpty": {
+          "json": {
+            "expectedBytes": "{\n  \"items\": []\n}",
+            "findings": [
+              {
+                "current": null,
+                "expected": "exact []",
+                "key": "/items",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": null
+              }
+            ]
+          },
+          "toml": {
+            "expectedBytes": "ignore = []\n",
+            "findings": [
+              {
+                "current": null,
+                "expected": "[]",
+                "key": "ignore",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": null
+              }
+            ]
+          },
+          "yaml": {
+            "expectedBytes": "existing: true\ntrustPolicyExclude: []\n",
+            "findings": [
+              {
+                "current": null,
+                "expected": "[]",
+                "key": "trustPolicyExclude",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": null
+              }
+            ]
+          }
+        },
+        "membership": {
+          "json": {
+            "expectedBytes": "{\"items\":[\"required\"]}",
+            "findings": [
+              {
+                "current": "count 0",
+                "expected": "count 1",
+                "key": "/items",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": "required"
+              },
+              {
+                "current": "count 1",
+                "expected": "count 0",
+                "key": "/items",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": "extra"
+              }
+            ]
+          },
+          "toml": {
+            "expectedBytes": "ignore = [\"required\"]\n",
+            "findings": [
+              {
+                "current": "count 0",
+                "expected": "count 1",
+                "key": "ignore.required",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": "required"
+              },
+              {
+                "current": "count 1",
+                "expected": "count 0",
+                "key": "ignore.extra",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": "extra"
+              }
+            ]
+          },
+          "yaml": {
+            "expectedBytes": "trustPolicyExclude:\n- required\n",
+            "findings": [
+              {
+                "current": "count 0",
+                "expected": "count 1",
+                "key": "trustPolicyExclude",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": "required"
+              },
+              {
+                "current": "count 1",
+                "expected": "count 0",
+                "key": "trustPolicyExclude",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": "extra"
+              }
+            ]
+          }
+        },
+        "order": {
+          "json": {
+            "expectedBytes": "{\"items\":[\"a\", \"b\"]}",
+            "findings": [
+              {
+                "current": "[b, a]",
+                "expected": "exact [a, b]",
+                "key": "/items",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": null
+              }
+            ]
+          },
+          "toml": {
+            "expectedBytes": "ignore = [\"a\", \"b\"]\n",
+            "findings": [
+              {
+                "current": "[\"b\", \"a\"]",
+                "expected": "[\"a\", \"b\"]",
+                "key": "ignore",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": null
+              }
+            ]
+          },
+          "yaml": {
+            "expectedBytes": "trustPolicyExclude:\n- a\n- b\n",
+            "findings": [
+              {
+                "current": "[\"b\", \"a\"]",
+                "expected": "[\"a\", \"b\"]",
+                "key": "trustPolicyExclude",
+                "kind": "mismatch",
+                "policies": [
+                  "fixture-policy"
+                ],
+                "selector": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

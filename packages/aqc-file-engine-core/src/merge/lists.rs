@@ -1,13 +1,76 @@
 //! List requirement merge functions.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    ConflictEntry, Contributor, ExactInput, ListInput, ListRequirements, MemberInputs,
-    ResolvedExactList, ResolvedListRequirements, ResolvedRequirement, ResolvedStringMembers,
-    resolve_all_equal, sort_provenanced,
+    ConflictEntry, Contributor, ExactInput, ExactListDifference, ListInput, ListRequirements,
+    MemberInputs, ResolvedExactList, ResolvedListRequirements, ResolvedRequirement,
+    ResolvedStringMembers, resolve_all_equal, sort_provenanced,
 };
 use crate::{FindingKey, types::Provenance};
+
+/// Compare exact lists as multisets, reporting order only when membership agrees.
+#[must_use]
+pub fn exact_list_difference(current: &[String], expected: &[String]) -> ExactListDifference {
+    let current_counts = list_counts(current);
+    let expected_counts = list_counts(expected);
+    let mut missing = BTreeMap::new();
+    let mut unexpected = BTreeMap::new();
+
+    for (value, expected_count) in &expected_counts {
+        let current_count = current_counts.get(value).copied().unwrap_or_default();
+        let difference = expected_count.saturating_sub(current_count);
+        if difference > 0 {
+            let _ = missing.insert(value.clone(), difference);
+        }
+    }
+    for (value, current_count) in &current_counts {
+        let expected_count = expected_counts.get(value).copied().unwrap_or_default();
+        let difference = current_count.saturating_sub(expected_count);
+        if difference > 0 {
+            let _ = unexpected.insert(value.clone(), difference);
+        }
+    }
+
+    let order_mismatch = missing.is_empty() && unexpected.is_empty() && current != expected;
+    ExactListDifference::new(
+        current_counts,
+        expected_counts,
+        missing,
+        unexpected,
+        order_mismatch,
+    )
+}
+
+/// Apply resolved list requirements to current string values.
+#[must_use]
+pub fn apply_list_requirements(
+    current: &[String],
+    requirements: &ResolvedListRequirements,
+) -> Vec<String> {
+    let mut desired = requirements
+        .exact
+        .as_ref()
+        .map_or_else(|| current.to_vec(), |exact| exact.merged.clone());
+    for item in requirements.contains.keys() {
+        if !desired.contains(item) {
+            desired.push(item.clone());
+        }
+    }
+    desired.retain(|item| !requirements.excludes.contains_key(item));
+    desired
+}
+
+fn list_counts(values: &[String]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::<String, usize>::new();
+    for value in values {
+        let _ = counts
+            .entry(value.clone())
+            .and_modify(|count| *count = count.saturating_add(1))
+            .or_insert(1);
+    }
+    counts
+}
 
 pub fn resolve_list<Key>(
     key: &Key,

@@ -11,6 +11,8 @@ allow-wildcard-paths = false
 highlight = "all"
 skip = []
 deny = [
+    { name = "shakts-cspell-policy", wrappers = [], reason = "Forbidden by repository dependency boundary: policies" },
+    { name = "shakts-cspell-adapter", wrappers = [], reason = "Forbidden by repository dependency boundary: sibling adapters" },
     { name = "aqc-json-engine-core", wrappers = [], reason = "Dependency boundary: unrelated AQC workspaces must not depend on JSON engine infrastructure" },
     { name = "aqc-tsconfig-json-engine", wrappers = [], reason = "Dependency boundary: aqc-rust-toolchain-toml-engine must not depend on file engine crates" },
     { name = "shakts-tsc-adapter", wrappers = [], reason = "Dependency boundary: aqc-rust-toolchain-toml-engine must not depend on adapter crates" },

@@ -12,8 +12,8 @@ use aqc_file_engine_core::{
 use aqc_toml_engine_core::{
     ListFieldKeyStyle, ScalarFieldEdit, TomlArrayItem, TomlArrayTableItem, TomlItemError,
     TomlItemField, parse_or_report, reconcile_array_items, reconcile_array_table_items,
-    reconcile_list_field, report_list_shape, scalar_field_edit, table_at, table_list_values,
-    write_table_list,
+    reconcile_list_field, reconcile_optional_list_field, report_list_shape, scalar_field_edit,
+    table_at, table_list_values, write_table_list,
 };
 use toml_edit::{DocumentMut, Table, TableLike, Value};
 
@@ -101,8 +101,12 @@ impl TomlArrayTableItem for TestItem {
 }
 
 fn provenance() -> Provenance {
+    provenance_named("policy")
+}
+
+fn provenance_named(policy: &str) -> Provenance {
     Provenance {
-        policy: "policy".to_owned(),
+        policy: policy.to_owned(),
     }
 }
 
@@ -388,6 +392,13 @@ fn reconcile_list_field_applies_contains_excludes_and_exact() {
 
     assert_eq!(updated, Some(vec!["kept".to_owned(), "new".to_owned()]));
     assert_eq!(findings.len(), 2);
+    assert!(findings.iter().all(|finding| matches!(
+        finding,
+        Finding::Mismatch {
+            selector: Some(_),
+            ..
+        }
+    )));
 
     requirements.contains.clear();
     requirements.excludes.clear();
@@ -402,6 +413,154 @@ fn reconcile_list_field_applies_contains_excludes_and_exact() {
     );
 
     assert_eq!(updated_exact, Some(vec!["only".to_owned()]));
+}
+
+#[test]
+fn exact_list_findings_are_member_specific_order_aware_and_presence_aware() {
+    let requirements = ListRequirements {
+        exact: Some((
+            vec!["a".to_owned(), "a".to_owned(), "b".to_owned()],
+            "exact".to_owned(),
+        )),
+        ..ListRequirements::default()
+    };
+    let mut conflicts = Vec::new();
+    let resolved = resolve_list("values", vec![(provenance(), requirements)], &mut conflicts);
+    assert!(conflicts.is_empty());
+
+    let mut membership_findings = Vec::new();
+    let membership = reconcile_list_field(
+        "values".to_owned(),
+        vec!["a".to_owned(), "c".to_owned()],
+        &resolved,
+        ListFieldKeyStyle::Field,
+        &mut membership_findings,
+    );
+    assert_eq!(
+        membership,
+        Some(vec!["a".to_owned(), "a".to_owned(), "b".to_owned()])
+    );
+    let selectors = membership_findings
+        .iter()
+        .filter_map(|finding| match finding {
+            Finding::Mismatch { selector, .. } => selector.clone(),
+            Finding::UnwritableRequiredKey { .. }
+            | Finding::InvalidRequirements { .. }
+            | Finding::ParseError { .. }
+            | Finding::ConflictingRequirements { .. }
+            | Finding::InternalError { .. } => None,
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        selectors,
+        BTreeSet::from(["a".to_owned(), "b".to_owned(), "c".to_owned()])
+    );
+
+    let mut order_findings = Vec::new();
+    let _ = reconcile_list_field(
+        "values".to_owned(),
+        vec!["b".to_owned(), "a".to_owned(), "a".to_owned()],
+        &resolved,
+        ListFieldKeyStyle::Field,
+        &mut order_findings,
+    );
+    assert!(matches!(
+        order_findings.as_slice(),
+        [Finding::Mismatch { selector: None, .. }]
+    ));
+
+    let empty_requirements = ListRequirements {
+        exact: Some((Vec::new(), "empty".to_owned())),
+        ..ListRequirements::default()
+    };
+    let empty_resolved = resolve_list(
+        "values",
+        vec![(provenance(), empty_requirements)],
+        &mut conflicts,
+    );
+    let mut missing_findings = Vec::new();
+    let missing = reconcile_optional_list_field(
+        "values".to_owned(),
+        None,
+        &empty_resolved,
+        ListFieldKeyStyle::Field,
+        &mut missing_findings,
+    );
+    assert_eq!(missing, Some(Vec::new()));
+    assert!(matches!(
+        missing_findings.as_slice(),
+        [Finding::Mismatch {
+            selector: None,
+            current: None,
+            ..
+        }]
+    ));
+}
+
+#[test]
+fn compatible_exact_member_assertions_share_toml_member_identity() {
+    let exact = ListRequirements {
+        exact: Some((vec!["react".to_owned()], "exact".to_owned())),
+        ..ListRequirements::default()
+    };
+    let contains = ListRequirements {
+        contains: BTreeMap::from([("react".to_owned(), "contains".to_owned())]),
+        ..ListRequirements::default()
+    };
+    let excludes = ListRequirements {
+        excludes: BTreeMap::from([("blocked".to_owned(), "excludes".to_owned())]),
+        ..ListRequirements::default()
+    };
+    let mut conflicts = Vec::new();
+    let resolved = resolve_list(
+        "values",
+        vec![
+            (provenance_named("exact-policy"), exact),
+            (provenance_named("contains-policy"), contains),
+            (provenance_named("excludes-policy"), excludes),
+        ],
+        &mut conflicts,
+    );
+    assert!(conflicts.is_empty());
+    let mut findings = Vec::new();
+    let _ = reconcile_list_field(
+        "values".to_owned(),
+        Vec::new(),
+        &resolved,
+        ListFieldKeyStyle::FieldItem,
+        &mut findings,
+    );
+    assert_eq!(findings.len(), 2);
+    for (message, policy) in [("exact", "exact-policy"), ("contains", "contains-policy")] {
+        assert!(findings.iter().any(|finding| matches!(
+            finding,
+            Finding::Mismatch { key, selector: Some(selector), message: found_message, attribution, .. }
+                if key == "values.react"
+                    && selector == "react"
+                    && found_message == message
+                    && attribution == &vec![provenance_named(policy)]
+        )));
+    }
+
+    let mut excluded_findings = Vec::new();
+    let _ = reconcile_list_field(
+        "values".to_owned(),
+        vec!["react".to_owned(), "blocked".to_owned()],
+        &resolved,
+        ListFieldKeyStyle::FieldItem,
+        &mut excluded_findings,
+    );
+    assert_eq!(excluded_findings.len(), 2);
+    for (message, policy) in [("exact", "exact-policy"), ("excludes", "excludes-policy")] {
+        assert!(excluded_findings.iter().any(|finding| matches!(
+            finding,
+            Finding::Mismatch { key, selector: Some(selector), message: found_message, attribution, .. }
+                if key == "values.blocked"
+                    && selector == "blocked"
+                    && found_message == message
+                    && attribution == &vec![provenance_named(policy)]
+        )));
+    }
 }
 
 #[test]

@@ -3,7 +3,8 @@
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    Finding, Provenance, ResolvedListRequirements, Severity, merge::Contributor,
+    Finding, Provenance, ResolvedListRequirements, Severity, apply_list_requirements,
+    exact_list_difference, merge::Contributor,
 };
 use toml_edit::{Array, DocumentMut, Item, Table, TableLike, Value};
 
@@ -92,7 +93,58 @@ pub fn reconcile_table_list_field(
     )
 }
 
+/// Reconcile an optional table string-array field without erasing absence.
+pub fn reconcile_optional_table_list_field(
+    display_key: String,
+    current: Option<Vec<String>>,
+    requirements: &ResolvedListRequirements,
+    findings: &mut Vec<Finding>,
+) -> Option<Vec<String>> {
+    reconcile_optional_list_field(
+        display_key,
+        current,
+        requirements,
+        ListFieldKeyStyle::Field,
+        findings,
+    )
+}
+
+/// Reconcile an optional string-list field without erasing absence.
+pub fn reconcile_optional_list_field(
+    display_key: String,
+    current: Option<Vec<String>>,
+    requirements: &ResolvedListRequirements,
+    key_style: ListFieldKeyStyle,
+    findings: &mut Vec<Finding>,
+) -> Option<Vec<String>> {
+    if current.is_none() {
+        if let Some(exact) = &requirements.exact {
+            findings.push(Finding::Mismatch {
+                key: display_key,
+                selector: None,
+                current: None,
+                expected: format!("{:?}", exact.merged),
+                message: exact_message(exact),
+                severity: Severity::Error,
+                attribution: exact.attribution(),
+            });
+            return Some(exact.merged.clone());
+        }
+    }
+    reconcile_list_field(
+        display_key,
+        current.unwrap_or_default(),
+        requirements,
+        key_style,
+        findings,
+    )
+}
+
 /// Reconcile a string-list field and return the replacement list.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "The published function retains its owned display-key contract in this patch release."
+)]
 pub fn reconcile_list_field(
     display_key: String,
     current: Vec<String>,
@@ -101,6 +153,7 @@ pub fn reconcile_list_field(
     findings: &mut Vec<Finding>,
 ) -> Option<Vec<String>> {
     let mut changed = false;
+    let exact_current = current.clone();
     let mut out = current;
 
     for (item, entry) in &requirements.contains {
@@ -113,7 +166,7 @@ pub fn reconcile_list_field(
         let key = list_item_key(&display_key, item, key_style);
         findings.push(Finding::Mismatch {
             key,
-            selector: None,
+            selector: Some(item.clone()),
             current: Some(format!("{out:?}")),
             expected: format!("contains {item:?}"),
             message: msg,
@@ -133,7 +186,7 @@ pub fn reconcile_list_field(
         let key = list_item_key(&display_key, item, key_style);
         findings.push(Finding::Mismatch {
             key,
-            selector: None,
+            selector: Some(item.clone()),
             current: Some(format!("{out:?}")),
             expected: format!("excludes {item:?}"),
             message: msg,
@@ -146,28 +199,102 @@ pub fn reconcile_list_field(
 
     if let Some(exact) = &requirements.exact {
         let expected = exact.merged.clone();
-        if out != expected {
+        let difference = exact_list_difference(&exact_current, &expected);
+        if !difference.is_empty() {
             let attribution = exact.attribution();
-            let msg = exact
-                .collected
-                .first()
-                .map(|(_, (_, msg))| msg.clone())
-                .unwrap_or_default();
-            findings.push(Finding::Mismatch {
-                key: display_key,
-                selector: None,
-                current: Some(format!("{out:?}")),
-                expected: format!("{expected:?}"),
-                message: msg,
-                severity: Severity::Error,
-                attribution,
-            });
-            out = expected;
+            let msg = exact_message(exact);
+            push_exact_member_findings(
+                &display_key,
+                key_style,
+                &exact_current,
+                &expected,
+                &difference,
+                &msg,
+                &attribution,
+                findings,
+            );
             changed = true;
         }
     }
 
-    changed.then_some(out)
+    changed.then(|| apply_list_requirements(&exact_current, requirements))
+}
+
+#[allow(clippy::too_many_arguments)] // reason: exact-list diagnostics keep syntax and attribution inputs explicit.
+fn push_exact_member_findings(
+    display_key: &str,
+    key_style: ListFieldKeyStyle,
+    current: &[String],
+    expected: &[String],
+    difference: &aqc_file_engine_core::ExactListDifference,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    for item in difference.missing().keys() {
+        push_exact_member_finding(
+            list_item_key(display_key, item, key_style),
+            item,
+            difference.current_count(item),
+            difference.expected_count(item),
+            message,
+            attribution,
+            findings,
+        );
+    }
+    for item in difference.unexpected().keys() {
+        push_exact_member_finding(
+            list_item_key(display_key, item, key_style),
+            item,
+            difference.current_count(item),
+            difference.expected_count(item),
+            message,
+            attribution,
+            findings,
+        );
+    }
+    if difference.order_mismatch() {
+        findings.push(Finding::Mismatch {
+            key: display_key.to_owned(),
+            selector: None,
+            current: Some(format!("{current:?}")),
+            expected: format!("{expected:?}"),
+            message: message.to_owned(),
+            severity: Severity::Error,
+            attribution: attribution.to_vec(),
+        });
+    }
+}
+
+#[allow(clippy::too_many_arguments)] // reason: finding construction keeps every reported field explicit.
+fn push_exact_member_finding(
+    key: String,
+    item: &str,
+    current_count: usize,
+    expected_count: usize,
+    message: &str,
+    attribution: &[Provenance],
+    findings: &mut Vec<Finding>,
+) {
+    findings.push(Finding::Mismatch {
+        key,
+        selector: Some(item.to_owned()),
+        current: Some(format!("count {current_count}")),
+        expected: format!("count {expected_count}"),
+        message: message.to_owned(),
+        severity: Severity::Error,
+        attribution: attribution.to_vec(),
+    });
+}
+
+fn exact_message(
+    exact: &aqc_file_engine_core::ResolvedRequirement<Vec<String>, (Vec<String>, String)>,
+) -> String {
+    exact
+        .collected
+        .first()
+        .map(|(_, (_, msg))| msg.clone())
+        .unwrap_or_default()
 }
 
 /// Builds the mismatch finding key for one list item.
@@ -225,8 +352,24 @@ pub fn report_list_shape(
     requirements: &ResolvedListRequirements,
     findings: &mut Vec<Finding>,
 ) -> bool {
+    report_list_item_shape(doc.get(key), key, requirements, findings)
+}
+
+/// Report malformed list shape for an optional TOML item.
+pub fn report_list_item_shape(
+    item: Option<&Item>,
+    display_key: &str,
+    requirements: &ResolvedListRequirements,
+    findings: &mut Vec<Finding>,
+) -> bool {
     let attr = list_attribution(requirements);
-    report_list_shape_with_message(doc, key, list_message(requirements), &attr, findings)
+    report_item_list_shape_with_message(
+        item,
+        display_key,
+        list_message(requirements),
+        &attr,
+        findings,
+    )
 }
 
 /// Report malformed list shape before applying non-list-backed requirements.
@@ -237,7 +380,17 @@ pub fn report_list_shape_with_message(
     attr: &[Provenance],
     findings: &mut Vec<Finding>,
 ) -> bool {
-    let Some(item) = doc.get(key) else {
+    report_item_list_shape_with_message(doc.get(key), key, message, attr, findings)
+}
+
+fn report_item_list_shape_with_message(
+    item: Option<&Item>,
+    key: &str,
+    message: String,
+    attr: &[Provenance],
+    findings: &mut Vec<Finding>,
+) -> bool {
+    let Some(item) = item else {
         return false;
     };
     let Some(array) = item.as_array() else {

@@ -1,7 +1,7 @@
 //! List deny.toml reconciliation.
 
-use aqc_file_engine_core::{Finding, Provenance, Severity};
-use aqc_toml_engine_core::{ListFieldKeyStyle, reconcile_list_field, report_list_shape};
+use aqc_file_engine_core::{Finding, Provenance, Severity, apply_list_requirements};
+use aqc_toml_engine_core::{ListFieldKeyStyle, reconcile_optional_list_field, report_list_shape};
 use toml_edit::{DocumentMut, Item};
 
 use crate::requirement::ResolvedDenyTomlRequirements;
@@ -134,14 +134,28 @@ fn apply_list(
         return;
     }
 
-    report_nested_list_shape(
+    if report_nested_list_shape(
         doc,
         table_path,
         field_key,
         display_key,
         requirement,
         findings,
-    );
+    ) {
+        let current = table_item(doc, table_path, field_key)
+            .and_then(Item::as_array)
+            .map(|array| {
+                array
+                    .iter()
+                    .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let updated = apply_list_requirements(&current, requirement);
+        let table = ensure_table_path(doc, table_path);
+        table[field_key] = string_array_item(&updated);
+        return;
+    }
     let current = table_item(doc, table_path, field_key)
         .and_then(Item::as_array)
         .map(|array| {
@@ -149,9 +163,8 @@ fn apply_list(
                 .iter()
                 .filter_map(|value| value.as_str().map(ToOwned::to_owned))
                 .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let Some(updated) = reconcile_list_field(
+        });
+    let Some(updated) = reconcile_optional_list_field(
         display_key.to_owned(),
         current,
         requirement,
@@ -171,13 +184,12 @@ fn report_nested_list_shape(
     display_key: &str,
     requirement: &aqc_file_engine_core::ResolvedListRequirements,
     findings: &mut Vec<Finding>,
-) {
+) -> bool {
     if table_path.is_empty() {
-        let _ = report_list_shape(doc, display_key, requirement, findings);
-        return;
+        return report_list_shape(doc, display_key, requirement, findings);
     }
     let Some(item) = table_item(doc, table_path, field_key) else {
-        return;
+        return false;
     };
     let attribution = list_attribution(requirement);
     let message = list_message(requirement);
@@ -191,12 +203,14 @@ fn report_nested_list_shape(
             severity: Severity::Error,
             attribution,
         });
-        return;
+        return true;
     };
+    let mut malformed = false;
     for (index, value) in array.iter().enumerate() {
         if value.as_str().is_some() {
             continue;
         }
+        malformed = true;
         findings.push(Finding::Mismatch {
             key: format!("{display_key}[{index}]"),
             selector: None,
@@ -207,6 +221,7 @@ fn report_nested_list_shape(
             attribution: attribution.clone(),
         });
     }
+    malformed
 }
 
 fn list_message(requirement: &aqc_file_engine_core::ResolvedListRequirements) -> String {

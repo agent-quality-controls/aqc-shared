@@ -1,0 +1,457 @@
+{
+  "version": 4,
+  "requirements": {
+    "tree": {
+      "verifier": ["builtin:tree"],
+      "reason": "The exact-list change has one core contract, three format integrations, all optional TOML callers, and one cross-format Fixture3 probe.",
+      "required": [
+        "fixture3.yaml",
+        "fixtures/approved/exact-list-differences/approved.meta.json",
+        "fixtures/approved/exact-list-differences/approved.normalized.json",
+        "fixtures/exact-list-differences/contracts.json",
+        "fixtures/probes/exact-list-differences/Cargo.lock",
+        "fixtures/probes/exact-list-differences/Cargo.toml",
+        "fixtures/probes/exact-list-differences/guardrail3-rs.toml",
+        "fixtures/probes/exact-list-differences/src/main.rs",
+        "fixtures/scripts/fixture3-exact-list-differences.py",
+        "packages/aqc-file-engine-core/src/lib.rs",
+        "packages/aqc-file-engine-core/src/merge/lists.rs",
+        "packages/aqc-file-engine-core/src/merge/mod.rs",
+        "packages/aqc-file-engine-core/src/merge/model.rs",
+        "packages/aqc-file-engine-core/tests/exact_list_difference.rs",
+        "packages/file-types/json/aqc-json-engine-core/Cargo.lock",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/mod.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/document.rs",
+        "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/lists.rs",
+        "packages/file-types/json/aqc-json-file-engine/tests/contract.rs",
+        "packages/file-types/json/aqc-package-json-engine/Cargo.lock",
+        "packages/file-types/jsonc/aqc-tsconfig-json-engine/Cargo.lock",
+        "packages/file-types/text/aqc-text-file-engine/Cargo.lock",
+        "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_fields.rs",
+        "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/target_tables.rs",
+        "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/workspace_fields.rs",
+        "packages/file-types/toml/aqc-cargo-toml-engine/tests/attribution_scalars.rs",
+        "packages/file-types/toml/aqc-clippy-toml-engine/Cargo.lock",
+        "packages/file-types/toml/aqc-deny-toml-engine/src/reconcile/lists.rs",
+        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/reconcile/settings.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings/list.rs",
+        "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/reconcile_lists.rs",
+        "packages/file-types/toml/aqc-toml-engine-core/src/lib.rs",
+        "packages/file-types/toml/aqc-toml-engine-core/src/lists.rs",
+        "packages/file-types/toml/aqc-toml-engine-core/tests/core_contract.rs",
+        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/runtime/reconcile/apply.rs",
+        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/runtime/reconcile/support.rs",
+        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/tests/contract.rs",
+        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/tests/engine_requirement.rs",
+        "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.lock",
+        "specs/exact-list-differences.spec.coverage.md",
+        "specs/exact-list-differences.spec.json",
+        "specs/verifiers/verify-exact-list-differences.py"
+      ]
+    },
+    "content": [
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/src/merge/model.rs"],
+        "exists": [
+          "pub struct ExactListDifference",
+          "current_counts: BTreeMap<String, usize>",
+          "expected_counts: BTreeMap<String, usize>",
+          "missing: BTreeMap<String, usize>",
+          "unexpected: BTreeMap<String, usize>",
+          "order_mismatch: bool",
+          "pub const fn missing(&self) -> &BTreeMap<String, usize>",
+          "pub const fn unexpected(&self) -> &BTreeMap<String, usize>",
+          "pub const fn order_mismatch(&self) -> bool",
+          "pub fn current_count(&self, member: &str) -> usize",
+          "pub fn expected_count(&self, member: &str) -> usize",
+          "pub fn is_empty(&self) -> bool"
+        ],
+        "reason": "The universal result exposes positive multiset deltas and an exclusive order-only state without format concepts."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/src/merge/lists.rs"],
+        "exists": [
+          "pub fn exact_list_difference(",
+          "pub fn apply_list_requirements(",
+          "current:",
+          "expected:",
+          ") -> ExactListDifference"
+        ],
+        "forbidden": [
+          "Finding::",
+          "selector:",
+          "serde_json",
+          "toml_edit",
+          "yaml_edit",
+          "std::fs",
+          "std::path",
+          "std::process",
+          "std::env",
+          "std::net"
+        ],
+        "reason": "Core computes differences and desired list values only; rendering, findings, formats, IO, and process state remain outside it."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/src/lib.rs"],
+        "exists": ["ExactListDifference", "exact_list_difference", "apply_list_requirements"],
+        "reason": "The additive core API is re-exported from the crate facade."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/src/**/*.rs"],
+        "forbidden": [
+          "AllowedListRequirements",
+          "ClosedListRequirements",
+          "AllowedListAssertion",
+          "ClosedListAssertion",
+          "allowed_items",
+          "closed_items",
+          "shackles_",
+          "shakrs_",
+          "shakts_"
+        ],
+        "reason": "The core vocabulary remains contains, excludes, and exact, with no compatibility assertion or product vocabulary."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/lists.rs"],
+        "required": ["exact_list_difference", "apply_list_requirements"],
+        "exists": [
+          ".missing()",
+          ".unexpected()",
+          ".order_mismatch()",
+          "selector: Some("
+        ],
+        "reason": "JSON delegates exact comparison to core and emits member selectors while retaining a selectorless order case."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-toml-engine-core/src/lists.rs"],
+        "required": ["exact_list_difference", "apply_list_requirements"],
+        "exists": [
+          "pub fn reconcile_optional_list_field(",
+          "current: Option<Vec<String>>",
+          "pub fn reconcile_optional_table_list_field(",
+          "pub fn report_list_item_shape(",
+          ".current_count(",
+          ".expected_count(",
+          ".missing()",
+          ".unexpected()",
+          ".order_mismatch()"
+        ],
+        "reason": "TOML owns presence handling and format rendering, then delegates known-present exact comparison to core."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-toml-engine-core/src/lib.rs"],
+        "exists": [
+          "reconcile_optional_list_field",
+          "reconcile_optional_table_list_field",
+          "reconcile_list_field",
+          "reconcile_table_list_field",
+          "report_list_item_shape"
+        ],
+        "reason": "Presence-aware entry points are public alongside the lower-level known-present APIs."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": [
+          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_fields.rs",
+          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/target_tables.rs",
+          "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/workspace_fields.rs"
+        ],
+        "required": ["reconcile_optional_table_list_field", "report_list_item_shape"],
+        "reason": "Every Cargo TOML caller preserves absent table-list fields until the presence-aware core entry point."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": [
+          "packages/file-types/toml/aqc-deny-toml-engine/src/reconcile/lists.rs",
+          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/reconcile/settings.rs",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/src/reconcile/settings/list.rs"
+        ],
+        "required": ["reconcile_optional_list_field"],
+        "reason": "Deny, rust-toolchain, and rustfmt preserve absent list fields until the presence-aware core entry point."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/runtime/reconcile/apply.rs"],
+        "required": ["exact_list_difference", "apply_list_requirements"],
+        "exists": [
+          ".missing()",
+          ".unexpected()",
+          ".order_mismatch()",
+          "selector: Some("
+        ],
+        "reason": "YAML delegates exact comparison to core and reports member-specific findings without moving YAML mutation into core."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/aqc-file-engine-core/Cargo.toml"],
+        "required": ["version = \"0.7.2\"", "publish = true"],
+        "forbidden": ["path ="],
+        "reason": "The additive core API is released as publishable patch version 0.7.2 with no local path dependency."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/json/aqc-json-file-engine/Cargo.toml"],
+        "required": [
+          "version = \"0.1.1\"",
+          "aqc-file-engine-core = { version = \"0.7.2\"",
+          "publish = true"
+        ],
+        "forbidden": ["path ="],
+        "reason": "The JSON engine takes the core patch and publishes only its diagnostic patch."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/toml/aqc-toml-engine-core/Cargo.toml"],
+        "required": [
+          "version = \"0.8.1\"",
+          "aqc-file-engine-core = \"0.7.2\"",
+          "publish = true"
+        ],
+        "forbidden": ["path ="],
+        "reason": "The TOML core takes the core patch and publishes its presence-aware diagnostic patch."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": [
+          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
+        ],
+        "required": [
+          "version = \"0.7.2\"",
+          "aqc-file-engine-core = \"0.7.2\"",
+          "aqc-toml-engine-core = \"0.8.1\"",
+          "publish = true"
+        ],
+        "forbidden": ["path ="],
+        "reason": "Every TOML runtime caller moves to the coordinated patch generation."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"],
+        "required": [
+          "version = \"0.7.2\"",
+          "aqc-file-engine-core = \"0.7.2\"",
+          "publish = true"
+        ],
+        "forbidden": ["path ="],
+        "reason": "The pnpm YAML engine takes the core patch and publishes only its diagnostic patch."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["fixture3.yaml"],
+        "exists": [
+          "exact-list-differences:",
+          "specs/exact-list-differences.spec.json",
+          "fixtures/exact-list-differences/",
+          "fixtures/scripts/fixture3-exact-list-differences.py",
+          "fixtures/approved/exact-list-differences",
+          ".fixture3/exact-list-differences"
+        ],
+        "reason": "Fixture3 registers one cross-format contract suite under the repository storage conventions."
+      }
+    ],
+    "dependencies": [
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/aqc-file-engine-core/Cargo.toml"],
+        "forbidden": [
+          "aqc-json-file-engine",
+          "aqc-toml-engine-core",
+          "aqc-pnpm-workspace-yaml-engine"
+        ],
+        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "reason": "Universal file-engine core has no format-engine or product dependency."
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": [
+          "packages/file-types/json/aqc-json-file-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
+          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
+          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"
+        ],
+        "required": ["aqc-file-engine-core"],
+        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
+        "reason": "Every changed format crate consumes the shared difference API directly and remains product-independent."
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": [
+          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
+          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml"
+        ],
+        "required": ["aqc-toml-engine-core"],
+        "forbidden": ["aqc-json-file-engine", "aqc-pnpm-workspace-yaml-engine"],
+        "reason": "Concrete TOML engines use TOML core without crossing into sibling format engines."
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/json/aqc-json-file-engine/Cargo.toml"],
+        "forbidden": ["aqc-toml-engine-core", "aqc-pnpm-workspace-yaml-engine"],
+        "reason": "JSON reconciliation remains independent of TOML and YAML engines."
+      },
+      {
+        "verifier": ["builtin:cargo-dependencies"],
+        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"],
+        "required": ["aqc-yaml-engine-core"],
+        "forbidden": ["aqc-json-file-engine", "aqc-toml-engine-core"],
+        "reason": "YAML reconciliation remains independent of JSON and TOML engines."
+      }
+    ],
+    "exports": [
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "package": "aqc-file-engine-core",
+        "required": [
+          "ExactListDifference",
+          "exact_list_difference",
+          "apply_list_requirements"
+        ],
+        "forbidden": [
+          "AllowedListRequirements",
+          "ClosedListRequirements",
+          "allowed_list_difference",
+          "closed_list_difference"
+        ],
+        "reason": "The facade adds only the universal exact-list difference API."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "package": "aqc-toml-engine-core",
+        "required": [
+          "reconcile_list_field",
+          "reconcile_optional_list_field",
+          "reconcile_optional_table_list_field",
+          "reconcile_table_list_field"
+        ],
+        "reason": "TOML exposes presence-aware APIs without deleting its known-present primitives."
+      }
+    ],
+    "custom": [
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "difference-contract",
+        "reason": "Prove equality, replacement, duplicate counts, empty identities, lexical map order, positive counts, and order-only exclusivity."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "json-reconciliation-contract",
+        "reason": "Prove member selectors, count rendering, absence and wrong-shape handling, overlap attribution, order-only findings, exact desired bytes, and no duplicate whole-list finding."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "toml-reconciliation-contract",
+        "reason": "Prove member selectors, count rendering, absence-preserving exact-empty creation, overlap attribution, order-only findings, exact desired bytes, and no duplicate whole-list finding."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "yaml-reconciliation-contract",
+        "reason": "Prove member selectors for exact, contains, and excludes, duplicate counts, shape and absence handling, attribution, order-only findings, and exact desired bytes."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "preserved-requirement-contract",
+        "reason": "Prove exact-list merge, conflict, desired-byte, create-missing behavior, contains/excludes behavior, and forbidden-glob behavior remain intact."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "single-difference-implementation",
+        "reason": "Prove all three reconcilers call core and no format crate retains a local exact-list multiset or order calculation."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "optional-toml-callers",
+        "reason": "Prove every optional ListRequirements TOML caller preserves None through the presence-aware entry point."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "fixture3-contract",
+        "reason": "Run approved serialized-finding and expected-byte probes for JSON, TOML, and YAML."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/aqc-file-engine-core",
+        "reason": "Run all package gates for file-engine core."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/json/aqc-json-file-engine",
+        "reason": "Run all package gates for the JSON file engine."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/toml/aqc-toml-engine-core",
+        "reason": "Run all package gates for TOML engine core."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/toml/aqc-cargo-toml-engine",
+        "reason": "Run all package gates for Cargo TOML."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/toml/aqc-deny-toml-engine",
+        "reason": "Run all package gates for deny TOML."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/toml/aqc-rust-toolchain-toml-engine",
+        "reason": "Run all package gates for rust-toolchain TOML."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/toml/aqc-rustfmt-toml-engine",
+        "reason": "Run all package gates for rustfmt TOML."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "workspace-gates",
+        "workspace": "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine",
+        "reason": "Run all package gates for pnpm workspace YAML."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "dependency-generation",
+        "reason": "Prove one aqc-file-engine-core 0.7.2 and TOML-core 0.8.1 generation, regenerated affected locks, and no committed path dependency."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "unchanged-dependency-only-packages",
+        "packages": [
+          "aqc-package-json-engine",
+          "aqc-tsconfig-json-engine",
+          "aqc-text-file-engine",
+          "aqc-clippy-toml-engine",
+          "aqc-yaml-engine-core"
+        ],
+        "reason": "Dependency-only consumers retain their package versions and manifests while their existing semver ranges accept the patch generation."
+      },
+      {
+        "verifier": ["specs/verifiers/verify-exact-list-differences.py"],
+        "check": "changed-path-scope",
+        "reason": "Prove the implementation changes only the planned core, format integrations, optional TOML callers, tests, affected manifests and locks, fixtures, spec artifacts, plan, and worklog; release inventory remains unchanged."
+      }
+    ]
+  }
+}

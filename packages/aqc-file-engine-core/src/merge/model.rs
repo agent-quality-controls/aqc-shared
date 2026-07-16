@@ -304,6 +304,73 @@ pub struct ResolvedListRequirements {
     pub exact: Option<ResolvedExactList>,
 }
 
+/// Membership and order differences between two exact string lists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExactListDifference {
+    current_counts: BTreeMap<String, usize>,
+    expected_counts: BTreeMap<String, usize>,
+    missing: BTreeMap<String, usize>,
+    unexpected: BTreeMap<String, usize>,
+    order_mismatch: bool,
+}
+
+impl ExactListDifference {
+    pub(crate) const fn new(
+        current_counts: BTreeMap<String, usize>,
+        expected_counts: BTreeMap<String, usize>,
+        missing: BTreeMap<String, usize>,
+        unexpected: BTreeMap<String, usize>,
+        order_mismatch: bool,
+    ) -> Self {
+        Self {
+            current_counts,
+            expected_counts,
+            missing,
+            unexpected,
+            order_mismatch,
+        }
+    }
+
+    /// Number of occurrences in the current list.
+    #[must_use]
+    pub fn current_count(&self, member: &str) -> usize {
+        self.current_counts.get(member).copied().unwrap_or_default()
+    }
+
+    /// Number of occurrences in the expected list.
+    #[must_use]
+    pub fn expected_count(&self, member: &str) -> usize {
+        self.expected_counts
+            .get(member)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Expected member counts not present in the current list.
+    #[must_use]
+    pub const fn missing(&self) -> &BTreeMap<String, usize> {
+        &self.missing
+    }
+
+    /// Current member counts not allowed by the expected list.
+    #[must_use]
+    pub const fn unexpected(&self) -> &BTreeMap<String, usize> {
+        &self.unexpected
+    }
+
+    /// Whether only list order differs.
+    #[must_use]
+    pub const fn order_mismatch(&self) -> bool {
+        self.order_mismatch
+    }
+
+    /// Whether the current and expected lists are equal.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.missing.is_empty() && self.unexpected.is_empty() && !self.order_mismatch
+    }
+}
+
 /// Assertion types that compose several policy assertions into one value.
 pub trait Resolve: Sized + Clone {
     type Merged: Clone;

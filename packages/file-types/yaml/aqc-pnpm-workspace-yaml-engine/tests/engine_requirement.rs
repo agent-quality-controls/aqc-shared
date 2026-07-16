@@ -428,6 +428,140 @@ fn duplicate_selector_values_produce_one_finding() {
 }
 
 #[test]
+fn exact_list_differences_are_member_specific_order_aware_and_attributed() {
+    let exact = PnpmWorkspaceYamlRequirements {
+        trust_policy_exclude: ListRequirements {
+            exact: Some((
+                vec!["a".to_owned(), "a".to_owned(), "b".to_owned()],
+                "exact".to_owned(),
+            )),
+            ..ListRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("exact"), exact)])
+        .expect("Exact requirements must merge.");
+    let membership = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"trustPolicyExclude: [a, c]\n"),
+        &resolved,
+    );
+    let selectors = membership
+        .findings
+        .iter()
+        .filter_map(|finding| match finding {
+            Finding::Mismatch { selector, .. } => selector.clone(),
+            Finding::UnwritableRequiredKey { .. }
+            | Finding::InvalidRequirements { .. }
+            | Finding::ParseError { .. }
+            | Finding::ConflictingRequirements { .. }
+            | Finding::InternalError { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(selectors, ["a", "b", "c"]);
+    assert!(membership.findings.iter().all(|finding| matches!(
+        finding,
+        Finding::Mismatch { attribution, .. } if attribution == &vec![provenance("exact")]
+    )));
+
+    let order = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"trustPolicyExclude: [b, a, a]\n"),
+        &resolved,
+    );
+    assert!(matches!(
+        order.findings.as_slice(),
+        [Finding::Mismatch { selector: None, .. }]
+    ));
+
+    let empty_exact = PnpmWorkspaceYamlRequirements {
+        trust_policy_exclude: ListRequirements {
+            exact: Some((Vec::new(), "empty".to_owned())),
+            ..ListRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let empty_resolved =
+        PnpmWorkspaceYamlRequirements::merge(vec![(provenance("empty"), empty_exact)])
+            .expect("Empty exact requirements must merge.");
+    let missing =
+        <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(Some(b"{}\n"), &empty_resolved);
+    assert!(matches!(
+        missing.findings.as_slice(),
+        [Finding::Mismatch {
+            selector: None,
+            current: None,
+            ..
+        }]
+    ));
+    assert!(
+        String::from_utf8(missing.expected_bytes)
+            .expect("YAML is UTF-8")
+            .contains("trustPolicyExclude: []")
+    );
+}
+
+#[test]
+fn compatible_exact_member_assertions_share_selector_identity() {
+    let exact = PnpmWorkspaceYamlRequirements {
+        trust_policy_exclude: ListRequirements {
+            exact: Some((vec!["react".to_owned()], "exact".to_owned())),
+            ..ListRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let contains = PnpmWorkspaceYamlRequirements {
+        trust_policy_exclude: ListRequirements {
+            contains: BTreeMap::from([("react".to_owned(), "contains".to_owned())]),
+            ..ListRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let excludes = PnpmWorkspaceYamlRequirements {
+        trust_policy_exclude: ListRequirements {
+            excludes: BTreeMap::from([("blocked".to_owned(), "excludes".to_owned())]),
+            ..ListRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![
+        (provenance("exact-policy"), exact),
+        (provenance("contains-policy"), contains),
+        (provenance("excludes-policy"), excludes),
+    ])
+    .expect("Compatible requirements must merge.");
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"trustPolicyExclude: []\n"),
+        &resolved,
+    );
+    assert_eq!(output.findings.len(), 2);
+    for (message, policy) in [("exact", "exact-policy"), ("contains", "contains-policy")] {
+        assert!(output.findings.iter().any(|finding| matches!(
+            finding,
+            Finding::Mismatch { key, selector: Some(selector), message: found_message, attribution, .. }
+                if key == "trustPolicyExclude"
+                    && selector == "react"
+                    && found_message == message
+                    && attribution == &vec![provenance(policy)]
+        )));
+    }
+
+    let blocked_output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"trustPolicyExclude:\n  - react\n  - blocked\n"),
+        &resolved,
+    );
+    assert_eq!(blocked_output.findings.len(), 2);
+    for (message, policy) in [("exact", "exact-policy"), ("excludes", "excludes-policy")] {
+        assert!(blocked_output.findings.iter().any(|finding| matches!(
+            finding,
+            Finding::Mismatch { key, selector: Some(selector), message: found_message, attribution, .. }
+                if key == "trustPolicyExclude"
+                    && selector == "blocked"
+                    && found_message == message
+                    && attribution == &vec![provenance(policy)]
+        )));
+    }
+}
+
+#[test]
 fn false_allow_build_entry_does_not_conflict_but_true_entry_does() {
     let requirement = |value| PnpmWorkspaceYamlRequirements {
         allow_builds: ItemRequirements {

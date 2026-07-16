@@ -217,14 +217,17 @@ fn apply_list(
     if support::list_is_empty(resolved) {
         return;
     }
-    let current_values = toml_core::table_list_values(table, key);
-    let mut values = current_values.clone();
+    let current_values = toml_core::table_list_values_optional(table, key);
+    let mut values = current_values.clone().unwrap_or_default();
     values.sort();
     values.dedup();
-    let canonical_changed = values != current_values;
-    if let Some(mut updated) = toml_core::reconcile_list_field(
-        format!("toolchain.{key}"),
-        values,
+    let canonical_changed = current_values
+        .as_ref()
+        .is_some_and(|current| values != *current);
+    let display_key = format!("toolchain.{key}");
+    if let Some(mut updated) = toml_core::reconcile_optional_list_field(
+        display_key,
+        current_values.as_ref().map(|_| values),
         resolved,
         toml_core::ListFieldKeyStyle::FieldItem,
         findings,
@@ -233,7 +236,7 @@ fn apply_list(
         updated.dedup();
         toml_core::write_table_list(table, key, &updated);
     } else if canonical_changed {
-        let mut canonical_values = current_values;
+        let mut canonical_values = current_values.unwrap_or_default();
         canonical_values.sort();
         canonical_values.dedup();
         findings.push(file_core::Finding::Mismatch {

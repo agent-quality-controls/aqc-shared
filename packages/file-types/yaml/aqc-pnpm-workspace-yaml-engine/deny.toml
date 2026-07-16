@@ -21,6 +21,8 @@ highlight = "all"
 skip = []
 
 deny = [
+    { name = "shakts-cspell-policy", wrappers = [], reason = "Forbidden by repository dependency boundary: policies" },
+    { name = "shakts-cspell-adapter", wrappers = [], reason = "Forbidden by repository dependency boundary: sibling adapters" },
     { name = "aqc-tsconfig-json-engine", wrappers = [], reason = "Dependency boundary: aqc-pnpm-workspace-yaml-engine must not depend on file engine crates" },
     { name = "shakts-tsc-adapter", wrappers = [], reason = "Dependency boundary: aqc-pnpm-workspace-yaml-engine must not depend on adapter crates" },
     { name = "shakts-tsc-policy", wrappers = [], reason = "Dependency boundary: aqc-pnpm-workspace-yaml-engine must not depend on policy crates" },

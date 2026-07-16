@@ -69,9 +69,22 @@ fn exact_list_writes_exact_values() {
     );
     assert_eq!(
         output.findings.len(),
-        1,
-        "exact list mismatch should report"
+        2,
+        "missing and unexpected exact-list members should report independently"
     );
+    let selectors = output
+        .findings
+        .iter()
+        .filter_map(|finding| match finding {
+            Finding::Mismatch { selector, .. } => selector.clone(),
+            Finding::UnwritableRequiredKey { .. }
+            | Finding::InvalidRequirements { .. }
+            | Finding::ParseError { .. }
+            | Finding::ConflictingRequirements { .. }
+            | Finding::InternalError { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(selectors, vec!["generated", "old"]);
 }
 
 #[test]
