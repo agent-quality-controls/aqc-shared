@@ -423,11 +423,23 @@ fn inspect_nested_fields(
     }
 }
 
-fn contains_item_requirements(
+pub(crate) fn contains_item_requirements(
     rust_type: &Type,
     aliases: &BTreeMap<String, Type>,
     visited: &mut BTreeSet<String>,
 ) -> bool {
+    match rust_type {
+        Type::Group(group) => {
+            return contains_item_requirements(&group.elem, aliases, visited);
+        }
+        Type::Paren(paren) => {
+            return contains_item_requirements(&paren.elem, aliases, visited);
+        }
+        Type::Reference(reference) => {
+            return contains_item_requirements(&reference.elem, aliases, visited);
+        }
+        _ => {}
+    }
     let resolved = resolve_outer_alias(rust_type, aliases, visited);
     let Type::Path(type_path) = resolved else {
         return false;

@@ -8,6 +8,7 @@ Closed cross-crate helper bypasses in the permanent requirement-architecture che
 
 - Track adapter requirement values separately from membership values so calling requirement accessors is not mistaken for mutating membership.
 - Accept membership returned by known local accessors and track membership-named tuple elements.
+- Track every `ItemRequirements<T>` transfer, while limiting canonical file-key inventory checks to `ItemRequirements<KeyedItem<()>>`.
 - Reject unknown helper calls used for adapter or engine membership fields, including wrapper-field access.
 - Keep legacy G3 rule families disabled for this internal checker workspace; its permanent Specular, strict-Clippy, cargo-deny, and adversarial gates are the owning controls.
 

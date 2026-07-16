@@ -7,7 +7,9 @@ use syn::{
     ItemFn, Local, Macro, Member, Pat, PatStruct, Signature, Type,
 };
 
-use crate::analyze::{contains_explicit_membership, display_path, outer_type_name};
+use crate::analyze::{
+    contains_explicit_membership, contains_item_requirements, display_path, outer_type_name,
+};
 use crate::discover::ParsedCrate;
 use crate::model::{ArchitectureViolation, ViolationCode};
 
@@ -330,7 +332,7 @@ impl AdapterExpressionVisitor<'_> {
                 continue;
             };
             let is_membership =
-                contains_explicit_membership(&argument.ty, self.aliases, &mut BTreeSet::new());
+                contains_item_requirements(&argument.ty, self.aliases, &mut BTreeSet::new());
             let is_requirement = type_resolves_to_adapter_root(
                 &argument.ty,
                 self.aliases,
@@ -397,7 +399,7 @@ fn return_type_is_membership(output: &syn::ReturnType, aliases: &BTreeMap<String
     let syn::ReturnType::Type(_, rust_type) = output else {
         return false;
     };
-    contains_explicit_membership(rust_type, aliases, &mut BTreeSet::new())
+    contains_item_requirements(rust_type, aliases, &mut BTreeSet::new())
 }
 
 fn expression_contains_membership_construction(
