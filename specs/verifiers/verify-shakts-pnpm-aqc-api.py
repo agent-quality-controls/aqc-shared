@@ -252,7 +252,7 @@ pnpm_fields = {
     "dangerously_allow_all_builds": "Option<ScalarAssertion<bool>>",
     "allow_builds": "ItemRequirements<KeyedItem<bool>>",
     "forbidden_allowed_build_package_globs": "ForbiddenGlobRequirements<PnpmPackageSelectorGlob>",
-    "exact_settings": "Option<String>",
+    "root_keys": "ItemRequirements<KeyedItem<()>>",
 }
 check_struct(errors, pnpm_source, "PnpmWorkspaceYamlRequirements", pnpm_fields, "pub")
 resolved_pnpm_fields = {
@@ -274,7 +274,7 @@ resolved_pnpm_fields = {
     "dangerously_allow_all_builds": "Option<ResolvedRequirement<ScalarAssertion<bool>,ScalarAssertion<bool>>>",
     "allow_builds": "ResolvedItemRequirements<KeyedItem<bool>>",
     "forbidden_allowed_build_package_globs": "ResolvedForbiddenGlobRequirements<PnpmPackageSelectorGlob>",
-    "exact_settings": "Vec<(Provenance,String)>",
+    "root_keys": "ResolvedItemRequirements<KeyedItem<()>>",
 }
 check_struct(errors, pnpm_source, "ResolvedPnpmWorkspaceYamlRequirements", resolved_pnpm_fields, "pub(crate)")
 check_getters(errors, pnpm_source, "ResolvedPnpmWorkspaceYamlRequirements", resolved_pnpm_fields)
@@ -311,7 +311,7 @@ require_tokens(
         "9_007_199_254_740_991",
         '"no-downgrade"',
         '"off"',
-        "pub fn exact_settings(&self) -> &[(Provenance, String)]",
+        "pub const fn root_keys(&self) -> &ResolvedItemRequirements<KeyedItem<()>>",
     ],
 )
 

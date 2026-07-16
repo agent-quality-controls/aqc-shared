@@ -5,7 +5,7 @@ mod model;
 mod settings;
 
 pub use model::{
-    ResolvedRustfmtExactSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
-    RustfmtIgnorePathGlob, RustfmtScalarRequirements, RustfmtTomlRequirements,
+    ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements, RustfmtIgnorePathGlob,
+    RustfmtScalarRequirements, RustfmtTomlRequirements,
 };
 pub use settings::{RustfmtListSetting, RustfmtScalarSetting};

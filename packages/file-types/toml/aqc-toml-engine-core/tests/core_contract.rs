@@ -5,15 +5,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_file_engine_core::{
-    ConfigScalar, FileItemRequirement, Finding, ItemAssertionInput, ItemRequirements,
+    ConfigScalar, FileItemRequirement, Finding, ItemAssertionInput, ItemRequirements, KeyedItem,
     ListRequirements, Provenance, RequiredItemResolution, ScalarAssertion, compose_item_by,
     resolve_items, resolve_list,
 };
 use aqc_toml_engine_core::{
     ListFieldKeyStyle, ScalarFieldEdit, TomlArrayItem, TomlArrayTableItem, TomlItemError,
     TomlItemField, parse_or_report, reconcile_array_items, reconcile_array_table_items,
-    reconcile_list_field, reconcile_optional_list_field, report_list_shape, scalar_field_edit,
-    table_at, table_list_values, write_table_list,
+    reconcile_list_field, reconcile_optional_list_field, remove_rejected_table_keys,
+    report_list_shape, report_missing_table_keys, scalar_field_edit, table_at, table_list_values,
+    write_table_list,
 };
 use toml_edit::{DocumentMut, Table, TableLike, Value};
 
@@ -156,6 +157,22 @@ fn exact_test_requirements() -> aqc_file_engine_core::ResolvedItemRequirements<T
     resolved
 }
 
+fn resolved_table_keys(
+    requirements: ItemRequirements<KeyedItem<()>>,
+) -> aqc_file_engine_core::ResolvedItemRequirements<KeyedItem<()>> {
+    let mut conflicts = Vec::new();
+    let resolved = resolve_items("table", vec![(provenance(), requirements)], &mut conflicts);
+    assert!(conflicts.is_empty(), "table-key requirements must resolve");
+    resolved
+}
+
+fn table_key(key: &str) -> KeyedItem<()> {
+    KeyedItem {
+        file_key: key.to_owned(),
+        value: (),
+    }
+}
+
 #[test]
 fn exact_array_items_create_missing_members_and_repair_values() {
     let requirements = exact_test_requirements();
@@ -192,6 +209,111 @@ fn exact_array_table_items_create_missing_members_and_repair_values() {
     reconcile_array_table_items(&mut wrong, field, &requirements, &mut findings);
     assert!(wrong.to_string().contains("value = \"1\""));
     assert_eq!(findings.len(), 1);
+}
+
+#[test]
+fn table_key_reconciliation_reports_missing_required_keys_as_unwritable() {
+    let requirements = resolved_table_keys(ItemRequirements {
+        required: vec![(table_key("required"), "required message".to_owned())],
+        ..ItemRequirements::default()
+    });
+    let mut table = Table::new();
+    let mut findings = Vec::new();
+
+    remove_rejected_table_keys(&mut table, "settings", &requirements, &mut findings);
+    report_missing_table_keys(&table, "settings", &requirements, &mut findings);
+
+    assert!(table.is_empty());
+    assert!(matches!(
+        findings.as_slice(),
+        [Finding::UnwritableRequiredKey { key, expected, attribution }]
+            if key == "settings.required"
+                && expected == "present table key"
+                && attribution == &[provenance()]
+    ));
+}
+
+#[test]
+fn child_reconciliation_satisfies_membership_without_a_duplicate_missing_finding() {
+    let requirements = resolved_table_keys(ItemRequirements {
+        exact: Some((vec![table_key("required")], "exact message".to_owned())),
+        ..ItemRequirements::default()
+    });
+    let mut table = Table::new();
+    let mut findings = Vec::new();
+
+    remove_rejected_table_keys(&mut table, "settings", &requirements, &mut findings);
+    let _ = table.insert("required", toml_edit::value(true));
+    findings.push(Finding::Mismatch {
+        key: "settings.required".to_owned(),
+        selector: None,
+        current: None,
+        expected: "equals true".to_owned(),
+        message: "child value".to_owned(),
+        severity: aqc_file_engine_core::Severity::Error,
+        attribution: vec![provenance()],
+    });
+    report_missing_table_keys(&table, "settings", &requirements, &mut findings);
+
+    assert_eq!(findings.len(), 1);
+}
+
+#[test]
+fn table_key_reconciliation_removes_forbidden_and_unexpected_keys() {
+    let requirements = resolved_table_keys(ItemRequirements {
+        forbidden: vec![(table_key("forbidden"), "forbidden message".to_owned())],
+        exact: Some((vec![table_key("allowed")], "exact message".to_owned())),
+        ..ItemRequirements::default()
+    });
+    let mut table = Table::new();
+    let _ = table.insert("allowed", toml_edit::value(true));
+    let _ = table.insert("forbidden", toml_edit::value(false));
+    let _ = table.insert("unexpected", toml_edit::value(1));
+    let mut findings = Vec::new();
+
+    remove_rejected_table_keys(&mut table, "settings", &requirements, &mut findings);
+    report_missing_table_keys(&table, "settings", &requirements, &mut findings);
+
+    assert!(table.contains_key("allowed"));
+    assert!(!table.contains_key("forbidden"));
+    assert!(!table.contains_key("unexpected"));
+    assert!(findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, expected, message, .. }
+            if key == "settings.forbidden"
+                && expected == "absent"
+                && message == "forbidden message"
+    )));
+    assert!(findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, expected, message, .. }
+            if key == "settings.unexpected"
+                && expected == "absent (exact keys)"
+                && message == "exact message"
+    )));
+}
+
+#[test]
+fn exact_empty_table_key_reconciliation_removes_every_key() {
+    let requirements = resolved_table_keys(ItemRequirements {
+        exact: Some((Vec::new(), "exact empty".to_owned())),
+        ..ItemRequirements::default()
+    });
+    let mut table = Table::new();
+    let _ = table.insert("one", toml_edit::value(1));
+    let _ = table.insert("two", toml_edit::value(2));
+    let mut findings = Vec::new();
+
+    remove_rejected_table_keys(&mut table, "", &requirements, &mut findings);
+    report_missing_table_keys(&table, "", &requirements, &mut findings);
+
+    assert!(table.is_empty());
+    assert_eq!(findings.len(), 2);
+    assert!(findings.iter().all(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, attribution, .. }
+            if (key == "one" || key == "two") && attribution == &[provenance()]
+    )));
 }
 
 #[test]

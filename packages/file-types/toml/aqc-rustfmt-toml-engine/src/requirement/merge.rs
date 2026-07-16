@@ -3,8 +3,9 @@
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
-    ConfigScalar, ConflictEntry, ListRequirements, Provenance, Resolve,
+    ConfigScalar, ConflictEntry, FileKeyRequirement, ListRequirements, Provenance, Resolve,
     ResolvedForbiddenGlobRequirements, ResolvedListRequirements, ScalarAssertion,
+    resolve_key_membership,
 };
 use globset::GlobBuilder;
 
@@ -51,18 +52,31 @@ impl RustfmtTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
+        let setting_keys = resolve_key_membership(
+            "rustfmt.toml",
+            reqs.iter()
+                .map(|(provenance, requirement)| {
+                    (provenance.clone(), requirement.setting_keys.clone())
+                })
+                .collect(),
+            reqs.iter()
+                .map(|(provenance, requirement)| {
+                    (
+                        provenance.clone(),
+                        setting_key_constraints(requirement),
+                    )
+                })
+                .collect(),
+            &mut conflicts,
+        );
 
         let mut lists_by_key: RustfmtListRequirementsByKey = BTreeMap::new();
-        let mut exact_settings = Vec::new();
         for (prov, req) in reqs {
             for (key, list) in req.list_settings {
                 lists_by_key
                     .entry(key)
                     .or_default()
                     .push((prov.clone(), list));
-            }
-            if let Some(message) = req.exact_settings {
-                exact_settings.push((prov, message));
             }
         }
 
@@ -81,7 +95,7 @@ impl RustfmtTomlRequirements {
             scalar_settings,
             list_settings,
             forbidden_ignore_path_globs,
-            exact_settings,
+            setting_keys,
         };
 
         if conflicts.is_empty() {
@@ -90,6 +104,19 @@ impl RustfmtTomlRequirements {
             Err(conflicts)
         }
     }
+}
+
+fn setting_key_constraints(
+    requirement: &RustfmtTomlRequirements,
+) -> aqc_file_engine_core::ItemRequirements<aqc_file_engine_core::KeyedItem<()>> {
+    let mut constraints = aqc_file_engine_core::ItemRequirements::default();
+    for (setting, assertion) in &requirement.scalar_settings {
+        assertion.constrain_file_key(setting.file_key(), &mut constraints);
+    }
+    for (setting, list) in &requirement.list_settings {
+        list.constrain_file_key(setting.file_key(), &mut constraints);
+    }
+    constraints
 }
 
 /// Resolves rustfmt scalar settings after checking setting-specific legality.

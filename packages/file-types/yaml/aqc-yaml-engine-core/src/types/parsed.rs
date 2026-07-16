@@ -75,9 +75,14 @@ impl ParsedYamlMapping {
     /// Removes a direct key only when merge resolution will not expose it again.
     #[must_use]
     pub fn remove_if_effectively_absent(&self, key: &str) -> bool {
-        let candidate = self.clone();
+        let Ok(candidate) = runtime::parse_yaml_mapping(Some(&self.render()), "YAML document")
+        else {
+            return false;
+        };
         candidate.remove(key);
-        if !matches!(candidate.field(key), Ok(None)) {
+        if !matches!(candidate.field(key), Ok(None))
+            || !runtime::all_aliases_resolve(&candidate.document)
+        {
             return false;
         }
         self.remove(key);

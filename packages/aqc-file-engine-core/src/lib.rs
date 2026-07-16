@@ -28,15 +28,16 @@ pub use engine::{Engine, FileEngine, merged_reconcile};
 pub use finding::{Finding, FindingKey};
 #[cfg(feature = "api")]
 pub use merge::{
-    ConflictEntry, ExactListDifference, FileItemRequirement, ForbiddenGlobRequirement,
-    ForbiddenGlobRequirements, ItemAssertionInput, ItemRequirements, KeyedItem, ListRequirements,
-    RequiredItemResolution, Resolve, ResolvedExactItems, ResolvedExactList,
-    ResolvedForbiddenGlobRequirements, ResolvedItemRequirements, ResolvedListRequirements,
-    ResolvedRequirement, ScalarAssertion, ScalarOperation, ScalarValue, apply_list_requirements,
-    asserted_items, compose_item_by, compose_optional_field, compose_string_list,
-    compose_string_set, exact_list_difference, keyed_entries_eq, push_conflict,
-    push_rendered_conflict, render_list_requirement, render_scalar_assertion, resolve_all_equal,
-    resolve_exact_list, resolve_forbidden_globs, resolve_items, resolve_list, resolve_map,
+    ConflictEntry, ExactListDifference, FileItemRequirement, FileKeyRequirement,
+    ForbiddenGlobRequirement, ForbiddenGlobRequirements, ItemAssertionInput,
+    ItemPresenceDifference, ItemRequirements, KeyedItem, ListRequirements, RequiredItemResolution,
+    Resolve, ResolvedExactItems, ResolvedExactList, ResolvedForbiddenGlobRequirements,
+    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+    ScalarOperation, ScalarValue, apply_list_requirements, asserted_items, compose_item_by,
+    compose_optional_field, compose_string_list, compose_string_set, exact_list_difference,
+    item_presence_difference, keyed_entries_eq, push_conflict, push_rendered_conflict,
+    render_list_requirement, render_scalar_assertion, resolve_all_equal, resolve_exact_list,
+    resolve_forbidden_globs, resolve_items, resolve_key_membership, resolve_list, resolve_map,
     resolve_maybe, resolve_scalar, resolved_map_attribution, scalar_assertion_matches,
     scalar_assertion_writable_value, strongest_version_floor,
 };

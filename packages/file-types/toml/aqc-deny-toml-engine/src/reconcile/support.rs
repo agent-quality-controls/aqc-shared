@@ -11,15 +11,11 @@ pub(super) fn table_item<'a>(
     if table_path.is_empty() {
         return doc.get(field_key);
     }
-    let path = table_path
-        .iter()
-        .map(|segment| (*segment).to_owned())
-        .collect::<Vec<_>>();
-    table_ref_at(doc, &path).and_then(|table| table.get(field_key))
+    table_path_ref(doc, table_path).and_then(|table| table.get(field_key))
 }
 
-fn table_ref_at<'a>(doc: &'a DocumentMut, path: &[String]) -> Option<&'a dyn TableLike> {
-    let _ = table_ref(doc, path.first()?.as_str());
+pub(super) fn table_path_ref<'a>(doc: &'a DocumentMut, path: &[&str]) -> Option<&'a dyn TableLike> {
+    let _ = table_ref(doc, path.first()?);
     let (first, rest) = path.split_first()?;
     let mut cur = doc.get(first)?.as_table_like()?;
     for segment in rest {

@@ -1,0 +1,32 @@
+[package]
+name = "aqc-requirement-architecture"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+repository = "https://github.com/agent-quality-controls/aqc-shared"
+description = "Permanent architecture checks for explicit requirement membership."
+publish = false
+
+[workspace]
+resolver = "3"
+
+[lints.rust]
+warnings = "deny"
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+missing_errors_doc = "allow"
+module_name_repetitions = "allow"
+redundant_pub_crate = "allow"
+type_complexity = "allow"
+
+[dependencies]
+cargo_metadata = "0.20.0"
+quote = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+syn = { version = "2", features = ["full", "visit"] }

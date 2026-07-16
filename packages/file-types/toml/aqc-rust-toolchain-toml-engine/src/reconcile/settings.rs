@@ -31,6 +31,12 @@ pub(crate) fn apply(
 ) {
     support::report_invalid_requirement_combinations(requirement, findings);
     let table = ensure_toolchain_table(doc, requirement, findings);
+    toml_core::remove_rejected_table_keys(
+        table,
+        "toolchain",
+        &requirement.toolchain_keys,
+        findings,
+    );
     support::report_invalid_file_fields(table, requirement, findings);
     support::report_existing_file_conflicts(table, requirement, findings);
 
@@ -38,7 +44,12 @@ pub(crate) fn apply(
         if let Some(path) = &requirement.path {
             apply_path(table, path, findings);
         }
-        support::apply_closed(table, requirement, findings);
+        toml_core::report_missing_table_keys(
+            table,
+            "toolchain",
+            &requirement.toolchain_keys,
+            findings,
+        );
         support::report_empty_table(table, findings);
         return;
     }
@@ -54,7 +65,7 @@ pub(crate) fn apply(
     }
     apply_list(table, "components", &requirement.components, findings);
     apply_list(table, "targets", &requirement.targets, findings);
-    support::apply_closed(table, requirement, findings);
+    toml_core::report_missing_table_keys(table, "toolchain", &requirement.toolchain_keys, findings);
     support::report_empty_table(table, findings);
 }
 

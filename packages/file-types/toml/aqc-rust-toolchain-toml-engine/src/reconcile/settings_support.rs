@@ -5,7 +5,6 @@ use std::path::Path;
 
 use aqc_file_engine_core as file_core;
 use aqc_file_engine_core::ScalarValue;
-use aqc_toml_engine_core as toml_core;
 use toml_edit::{Item, Table};
 
 use crate::requirement::{
@@ -202,44 +201,6 @@ fn report_list_file_field(
     }
 }
 
-pub(super) fn apply_closed(
-    table: &mut Table,
-    requirement: &ResolvedRustToolchainTomlRequirements,
-    findings: &mut Vec<file_core::Finding>,
-) {
-    if requirement.exact_settings.is_empty() {
-        return;
-    }
-    let allowed = ["channel", "path", "profile", "components", "targets"]
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-    let extras = table
-        .iter()
-        .map(|(key, _)| key.to_owned())
-        .filter(|key| !allowed.contains(key.as_str()))
-        .collect::<Vec<_>>();
-    for extra in extras {
-        findings.push(file_core::Finding::Mismatch {
-            key: format!("toolchain.{extra}"),
-            selector: None,
-            current: table.get(&extra).and_then(toml_core::render_item),
-            expected: "absent because rust-toolchain.toml fields are exact".to_owned(),
-            message: requirement
-                .exact_settings
-                .first()
-                .map(|(_, msg)| msg.clone())
-                .unwrap_or_default(),
-            severity: file_core::Severity::Error,
-            attribution: requirement
-                .exact_settings
-                .iter()
-                .map(|(prov, _)| prov.clone())
-                .collect::<Vec<_>>(),
-        });
-        let _ = table.remove(&extra);
-    }
-}
-
 pub(super) fn report_empty_table(table: &Table, findings: &mut Vec<file_core::Finding>) {
     if !table.is_empty() {
         return;
@@ -396,12 +357,29 @@ pub(super) fn requirement_attribution(
         )
         .chain(list_attribution(&requirement.components))
         .chain(list_attribution(&requirement.targets))
+        .chain(item_attribution(&requirement.toolchain_keys))
+        .collect()
+}
+
+fn item_attribution(
+    requirement: &file_core::ResolvedItemRequirements<file_core::KeyedItem<()>>,
+) -> Vec<file_core::Provenance> {
+    requirement
+        .required
+        .values()
+        .flat_map(file_core::ResolvedRequirement::attribution)
         .chain(
             requirement
-                .exact_settings
-                .iter()
-                .map(|(prov, _)| prov.clone()),
+                .forbidden
+                .values()
+                .flat_map(file_core::ResolvedRequirement::attribution),
         )
+        .chain(requirement.exact.iter().flat_map(|exact| {
+            exact
+                .collected
+                .iter()
+                .map(|(provenance, _)| provenance.clone())
+        }))
         .collect()
 }
 
@@ -411,7 +389,15 @@ pub(super) fn has_requirements(requirement: &ResolvedRustToolchainTomlRequiremen
         || requirement.profile.is_some()
         || !list_is_empty(&requirement.components)
         || !list_is_empty(&requirement.targets)
-        || !requirement.exact_settings.is_empty()
+        || !item_requirements_are_empty(&requirement.toolchain_keys)
+}
+
+fn item_requirements_are_empty(
+    requirement: &file_core::ResolvedItemRequirements<file_core::KeyedItem<()>>,
+) -> bool {
+    requirement.required.is_empty()
+        && requirement.forbidden.is_empty()
+        && requirement.exact.is_none()
 }
 
 pub(super) fn has_path_value_requirement(

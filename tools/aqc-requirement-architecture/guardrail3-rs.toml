@@ -1,0 +1,18 @@
+profile = "library"
+
+allowed_deps = [
+  "cargo_metadata",
+  "quote",
+  "serde",
+  "serde_json",
+  "syn",
+]
+
+[checks]
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
+

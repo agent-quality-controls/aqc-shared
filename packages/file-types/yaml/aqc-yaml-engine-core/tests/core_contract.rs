@@ -1,8 +1,12 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedRequirement, ScalarAssertion};
+use aqc_file_engine_core::{
+    Finding, ItemRequirements, KeyedItem, Provenance, ResolvedItemRequirements,
+    ResolvedRequirement, ScalarAssertion, resolve_items,
+};
 use aqc_yaml_engine_core::{
     YamlFieldError, YamlFieldValue, apply_scalar_assertion, parse_yaml_mapping,
+    remove_rejected_effective_root_keys, report_missing_effective_root_keys,
 };
 use yaml_edit as _;
 
@@ -407,4 +411,120 @@ fn generic_scalar_reconciliation_reads_writes_and_attributes() {
         document.field("enabled"),
         Ok(Some(YamlFieldValue::Boolean(true)))
     );
+}
+
+#[test]
+fn parent_removal_precedes_child_reconciliation() {
+    let requirements = resolved_root_keys(ItemRequirements {
+        required: vec![(root_key("missing"), "missing key".to_owned())],
+        forbidden: vec![(root_key("forbidden"), "forbidden key".to_owned())],
+        exact: Some((
+            vec![root_key("allowed"), root_key("missing")],
+            "exact keys".to_owned(),
+        )),
+    });
+    let document = parse_yaml_mapping(
+        Some(b"allowed: true\nforbidden: false\nunexpected: value\n"),
+        "test.yaml",
+    )
+    .expect("YAML must parse.");
+    let mut findings = Vec::new();
+
+    let rejected = remove_rejected_effective_root_keys(&document, &requirements, &mut findings)
+        .expect("effective keys must resolve");
+    report_missing_effective_root_keys(&document, &requirements, &mut findings);
+
+    assert_eq!(document.render(), b"allowed: true");
+    assert_eq!(
+        rejected,
+        BTreeSet::from(["forbidden".to_owned(), "unexpected".to_owned()])
+    );
+    assert!(
+        findings.iter().any(|finding| matches!(
+            finding,
+            Finding::UnwritableRequiredKey { key, attribution, .. }
+                if key == "missing"
+                    && attribution.len() == 2
+                    && attribution.iter().all(|item| item == &test_provenance())
+        )),
+        "findings: {findings:?}"
+    );
+    assert!(findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "forbidden" && message == "forbidden key"
+    )));
+    assert!(findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "unexpected" && message == "exact keys"
+    )));
+}
+
+#[test]
+fn inherited_extra_is_reported_without_rewriting_anchor_sources() {
+    let bytes = b"defaults: &defaults\n  inherited: true\n<<: *defaults\n";
+    let document = parse_yaml_mapping(Some(bytes), "test.yaml").expect("YAML must parse.");
+    let requirements = resolved_root_keys(ItemRequirements {
+        exact: Some((Vec::new(), "no effective keys".to_owned())),
+        ..ItemRequirements::default()
+    });
+    let mut findings = Vec::new();
+
+    let rejected = remove_rejected_effective_root_keys(&document, &requirements, &mut findings)
+        .expect("effective keys must resolve");
+    report_missing_effective_root_keys(&document, &requirements, &mut findings);
+
+    assert_eq!(document.render(), bytes);
+    assert_eq!(
+        rejected,
+        BTreeSet::from(["defaults".to_owned(), "inherited".to_owned()])
+    );
+    assert!(findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, .. } if key == "inherited"
+    )));
+    assert!(!findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, .. } if key == "<<"
+    )));
+}
+
+#[test]
+fn direct_key_removal_preserves_anchors_used_by_retained_keys() {
+    let bytes = b"shared: &value true\nstrictPeerDependencies: *value\n";
+    let document = parse_yaml_mapping(Some(bytes), "test.yaml").expect("YAML must parse.");
+
+    assert!(!document.remove_if_effectively_absent("shared"));
+    assert_eq!(document.render(), bytes);
+    assert_eq!(
+        document.field("strictPeerDependencies"),
+        Ok(Some(YamlFieldValue::Boolean(true)))
+    );
+}
+
+fn resolved_root_keys(
+    requirements: ItemRequirements<KeyedItem<()>>,
+) -> ResolvedItemRequirements<KeyedItem<()>> {
+    let mut conflicts = Vec::new();
+    let resolved = resolve_items(
+        "test.yaml",
+        vec![(test_provenance(), requirements)],
+        &mut conflicts,
+    );
+    assert!(conflicts.is_empty(), "root-key fixture must resolve");
+    resolved
+}
+
+fn root_key(file_key: &str) -> KeyedItem<()> {
+    KeyedItem {
+        file_key: file_key.to_owned(),
+        value: (),
+    }
+}
+
+fn test_provenance() -> Provenance {
+    Provenance {
+        policy: "policy".to_owned(),
+    }
 }

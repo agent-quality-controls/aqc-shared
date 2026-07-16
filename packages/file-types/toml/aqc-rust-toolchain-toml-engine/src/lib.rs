@@ -9,8 +9,8 @@ mod requirement;
 
 #[cfg(feature = "api")]
 pub use aqc_file_engine_core::{
-    ConflictEntry, ListRequirements, Provenance, ResolvedListRequirements, ResolvedRequirement,
-    ScalarAssertion, ScalarValue,
+    ConflictEntry, ItemRequirements, KeyedItem, ListRequirements, Provenance,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion, ScalarValue,
 };
 #[cfg(feature = "api")]
 pub use engine::RustToolchainTomlEngine;

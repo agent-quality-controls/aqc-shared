@@ -9,8 +9,8 @@ use core::any::Any;
 
 use aqc_file_engine_core::{
     EngineRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements, ItemRequirements,
-    KeyedItem, ListRequirements, Provenance, ResolvedForbiddenGlobRequirements,
-    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+    KeyedItem, ListRequirements, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
 };
 
 use crate::types::{PnpmOnFail, PnpmReleaseAgeMinutes, PnpmTrustPolicy};
@@ -38,7 +38,7 @@ pub struct PnpmWorkspaceYamlRequirements {
     pub dangerously_allow_all_builds: Option<ScalarAssertion<bool>>,
     pub allow_builds: ItemRequirements<KeyedItem<bool>>,
     pub forbidden_allowed_build_package_globs: ForbiddenGlobRequirements<PnpmPackageSelectorGlob>,
-    pub exact_settings: Option<String>,
+    pub root_keys: ItemRequirements<KeyedItem<()>>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,7 +62,7 @@ pub struct ResolvedPnpmWorkspaceYamlRequirements {
     pub(crate) dangerously_allow_all_builds: Option<ResolvedRequirement<ScalarAssertion<bool>, ScalarAssertion<bool>>>,
     pub(crate) allow_builds: ResolvedItemRequirements<KeyedItem<bool>>,
     pub(crate) forbidden_allowed_build_package_globs: ResolvedForbiddenGlobRequirements<PnpmPackageSelectorGlob>,
-    pub(crate) exact_settings: Vec<(Provenance, String)>,
+    pub(crate) root_keys: ResolvedItemRequirements<KeyedItem<()>>,
 }
 
 impl ResolvedPnpmWorkspaceYamlRequirements {
@@ -178,8 +178,8 @@ impl ResolvedPnpmWorkspaceYamlRequirements {
         &self.forbidden_allowed_build_package_globs
     }
     #[must_use]
-    pub fn exact_settings(&self) -> &[(Provenance, String)] {
-        &self.exact_settings
+    pub const fn root_keys(&self) -> &ResolvedItemRequirements<KeyedItem<()>> {
+        &self.root_keys
     }
 }
 

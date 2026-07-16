@@ -182,6 +182,98 @@ pub struct ItemRequirements<Item> {
     pub exact: Option<ExactItems<Item>>,
 }
 
+/// A requirement whose value semantics constrain whether its containing file key exists.
+pub trait FileKeyRequirement {
+    fn constrain_file_key(&self, file_key: &str, membership: &mut ItemRequirements<KeyedItem<()>>);
+}
+
+impl<Requirement> FileKeyRequirement for Option<Requirement>
+where
+    Requirement: FileKeyRequirement,
+{
+    fn constrain_file_key(&self, file_key: &str, membership: &mut ItemRequirements<KeyedItem<()>>) {
+        if let Some(requirement) = self {
+            requirement.constrain_file_key(file_key, membership);
+        }
+    }
+}
+
+impl<T> FileKeyRequirement for ScalarAssertion<T> {
+    fn constrain_file_key(&self, file_key: &str, membership: &mut ItemRequirements<KeyedItem<()>>) {
+        let item = KeyedItem {
+            file_key: file_key.to_owned(),
+            value: (),
+        };
+        match self {
+            Self::Absent(message) => membership.forbidden.push((item, message.clone())),
+            Self::Equals(_, message)
+            | Self::AtLeast(_, message)
+            | Self::AtMost(_, message)
+            | Self::Range(_, _, message)
+            | Self::OneOf(_, message)
+            | Self::Present(message) => membership.required.push((item, message.clone())),
+        }
+    }
+}
+
+impl FileKeyRequirement for ListRequirements {
+    fn constrain_file_key(&self, file_key: &str, membership: &mut ItemRequirements<KeyedItem<()>>) {
+        for message in self
+            .contains
+            .values()
+            .chain(self.exact.iter().map(|(_, message)| message))
+        {
+            membership.required.push((
+                KeyedItem {
+                    file_key: file_key.to_owned(),
+                    value: (),
+                },
+                message.clone(),
+            ));
+        }
+    }
+}
+
+impl<Item> FileKeyRequirement for ItemRequirements<Item> {
+    fn constrain_file_key(&self, file_key: &str, membership: &mut ItemRequirements<KeyedItem<()>>) {
+        for message in self.required.iter().map(|(_, message)| message).chain(
+            self.exact
+                .iter()
+                .filter(|(items, _)| !items.is_empty())
+                .map(|(_, message)| message),
+        ) {
+            membership.required.push((
+                KeyedItem {
+                    file_key: file_key.to_owned(),
+                    value: (),
+                },
+                message.clone(),
+            ));
+        }
+    }
+}
+
+impl<Item> ItemRequirements<Item> {
+    /// Transform every item while preserving messages and collection structure.
+    pub fn map<Mapped>(self, mut map_item: impl FnMut(Item) -> Mapped) -> ItemRequirements<Mapped> {
+        ItemRequirements {
+            required: self
+                .required
+                .into_iter()
+                .map(|(item, message)| (map_item(item), message))
+                .collect(),
+            forbidden: self
+                .forbidden
+                .into_iter()
+                .map(|(item, message)| (map_item(item), message))
+                .collect(),
+            exact: self
+                .exact
+                .map(|(items, message)| (items.into_iter().map(&mut map_item).collect(), message)),
+        }
+    }
+}
+
 impl<Item> Default for ItemRequirements<Item> {
     fn default() -> Self {
         Self {
@@ -212,6 +304,17 @@ where
     pub required: ItemRequirementMap<Item>,
     pub forbidden: ForbiddenItemMap<Item>,
     pub exact: Option<ResolvedExactItems<Item>>,
+}
+
+/// Differences between present file-item identities and resolved requirements.
+#[derive(Debug)]
+pub struct ItemPresenceDifference<'a, Item>
+where
+    Item: FileItemRequirement,
+{
+    pub missing: Vec<(&'a Item::Identity, &'a RequiredItemResolution<Item>)>,
+    pub forbidden: Vec<(&'a Item::Identity, &'a ForbiddenItemResolution<Item>)>,
+    pub unexpected: Vec<&'a Item::Identity>,
 }
 
 impl<Item> Default for ResolvedItemRequirements<Item>

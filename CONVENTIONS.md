@@ -72,6 +72,31 @@ implementation will not commit.
   part of the public AQC release surface,
   `[package.metadata.guardrail3] shared = true`, `[lints] workspace = true`.
 
+## Requirement architecture
+
+- File-key membership uses `ItemRequirements<KeyedItem<()>>`. Do not add
+  semantic closure flags such as `exact_settings` or `closed_settings`.
+- `exact` contains only keys required to be present. A value assertion does
+  not make its key required; absence assertions are omitted from `exact`.
+- Engines use `FileKeyRequirement` and `resolve_key_membership` to detect
+  conflicts between value requirements and explicit key membership. Derived
+  key constraints do not produce duplicate file findings.
+- Requirement roots and reachable child structs must use core requirement
+  vocabulary. Do not reimplement core membership types in format engines.
+- Adapter membership fields may only receive policy-supplied membership
+  directly or through `ItemRequirements::map`. Do not construct, replace,
+  mutate, default, or obtain membership through local or cross-crate helpers.
+- AQC must not name downstream policies, adapters, Shackles products, or
+  product rules.
+- `specs/explicit-setting-membership.spec.json`, its coverage map, and its
+  custom verifier are permanent architecture controls. Do not delete them as
+  completed feature artifacts.
+- The permanent Specular verifier owns requirement-architecture checker
+  execution. Repository scripts and CI run `specular lint` and
+  `specular verify`; they do not duplicate the checker invocation.
+- Every case declared by the permanent custom verifier must be consumed by
+  verifier logic and evidenced in source or adversarial fixtures.
+
 ## Where the rules live (when this file is doubted)
 
 The compiled sources are in the guardrail3 repo (v1, frozen):

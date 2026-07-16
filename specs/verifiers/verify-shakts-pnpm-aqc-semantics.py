@@ -232,7 +232,7 @@ def pnpm_contract(errors: list[str]) -> None:
             ("trust_policy", "trustpolicy"),
             ("allow_builds", "allowbuilds"),
             ("exclude",),
-            ("exact_settings", "exact setting"),
+            ("root_keys", "root keys"),
             ("invalid glob", "invalid_glob"),
             ("determin", "policy order"),
             ("expected_bytes", "initializ", "missing"),

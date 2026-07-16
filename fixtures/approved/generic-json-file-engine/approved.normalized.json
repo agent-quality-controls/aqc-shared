@@ -5,13 +5,24 @@
       "result": {
         "collection-selectors": [
           {
+            "expected": "count 1",
             "key": "/items",
             "kind": "mismatch",
-            "selector": null
+            "message": "exact",
+            "selector": "required"
           },
           {
+            "expected": "count 0",
             "key": "/items",
             "kind": "mismatch",
+            "message": "exact",
+            "selector": ""
+          },
+          {
+            "expected": "absent (forbidden glob)",
+            "key": "/items",
+            "kind": "mismatch",
+            "message": "empty",
             "selector": ""
           }
         ],
@@ -19,8 +30,10 @@
           "expected": "{\n  \"parent\": {\n    \"child\": {}\n  }\n}",
           "findings": [
             {
+              "expected": "object",
               "key": "/parent/child",
               "kind": "mismatch",
+              "message": "child",
               "selector": null
             }
           ],
@@ -34,8 +47,10 @@
           "expected": "{\n  \"items\": []\n}",
           "findings": [
             {
+              "expected": "exact []",
               "key": "/items",
               "kind": "mismatch",
+              "message": "empty list",
               "selector": null
             }
           ],
@@ -45,8 +60,10 @@
           "expected": "{\n  \"nested\": {}\n}",
           "findings": [
             {
+              "expected": "object",
               "key": "/nested",
               "kind": "mismatch",
+              "message": "empty object",
               "selector": null
             }
           ],
@@ -54,13 +71,17 @@
         },
         "finding-keys": [
           {
+            "expected": "equals true",
             "key": "/a~1b/~0key",
             "kind": "mismatch",
+            "message": "nested",
             "selector": "~key"
           },
           {
+            "expected": "absent (exact keys)",
             "key": "$",
             "kind": "mismatch",
+            "message": "root",
             "selector": "extra"
           }
         ],

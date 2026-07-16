@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
-use yaml_edit::{AnchorRegistry, Document, DocumentResolvedExt, YamlNode};
+use yaml_edit::{AnchorRegistry, AsYaml, Document, DocumentResolvedExt, SyntaxKind, YamlNode};
 
 use crate::runtime::parse::{is_string_scalar, strict_boolean};
 use crate::types::{YamlFieldError, YamlFieldValue};
@@ -27,6 +27,21 @@ pub(crate) fn effective_root_keys(document: &Document) -> Result<Vec<String>, Ya
         .map(|(node, _)| node)
         .map(|node| decode_mapping_key(&node, &registry))
         .collect()
+}
+
+pub(crate) fn all_aliases_resolve(document: &Document) -> bool {
+    let registry = document.build_anchor_registry();
+    document.as_node().is_none_or(|root| {
+        root.descendants_with_tokens()
+            .filter_map(|element| element.into_token())
+            .filter(|token| token.kind() == SyntaxKind::REFERENCE)
+            .all(|token| {
+                token
+                    .text()
+                    .strip_prefix('*')
+                    .is_some_and(|name| registry.contains(name))
+            })
+    })
 }
 
 fn decode_node(

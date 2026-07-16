@@ -3,9 +3,9 @@
 use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
-    ConflictEntry, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedListRequirements, ScalarAssertion, asserted_items, resolve_forbidden_globs,
-    resolve_items, resolve_list, resolve_maybe,
+    ConflictEntry, FileKeyRequirement, Provenance, ResolvedForbiddenGlobRequirements,
+    ResolvedItemRequirements, ResolvedListRequirements, ScalarAssertion, asserted_items,
+    resolve_forbidden_globs, resolve_items, resolve_key_membership, resolve_list, resolve_maybe,
 };
 
 use crate::runtime::selector_matches;
@@ -27,16 +27,6 @@ impl PnpmWorkspaceYamlRequirements {
         requirements: Vec<(Provenance, Self)>,
     ) -> Result<ResolvedPnpmWorkspaceYamlRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
-        let mut exact_settings = requirements
-            .iter()
-            .filter_map(|(provenance, requirement)| {
-                requirement
-                    .exact_settings
-                    .clone()
-                    .map(|message| (provenance.clone(), message))
-            })
-            .collect::<Vec<_>>();
-        exact_settings.sort_by(|left, right| left.0.cmp(&right.0));
         let resolved = ResolvedPnpmWorkspaceYamlRequirements {
             strict_peer_dependencies: scalar(
                 "strictPeerDependencies",
@@ -141,7 +131,22 @@ impl PnpmWorkspaceYamlRequirements {
                 |r| r.forbidden_allowed_build_package_globs.clone(),
                 &mut conflicts,
             ),
-            exact_settings,
+            root_keys: resolve_key_membership(
+                "pnpm-workspace.yaml",
+                requirements
+                    .iter()
+                    .map(|(provenance, requirement)| {
+                        (provenance.clone(), requirement.root_keys.clone())
+                    })
+                    .collect(),
+                requirements
+                    .iter()
+                    .map(|(provenance, requirement)| {
+                        (provenance.clone(), root_key_constraints(requirement))
+                    })
+                    .collect(),
+                &mut conflicts,
+            ),
         };
         list_glob_conflicts(
             "minimumReleaseAgeExclude",
@@ -166,6 +171,44 @@ impl PnpmWorkspaceYamlRequirements {
             Err(conflicts)
         }
     }
+}
+
+fn root_key_constraints(
+    requirement: &PnpmWorkspaceYamlRequirements,
+) -> aqc_file_engine_core::ItemRequirements<aqc_file_engine_core::KeyedItem<()>> {
+    let mut constraints = aqc_file_engine_core::ItemRequirements::default();
+    macro_rules! scalar_key {
+        ($field:ident, $key:literal) => {
+            if let Some(assertion) = &requirement.$field {
+                assertion.constrain_file_key($key, &mut constraints);
+            }
+        };
+    }
+    scalar_key!(strict_peer_dependencies, "strictPeerDependencies");
+    scalar_key!(engine_strict, "engineStrict");
+    scalar_key!(minimum_release_age, "minimumReleaseAge");
+    scalar_key!(minimum_release_age_strict, "minimumReleaseAgeStrict");
+    scalar_key!(
+        minimum_release_age_ignore_missing_time,
+        "minimumReleaseAgeIgnoreMissingTime"
+    );
+    scalar_key!(trust_policy, "trustPolicy");
+    scalar_key!(trust_lockfile, "trustLockfile");
+    scalar_key!(trust_policy_ignore_after, "trustPolicyIgnoreAfter");
+    scalar_key!(block_exotic_subdeps, "blockExoticSubdeps");
+    scalar_key!(pm_on_fail, "pmOnFail");
+    scalar_key!(strict_dep_builds, "strictDepBuilds");
+    scalar_key!(dangerously_allow_all_builds, "dangerouslyAllowAllBuilds");
+    requirement
+        .minimum_release_age_exclude
+        .constrain_file_key("minimumReleaseAgeExclude", &mut constraints);
+    requirement
+        .trust_policy_exclude
+        .constrain_file_key("trustPolicyExclude", &mut constraints);
+    requirement
+        .allow_builds
+        .constrain_file_key("allowBuilds", &mut constraints);
+    constraints
 }
 
 fn scalar<T: aqc_file_engine_core::ScalarValue>(

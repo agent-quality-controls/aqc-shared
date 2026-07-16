@@ -5,7 +5,6 @@ use aqc_file_engine_core::{
 };
 use toml_edit::DocumentMut;
 
-use super::exact::apply_exact;
 use super::ignore::apply_forbidden_ignore_path_globs;
 use super::list::apply_list;
 use super::scalar::apply_scalar;
@@ -22,6 +21,12 @@ pub(crate) fn apply(
     requirement: &ResolvedRustfmtTomlRequirements,
     findings: &mut Vec<Finding>,
 ) {
+    aqc_toml_engine_core::remove_rejected_table_keys(
+        doc.as_table_mut(),
+        "",
+        &requirement.setting_keys,
+        findings,
+    );
     for (setting, resolved) in &requirement.scalar_settings {
         let key = setting.file_key();
         let attribution = scalar_attribution_for(doc, key, resolved);
@@ -31,7 +36,12 @@ pub(crate) fn apply(
         apply_list(doc, setting.file_key(), resolved, findings);
     }
     apply_forbidden_ignore_path_globs(doc, &requirement.forbidden_ignore_path_globs, findings);
-    apply_exact(doc, requirement, findings);
+    aqc_toml_engine_core::report_missing_table_keys(
+        doc.as_table(),
+        "",
+        &requirement.setting_keys,
+        findings,
+    );
 }
 
 /// Keeps attribution only from scalar assertions that fail the current value.

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use aqc_file_engine_core::{
-    FileEngine, Finding, ForbiddenGlobRequirements, Provenance, ScalarAssertion,
+    FileEngine, Finding, ForbiddenGlobRequirements, ItemRequirements, Provenance, ScalarAssertion,
 };
 use aqc_json_engine_core::JsonParseOptions;
 use aqc_package_json_engine::{
@@ -9,7 +9,7 @@ use aqc_package_json_engine::{
     PackageManagerOnFail,
 };
 use aqc_pnpm_workspace_yaml_engine::{
-    PnpmPackageSelectorGlob, PnpmWorkspaceYamlEngine, PnpmWorkspaceYamlRequirements,
+    KeyedItem, PnpmPackageSelectorGlob, PnpmWorkspaceYamlEngine, PnpmWorkspaceYamlRequirements,
 };
 use aqc_yaml_engine_core::{YamlFieldValue, parse_yaml_mapping};
 use serde_json::{Value, json};
@@ -159,7 +159,10 @@ fn main() {
     );
 
     let exact = PnpmWorkspaceYamlRequirements {
-        exact_settings: Some("only represented settings".to_owned()),
+        root_keys: ItemRequirements {
+            exact: Some((Vec::<KeyedItem<()>>::new(), "no root keys".to_owned())),
+            ..ItemRequirements::default()
+        },
         ..PnpmWorkspaceYamlRequirements::default()
     };
     let exact =

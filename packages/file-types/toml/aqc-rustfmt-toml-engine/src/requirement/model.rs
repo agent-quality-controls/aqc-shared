@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
     ConfigScalar, EngineRequirement, ForbiddenGlobRequirement, ForbiddenGlobRequirements,
-    ListRequirements, Provenance, ResolvedForbiddenGlobRequirements, ResolvedListRequirements,
-    ResolvedRequirement, ScalarAssertion,
+    ItemRequirements, KeyedItem, ListRequirements, ResolvedForbiddenGlobRequirements,
+    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
 };
 
 use super::settings::{RustfmtListSetting, RustfmtScalarSetting};
@@ -22,9 +22,6 @@ pub type ResolvedRustfmtScalarSettings = BTreeMap<
     ResolvedRequirement<ScalarAssertion<ConfigScalar>, ScalarAssertion<ConfigScalar>>,
 >;
 
-/// Policy provenance entries that require the exact rustfmt setting set.
-pub type ResolvedRustfmtExactSettings = Vec<(Provenance, String)>;
-
 /// Raw scalar setting requirements keyed by rustfmt setting name.
 pub type RustfmtScalarRequirements = BTreeMap<RustfmtScalarSetting, ScalarAssertion<ConfigScalar>>;
 
@@ -33,7 +30,7 @@ pub struct RustfmtTomlRequirements {
     pub scalar_settings: RustfmtScalarRequirements,
     pub list_settings: BTreeMap<RustfmtListSetting, ListRequirements>,
     pub forbidden_ignore_path_globs: ForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
-    pub exact_settings: Option<String>,
+    pub setting_keys: ItemRequirements<KeyedItem<()>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -42,7 +39,7 @@ pub struct ResolvedRustfmtTomlRequirements {
     pub(crate) list_settings: BTreeMap<RustfmtListSetting, ResolvedListRequirements>,
     pub(crate) forbidden_ignore_path_globs:
         ResolvedForbiddenGlobRequirements<RustfmtIgnorePathGlob>,
-    pub(crate) exact_settings: ResolvedRustfmtExactSettings,
+    pub(crate) setting_keys: ResolvedItemRequirements<KeyedItem<()>>,
 }
 
 impl ResolvedRustfmtTomlRequirements {
@@ -63,8 +60,8 @@ impl ResolvedRustfmtTomlRequirements {
     }
 
     #[must_use]
-    pub const fn exact_settings(&self) -> &ResolvedRustfmtExactSettings {
-        &self.exact_settings
+    pub const fn setting_keys(&self) -> &ResolvedItemRequirements<KeyedItem<()>> {
+        &self.setting_keys
     }
 }
 

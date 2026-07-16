@@ -6,9 +6,10 @@
 )]
 
 use core::any::Any;
+use std::collections::BTreeMap;
 
 use aqc_file_engine_core::{
-    EngineRequirement, ItemRequirements, ListRequirements, Provenance, ResolvedItemRequirements,
+    EngineRequirement, ItemRequirements, KeyedItem, ListRequirements, ResolvedItemRequirements,
     ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
 };
 
@@ -17,6 +18,22 @@ use super::value;
 type ResolvedScalar<T> = Option<ResolvedRequirement<ScalarAssertion<T>, ScalarAssertion<T>>>;
 type ResolvedScalarRef<'a, T> =
     Option<&'a ResolvedRequirement<ScalarAssertion<T>, ScalarAssertion<T>>>;
+
+/// A modeled table whose direct keys can have explicit membership requirements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DenyTable {
+    Root,
+    Graph,
+    Output,
+    Advisories,
+    Licenses,
+    LicensesPrivate,
+    Bans,
+    BansWorkspaceDependencies,
+    BansBuild,
+    Sources,
+    SourcesAllowOrg,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct DenyTomlRequirements {
@@ -85,7 +102,7 @@ pub struct DenyTomlRequirements {
     pub sources_allow_org_gitlab: ListRequirements,
     pub sources_allow_org_bitbucket: ListRequirements,
     pub sources_unused_allowed_source: Option<ScalarAssertion<value::DenyLintLevel>>,
-    pub exact_settings: Option<String>,
+    pub table_keys: BTreeMap<DenyTable, ItemRequirements<KeyedItem<()>>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -155,7 +172,7 @@ pub struct ResolvedDenyTomlRequirements {
     pub(crate) sources_allow_org_gitlab: ResolvedListRequirements,
     pub(crate) sources_allow_org_bitbucket: ResolvedListRequirements,
     pub(crate) sources_unused_allowed_source: ResolvedScalar<value::DenyLintLevel>,
-    pub(crate) exact_settings: Vec<(Provenance, String)>,
+    pub(crate) table_keys: BTreeMap<DenyTable, ResolvedItemRequirements<KeyedItem<()>>>,
 }
 
 impl ResolvedDenyTomlRequirements {
@@ -514,8 +531,10 @@ impl ResolvedDenyTomlRequirements {
     }
 
     #[must_use]
-    pub fn exact_settings(&self) -> &[(Provenance, String)] {
-        &self.exact_settings
+    pub const fn table_keys(
+        &self,
+    ) -> &BTreeMap<DenyTable, ResolvedItemRequirements<KeyedItem<()>>> {
+        &self.table_keys
     }
 }
 

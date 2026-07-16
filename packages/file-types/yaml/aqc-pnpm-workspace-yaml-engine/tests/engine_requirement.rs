@@ -36,6 +36,24 @@ fn forbidden_all() -> ForbiddenGlobRequirements<PnpmPackageSelectorGlob> {
     }
 }
 
+fn exact_root_keys<const N: usize>(
+    keys: [&str; N],
+    message: &str,
+) -> ItemRequirements<KeyedItem<()>> {
+    ItemRequirements {
+        exact: Some((
+            keys.into_iter()
+                .map(|file_key| KeyedItem {
+                    file_key: file_key.to_owned(),
+                    value: (),
+                })
+                .collect(),
+            message.to_owned(),
+        )),
+        ..ItemRequirements::default()
+    }
+}
+
 fn baseline() -> PnpmWorkspaceYamlRequirements {
     PnpmWorkspaceYamlRequirements {
         strict_peer_dependencies: Some(ScalarAssertion::Equals(true, "strict peers".to_owned())),
@@ -76,7 +94,7 @@ fn baseline() -> PnpmWorkspaceYamlRequirements {
         )),
         allow_builds: ItemRequirements::default(),
         forbidden_allowed_build_package_globs: forbidden_all(),
-        exact_settings: None,
+        root_keys: ItemRequirements::default(),
     }
 }
 
@@ -667,9 +685,9 @@ fn invalid_glob_reports_an_attributed_requirement_finding() {
 }
 
 #[test]
-fn exact_settings_reports_unrepresented_top_level_keys() {
+fn explicit_membership_reports_unrepresented_top_level_keys() {
     let requirements = PnpmWorkspaceYamlRequirements {
-        exact_settings: Some("only represented pnpm settings are allowed".to_owned()),
+        root_keys: exact_root_keys([], "only represented pnpm settings are allowed"),
         ..PnpmWorkspaceYamlRequirements::default()
     };
     let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
@@ -696,10 +714,13 @@ fn exact_settings_reports_unrepresented_top_level_keys() {
 }
 
 #[test]
-fn exact_settings_authorizes_only_fields_present_in_the_resolved_requirement() {
+fn explicit_membership_authorizes_only_declared_fields() {
     let requirements = PnpmWorkspaceYamlRequirements {
         strict_peer_dependencies: Some(ScalarAssertion::Equals(true, "strict peers".to_owned())),
-        exact_settings: Some("only represented pnpm settings are allowed".to_owned()),
+        root_keys: exact_root_keys(
+            ["strictPeerDependencies"],
+            "only represented pnpm settings are allowed",
+        ),
         ..PnpmWorkspaceYamlRequirements::default()
     };
     let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
@@ -719,9 +740,35 @@ fn exact_settings_authorizes_only_fields_present_in_the_resolved_requirement() {
 }
 
 #[test]
-fn exact_only_does_not_validate_unrequested_collection_shapes() {
+fn explicit_membership_initializes_to_a_fixed_point() {
     let requirements = PnpmWorkspaceYamlRequirements {
-        exact_settings: Some("only represented pnpm settings are allowed".to_owned()),
+        strict_peer_dependencies: Some(ScalarAssertion::Equals(true, "strict peers".to_owned())),
+        root_keys: exact_root_keys(
+            ["strictPeerDependencies"],
+            "only represented pnpm settings are allowed",
+        ),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+        .expect("Exact settings must merge.");
+    let initialized = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(None, &resolved);
+    let second = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(&initialized.expected_bytes),
+        &resolved,
+    );
+
+    assert_eq!(
+        initialized.expected_bytes,
+        b"strictPeerDependencies: true\n"
+    );
+    assert!(second.findings.is_empty());
+    assert_eq!(second.expected_bytes, initialized.expected_bytes);
+}
+
+#[test]
+fn rejected_root_key_has_one_membership_finding() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        root_keys: exact_root_keys([], "only represented pnpm settings are allowed"),
         ..PnpmWorkspaceYamlRequirements::default()
     };
     let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
@@ -739,9 +786,76 @@ fn exact_only_does_not_validate_unrequested_collection_shapes() {
 }
 
 #[test]
+fn inherited_rejected_root_key_has_one_membership_finding() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        trust_policy_ignore_after: Some(ScalarAssertion::Absent(
+            "child absence must not duplicate root membership".to_owned(),
+        )),
+        root_keys: exact_root_keys(["defaults"], "only declared root keys are allowed"),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+        .expect("Exact settings must merge.");
+    let bytes = b"defaults: &defaults\n  trustPolicyIgnoreAfter: inherited\n<<: *defaults\n";
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+
+    assert_eq!(output.expected_bytes, bytes);
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::Mismatch { key, message, attribution, .. }]
+            if key == "trustPolicyIgnoreAfter"
+                && message == "only declared root keys are allowed"
+                && attribution == &[provenance("policy")]
+    ));
+}
+
+#[test]
+fn rejected_anchor_owner_is_not_removed_or_followed_by_a_child_finding() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        strict_peer_dependencies: Some(ScalarAssertion::Equals(true, "strict peers".to_owned())),
+        root_keys: exact_root_keys(
+            ["strictPeerDependencies"],
+            "only declared root keys are allowed",
+        ),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+        .expect("Exact settings must merge.");
+    let bytes = b"shared: &value true\nstrictPeerDependencies: *value\n";
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+
+    assert_eq!(output.expected_bytes, bytes);
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::Mismatch { key, message, .. }]
+            if key == "shared" && message == "only declared root keys are allowed"
+    ));
+}
+
+#[test]
+fn invalid_merge_source_stops_child_reconciliation() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        strict_peer_dependencies: Some(ScalarAssertion::Equals(true, "strict peers".to_owned())),
+        root_keys: exact_root_keys(["strictPeerDependencies"], "declared root keys"),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+        .expect("Exact settings must merge.");
+    let bytes = b"<<: [not-an-alias]\n";
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(Some(bytes), &resolved);
+
+    assert_eq!(output.expected_bytes, bytes);
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::Mismatch { key, current, .. }]
+            if key == "<<" && current.as_deref() == Some("invalid merge source")
+    ));
+}
+
+#[test]
 fn exact_setting_attribution_is_independent_of_registration_order() {
     let requirement = |message: &str| PnpmWorkspaceYamlRequirements {
-        exact_settings: Some(message.to_owned()),
+        root_keys: exact_root_keys([], message),
         ..PnpmWorkspaceYamlRequirements::default()
     };
     let first = PnpmWorkspaceYamlRequirements::merge(vec![
@@ -772,9 +886,9 @@ fn exact_setting_attribution_is_independent_of_registration_order() {
 }
 
 #[test]
-fn exact_settings_reports_effective_keys_without_rewriting_anchor_sources() {
+fn explicit_membership_reports_effective_keys_without_rewriting_anchor_sources() {
     let requirements = PnpmWorkspaceYamlRequirements {
-        exact_settings: Some("only represented pnpm settings are allowed".to_owned()),
+        root_keys: exact_root_keys([], "only represented pnpm settings are allowed"),
         ..PnpmWorkspaceYamlRequirements::default()
     };
     let resolved = PnpmWorkspaceYamlRequirements::merge(vec![
@@ -795,6 +909,117 @@ fn exact_settings_reports_effective_keys_without_rewriting_anchor_sources() {
             .any(|finding| { matches!(finding, Finding::Mismatch { key, .. } if key == "<<") })
     );
     assert_eq!(output.expected_bytes, bytes);
+}
+
+#[test]
+fn explicit_root_membership_reports_missing_and_forbidden_keys() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        root_keys: ItemRequirements {
+            required: vec![(
+                KeyedItem {
+                    file_key: "missing".to_owned(),
+                    value: (),
+                },
+                "required root key".to_owned(),
+            )],
+            forbidden: vec![(
+                KeyedItem {
+                    file_key: "forbidden".to_owned(),
+                    value: (),
+                },
+                "forbidden root key".to_owned(),
+            )],
+            ..ItemRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+        .expect("requirements must merge");
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"forbidden: true\n"),
+        &resolved,
+    );
+
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::UnwritableRequiredKey { key, attribution, .. }
+            if key == "missing" && attribution == &[provenance("policy")]
+    )));
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "forbidden" && message == "forbidden root key"
+    )));
+    assert_eq!(output.expected_bytes, b"{}\n");
+}
+
+#[test]
+fn conflicting_exact_root_keys_fail_merge() {
+    let requirement = |key: &str| PnpmWorkspaceYamlRequirements {
+        root_keys: exact_root_keys([key], key),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let conflicts = PnpmWorkspaceYamlRequirements::merge(vec![
+        (provenance("one"), requirement("one")),
+        (provenance("two"), requirement("two")),
+    ])
+    .expect_err("different exact root key sets must conflict");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.key == "pnpm-workspace.yaml")
+    );
+}
+
+#[test]
+fn exact_root_keys_cannot_exclude_a_constructive_value_requirement() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        strict_peer_dependencies: Some(ScalarAssertion::Equals(true, "strict peers".to_owned())),
+        root_keys: exact_root_keys([], "no root keys"),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+
+    let conflicts =
+        PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+            .expect_err("value and membership requirements must conflict");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.key == "pnpm-workspace.yaml.strictPeerDependencies")
+    );
+}
+
+#[test]
+fn absent_and_glob_only_fields_are_not_implicitly_exact_members() {
+    let requirements = PnpmWorkspaceYamlRequirements {
+        strict_peer_dependencies: Some(ScalarAssertion::Absent("strict peers absent".to_owned())),
+        forbidden_trust_policy_exclude_globs: forbidden_all(),
+        root_keys: exact_root_keys([], "no root keys"),
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirements)])
+        .expect("requirements must merge");
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"strictPeerDependencies: true\ntrustPolicyExclude: [react]\n"),
+        &resolved,
+    );
+
+    assert_eq!(output.expected_bytes, b"{}\n");
+    assert_eq!(output.findings.len(), 2);
+    for key in ["strictPeerDependencies", "trustPolicyExclude"] {
+        assert!(output.findings.iter().any(|finding| matches!(
+            finding,
+            Finding::Mismatch { key: found, message, .. }
+                if found == key && message == "no root keys"
+        )));
+    }
+    assert!(!output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { message, .. }
+            if message == "strict peers absent" || message == "forbidden package selector"
+    )));
 }
 
 #[test]

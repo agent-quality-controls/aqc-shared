@@ -10,7 +10,7 @@ mod merge_helpers;
 mod model;
 mod value;
 
-pub use model::{DenyTomlRequirements, ResolvedDenyTomlRequirements};
+pub use model::{DenyTable, DenyTomlRequirements, ResolvedDenyTomlRequirements};
 pub use value::{
     DenyAdvisoryIgnoreIdentity, DenyAdvisoryIgnoreSpec, DenyAdvisoryScope, DenyBanSpec,
     DenyBuildGlobSpec, DenyConfidenceThreshold, DenyDuration, DenyFeatureBanSpec, DenyGitSpec,

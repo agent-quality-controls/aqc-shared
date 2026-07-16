@@ -9,7 +9,6 @@
 )]
 
 mod apply;
-mod exact;
 mod items;
 mod lists;
 mod scalar_apply;

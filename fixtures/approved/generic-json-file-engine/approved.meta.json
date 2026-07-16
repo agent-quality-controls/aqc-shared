@@ -1,12 +1,12 @@
 {
   "suite": "generic-json-file-engine",
   "kind": "approved",
-  "run_id": "2026-07-15T15-25-40.654676Z-24c94801",
-  "run_commit": "d86a987",
+  "run_id": "2026-07-16T15-03-54.421986Z-6e2c6bf7",
+  "run_commit": "cea046e",
   "working_tree": "dirty",
-  "recorded_at": "2026-07-15T15:25:40.654676Z",
+  "recorded_at": "2026-07-16T15:03:54.421986Z",
   "fixture_hash": "sha256:07c6e03303032d928c17973e23609e6b5479e943a02ac65145fbb1d1c8108246",
-  "manifest_hash": "sha256:24c9480105bd78485ab6ded08711006bf19325c12c9ef68162fff931e4bd6d63",
+  "manifest_hash": "sha256:6e2c6bf73476d2bf7294e7db7f201f581fb5d625aee846426bd36b55dc882209",
   "tool_version": "0.1.8",
   "output_schema_version": "1",
   "fixtures": [
@@ -14,5 +14,6 @@
       "path": "fixtures/generic-json-file-engine/contracts.json",
       "sha256": "sha256:31189623427f46278d05344fe62e4ec92f8b18f272c4756b5fba13f2eab0bfed"
     }
-  ]
+  ],
+  "comment": "Record member-specific exact findings and distinguish exact-membership violations from forbidden-glob violations."
 }

@@ -11,8 +11,8 @@ use core::fmt;
 use std::path::{Path, PathBuf};
 
 use aqc_file_engine_core::{
-    EngineRequirement, ListRequirements, Provenance, ResolvedListRequirements, ResolvedRequirement,
-    ScalarAssertion, ScalarValue,
+    EngineRequirement, ItemRequirements, KeyedItem, ListRequirements, ResolvedItemRequirements,
+    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion, ScalarValue,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -208,7 +208,7 @@ pub struct RustToolchainTomlRequirements {
     pub profile: Option<ScalarAssertion<RustToolchainProfile>>,
     pub components: ListRequirements,
     pub targets: ListRequirements,
-    pub exact_settings: Option<String>,
+    pub toolchain_keys: ItemRequirements<KeyedItem<()>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -219,7 +219,7 @@ pub struct ResolvedRustToolchainTomlRequirements {
     pub(crate) profile: Option<ResolvedRequirement<ScalarAssertion<RustToolchainProfile>, ScalarAssertion<RustToolchainProfile>>>,
     pub(crate) components: ResolvedListRequirements,
     pub(crate) targets: ResolvedListRequirements,
-    pub(crate) exact_settings: Vec<(Provenance, String)>,
+    pub(crate) toolchain_keys: ResolvedItemRequirements<KeyedItem<()>>,
 }
 
 impl ResolvedRustToolchainTomlRequirements {
@@ -270,8 +270,8 @@ impl ResolvedRustToolchainTomlRequirements {
     }
 
     #[must_use]
-    pub fn exact_settings(&self) -> &[(Provenance, String)] {
-        &self.exact_settings
+    pub const fn toolchain_keys(&self) -> &ResolvedItemRequirements<KeyedItem<()>> {
+        &self.toolchain_keys
     }
 }
 

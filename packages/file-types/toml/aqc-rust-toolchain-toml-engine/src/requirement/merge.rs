@@ -1,7 +1,8 @@
 //! Rust toolchain requirement merge logic.
 
 use aqc_file_engine_core::{
-    ConflictEntry, ListRequirements, Provenance, Resolve, ScalarAssertion, resolve_list,
+    ConflictEntry, FileKeyRequirement, ListRequirements, Provenance, Resolve, ScalarAssertion,
+    push_rendered_conflict, resolve_key_membership, resolve_list,
 };
 
 use super::{
@@ -17,6 +18,10 @@ impl RustToolchainTomlRequirements {
     /// # Errors
     ///
     /// Returns every conflict when the input requirements cannot be composed.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "The shared merged_reconcile contract supplies an owned requirement vector."
+    )]
     pub fn merge(
         reqs: RustToolchainRequirementInput,
     ) -> Result<ResolvedRustToolchainTomlRequirements, Vec<ConflictEntry>> {
@@ -40,10 +45,24 @@ impl RustToolchainTomlRequirements {
                 .collect(),
             &mut conflicts,
         );
-        let exact_settings = reqs
-            .into_iter()
-            .filter_map(|(prov, req)| req.exact_settings.map(|message| (prov, message)))
-            .collect();
+        let toolchain_keys = resolve_key_membership(
+            "toolchain",
+            reqs.iter()
+                .map(|(provenance, requirement)| {
+                    (provenance.clone(), requirement.toolchain_keys.clone())
+                })
+                .collect(),
+            reqs.iter()
+                .map(|(provenance, requirement)| {
+                    (
+                        provenance.clone(),
+                        toolchain_key_constraints(requirement),
+                    )
+                })
+                .collect(),
+            &mut conflicts,
+        );
+        reject_empty_exact_toolchain(&toolchain_keys, &mut conflicts);
 
         let resolved = ResolvedRustToolchainTomlRequirements {
             channel,
@@ -51,7 +70,7 @@ impl RustToolchainTomlRequirements {
             profile,
             components,
             targets,
-            exact_settings,
+            toolchain_keys,
         };
 
         if conflicts.is_empty() {
@@ -60,6 +79,53 @@ impl RustToolchainTomlRequirements {
             Err(conflicts)
         }
     }
+}
+
+fn reject_empty_exact_toolchain(
+    requirement: &aqc_file_engine_core::ResolvedItemRequirements<
+        aqc_file_engine_core::KeyedItem<()>,
+    >,
+    conflicts: &mut Vec<ConflictEntry>,
+) {
+    let Some(exact) = requirement
+        .exact
+        .as_ref()
+        .filter(|exact| exact.identities.is_empty())
+    else {
+        return;
+    };
+    push_rendered_conflict(
+        "toolchain",
+        "empty-toolchain-table",
+        exact
+            .collected
+            .iter()
+            .map(|(provenance, _)| (provenance.clone(), "exact []".to_owned()))
+            .collect(),
+        conflicts,
+    );
+}
+
+fn toolchain_key_constraints(
+    requirement: &RustToolchainTomlRequirements,
+) -> aqc_file_engine_core::ItemRequirements<aqc_file_engine_core::KeyedItem<()>> {
+    let mut constraints = aqc_file_engine_core::ItemRequirements::default();
+    if let Some(assertion) = &requirement.channel {
+        assertion.constrain_file_key("channel", &mut constraints);
+    }
+    if let Some(assertion) = &requirement.path {
+        assertion.constrain_file_key("path", &mut constraints);
+    }
+    if let Some(assertion) = &requirement.profile {
+        assertion.constrain_file_key("profile", &mut constraints);
+    }
+    requirement
+        .components
+        .constrain_file_key("components", &mut constraints);
+    requirement
+        .targets
+        .constrain_file_key("targets", &mut constraints);
+    constraints
 }
 
 fn resolve_optional_scalar<T>(

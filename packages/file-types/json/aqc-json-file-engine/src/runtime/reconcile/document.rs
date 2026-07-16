@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity, asserted_items,
+    Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity, item_presence_difference,
 };
 use aqc_json_engine_core::{JsonObject, NonObjectParentAction, reconcile_scalar_assertion};
 
@@ -99,33 +99,30 @@ fn reconcile_object_keys(
         return;
     };
     let current = current.into_iter().collect::<BTreeSet<_>>();
-    for (key, resolved) in asserted_items(requirement) {
-        if !current.contains(key) {
-            findings.push(Finding::UnwritableRequiredKey {
-                key: child_finding_key(path, key),
-                expected: "present object key".to_owned(),
-                attribution: resolved.attribution(),
-            });
-        }
+    let difference = item_presence_difference(&current, requirement);
+    for (key, resolved) in difference.missing {
+        findings.push(Finding::UnwritableRequiredKey {
+            key: child_finding_key(path, key),
+            expected: "present object key".to_owned(),
+            attribution: resolved.attribution(),
+        });
     }
-    for (key, resolved) in &requirement.forbidden {
-        if current.contains(key) {
-            push_object_key_finding(
-                path,
-                key,
-                "absent",
-                resolved
-                    .collected
-                    .first()
-                    .map_or_else(String::new, |(_, message)| message.clone()),
-                resolved.attribution(),
-                findings,
-            );
-            let _ = document.remove_object_key(&components, key);
-        }
+    for (key, resolved) in difference.forbidden {
+        push_object_key_finding(
+            path,
+            key,
+            "absent",
+            resolved
+                .collected
+                .first()
+                .map_or_else(String::new, |(_, message)| message.clone()),
+            resolved.attribution(),
+            findings,
+        );
+        let _ = document.remove_object_key(&components, key);
     }
     if let Some(exact) = &requirement.exact {
-        for key in current.difference(&exact.identities) {
+        for key in difference.unexpected {
             push_object_key_finding(
                 path,
                 key,

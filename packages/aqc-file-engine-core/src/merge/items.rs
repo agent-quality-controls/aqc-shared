@@ -5,9 +5,9 @@ use std::collections::BTreeSet;
 use super::{
     ConflictEntry, Contributor, ExactItemsInput, FileItemRequirement, ForbiddenGlobRequirement,
     ForbiddenItemMap, GlobAssertionGroups, GlobInput, GlobResolutionMap, ItemAssertionGroups,
-    ItemAssertionInput, ItemInput, ItemRequirementMap, KeyedItem, RequiredItemResolution,
-    ResolvedExactItems, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
-    ResolvedRequirement, sort_provenanced,
+    ItemAssertionInput, ItemInput, ItemPresenceDifference, ItemRequirementMap, KeyedItem,
+    RequiredItemResolution, ResolvedExactItems, ResolvedForbiddenGlobRequirements,
+    ResolvedItemRequirements, ResolvedRequirement, sort_provenanced,
 };
 use crate::{FindingKey, types::Provenance};
 
@@ -27,6 +27,37 @@ where
             exact.is_none_or(|complete| !complete.identities.contains(*identity))
         })
         .chain(exact.into_iter().flat_map(|complete| complete.items.iter()))
+}
+
+/// Compare present item identities with required, forbidden, and exact membership.
+#[must_use]
+pub fn item_presence_difference<'a, Item>(
+    current: &'a BTreeSet<Item::Identity>,
+    requirements: &'a ResolvedItemRequirements<Item>,
+) -> ItemPresenceDifference<'a, Item>
+where
+    Item: FileItemRequirement,
+{
+    let missing = asserted_items(requirements)
+        .filter(|(identity, _)| !current.contains(*identity))
+        .collect();
+    let forbidden = requirements
+        .forbidden
+        .iter()
+        .filter(|(identity, _)| current.contains(*identity))
+        .collect();
+    let unexpected = requirements.exact.as_ref().map_or_else(Vec::new, |exact| {
+        current
+            .difference(&exact.identities)
+            .filter(|identity| !requirements.forbidden.contains_key(*identity))
+            .collect()
+    });
+
+    ItemPresenceDifference {
+        missing,
+        forbidden,
+        unexpected,
+    }
 }
 
 pub fn resolve_items<Item>(
@@ -67,6 +98,32 @@ where
         forbidden: resolved_forbidden,
         exact,
     }
+}
+
+/// Resolve explicit file-key membership while checking additional value-derived constraints.
+pub fn resolve_key_membership(
+    key: &(impl FindingKey + ?Sized),
+    explicit: Vec<ItemInput<KeyedItem<()>>>,
+    derived_constraints: Vec<ItemInput<KeyedItem<()>>>,
+    conflicts: &mut Vec<ConflictEntry>,
+) -> ResolvedItemRequirements<KeyedItem<()>> {
+    let resolved = resolve_items(key, explicit.clone(), conflicts);
+    let mut constraint_conflicts = Vec::new();
+    let _ = resolve_items(
+        key,
+        explicit.into_iter().chain(derived_constraints).collect(),
+        &mut constraint_conflicts,
+    );
+    for conflict in constraint_conflicts {
+        if !conflicts.iter().any(|existing| {
+            existing.key == conflict.key
+                && existing.reason == conflict.reason
+                && existing.contributors == conflict.contributors
+        }) {
+            conflicts.push(conflict);
+        }
+    }
+    resolved
 }
 
 pub fn resolve_forbidden_globs<Glob>(

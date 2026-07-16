@@ -9,8 +9,9 @@ pub mod requirement;
 
 #[cfg(feature = "api")]
 pub use aqc_file_engine_core::{
-    ConflictEntry, ItemRequirements, ListRequirements, Provenance, ResolvedItemRequirements,
-    ResolvedListRequirements, ResolvedRequirement, ScalarAssertion, ScalarValue,
+    ConflictEntry, ItemRequirements, KeyedItem, ListRequirements, Provenance,
+    ResolvedItemRequirements, ResolvedListRequirements, ResolvedRequirement, ScalarAssertion,
+    ScalarValue,
 };
 #[cfg(feature = "api")]
 pub use engine::DenyTomlEngine;
@@ -52,6 +53,8 @@ pub type DenyPackageReasonSpec = requirement::DenyPackageReasonSpec;
 pub type DenyPackageSpec = requirement::DenyPackageSpec;
 #[cfg(feature = "api")]
 pub type DenySkipTreeSpec = requirement::DenySkipTreeSpec;
+#[cfg(feature = "api")]
+pub type DenyTable = requirement::DenyTable;
 #[cfg(feature = "api")]
 pub type DenyTomlRequirements = requirement::DenyTomlRequirements;
 #[cfg(feature = "api")]

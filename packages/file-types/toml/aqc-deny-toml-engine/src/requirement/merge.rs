@@ -1,9 +1,14 @@
 //! Deny TOML requirement merge logic.
 
-use aqc_file_engine_core::{ConflictEntry, Provenance, ScalarAssertion};
+use std::collections::BTreeSet;
+
+use aqc_file_engine_core::{
+    ConflictEntry, FileKeyRequirement, ItemRequirements, KeyedItem, Provenance, ScalarAssertion,
+    resolve_key_membership,
+};
 
 use super::merge_helpers::{item, list, report_feature_overlaps, scalar};
-use super::{DenyTomlRequirements, ResolvedDenyTomlRequirements};
+use super::{DenyTable, DenyTomlRequirements, ResolvedDenyTomlRequirements};
 
 type DenyRequirementInput = Vec<(Provenance, DenyTomlRequirements)>;
 
@@ -17,10 +22,23 @@ impl DenyTomlRequirements {
         clippy::too_many_lines,
         reason = "The merge surface intentionally mirrors every managed deny.toml field."
     )]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "The shared merged_reconcile contract supplies an owned requirement vector."
+    )]
     pub fn merge(
         reqs: DenyRequirementInput,
     ) -> Result<ResolvedDenyTomlRequirements, Vec<ConflictEntry>> {
         let mut conflicts = Vec::new();
+        let constrained_key_requirements = reqs
+            .iter()
+            .map(|(provenance, requirement)| {
+                (
+                    provenance.clone(),
+                    with_table_key_constraints(requirement.clone()),
+                )
+            })
+            .collect::<Vec<_>>();
         let _ = ScalarAssertion::<bool>::Present(String::new()).operation();
 
         let graph_targets = item(
@@ -417,9 +435,42 @@ impl DenyTomlRequirements {
             |req| req.sources_unused_allowed_source.clone(),
             &mut conflicts,
         );
-        let exact_settings = reqs
+        let table_keys = reqs
+            .iter()
+            .flat_map(|(_, requirement)| requirement.table_keys.keys().copied())
+            .chain(
+                constrained_key_requirements
+                    .iter()
+                    .flat_map(|(_, requirement)| requirement.table_keys.keys().copied()),
+            )
+            .collect::<BTreeSet<_>>()
             .into_iter()
-            .filter_map(|(prov, req)| req.exact_settings.map(|message| (prov, message)))
+            .map(|table| {
+                let resolved = resolve_key_membership(
+                    table.finding_key(),
+                    reqs.iter()
+                        .filter_map(|(provenance, requirement)| {
+                            requirement
+                                .table_keys
+                                .get(&table)
+                                .cloned()
+                                .map(|keys| (provenance.clone(), keys))
+                        })
+                        .collect(),
+                    constrained_key_requirements
+                        .iter()
+                        .filter_map(|(provenance, requirement)| {
+                            requirement
+                                .table_keys
+                                .get(&table)
+                                .cloned()
+                                .map(|keys| (provenance.clone(), keys))
+                        })
+                        .collect(),
+                    &mut conflicts,
+                );
+                (table, resolved)
+            })
             .collect();
 
         let resolved = ResolvedDenyTomlRequirements {
@@ -488,13 +539,250 @@ impl DenyTomlRequirements {
             sources_allow_org_gitlab,
             sources_allow_org_bitbucket,
             sources_unused_allowed_source,
-            exact_settings,
+            table_keys,
         };
 
         if conflicts.is_empty() {
             Ok(resolved)
         } else {
             Err(conflicts)
+        }
+    }
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "This exhaustive field-to-file-key inventory is kept together so new Deny fields cannot be hidden across partial helpers."
+)]
+fn with_table_key_constraints(source: DenyTomlRequirements) -> DenyTomlRequirements {
+    let mut requirement = DenyTomlRequirements::default();
+    macro_rules! field {
+        ($table:ident, $key:literal, $field:ident) => {{
+            let value = source.$field.clone();
+            constrain_table_field(&mut requirement, DenyTable::$table, $key, &value);
+        }};
+    }
+
+    field!(Graph, "targets", graph_targets);
+    field!(Graph, "exclude", graph_exclude);
+    field!(Graph, "exclude-dev", graph_exclude_dev);
+    field!(Graph, "exclude-unpublished", graph_exclude_unpublished);
+    field!(Graph, "all-features", graph_all_features);
+    field!(Graph, "no-default-features", graph_no_default_features);
+    field!(Graph, "features", graph_features);
+    field!(Output, "feature-depth", output_feature_depth);
+    field!(Advisories, "version", advisories_version);
+    field!(Advisories, "db-path", advisories_db_path);
+    field!(Advisories, "db-urls", advisories_db_urls);
+    field!(Advisories, "yanked", advisories_yanked);
+    field!(
+        Advisories,
+        "disable-yank-checking",
+        advisories_disable_yank_checking
+    );
+    field!(Advisories, "ignore", advisories_ignore);
+    field!(Advisories, "unmaintained", advisories_unmaintained);
+    field!(Advisories, "unsound", advisories_unsound);
+    field!(
+        Advisories,
+        "maximum-db-staleness",
+        advisories_maximum_db_staleness
+    );
+    field!(
+        Advisories,
+        "git-fetch-with-cli",
+        advisories_git_fetch_with_cli
+    );
+    field!(
+        Advisories,
+        "unused-ignored-advisory",
+        advisories_unused_ignored_advisory
+    );
+    field!(Licenses, "version", licenses_version);
+    field!(Licenses, "include-dev", licenses_include_dev);
+    field!(Licenses, "include-build", licenses_include_build);
+    field!(Licenses, "allow", licenses_allow);
+    field!(Licenses, "exceptions", licenses_exceptions);
+    field!(
+        Licenses,
+        "confidence-threshold",
+        licenses_confidence_threshold
+    );
+    field!(Licenses, "clarify", licenses_clarify);
+    field!(LicensesPrivate, "ignore", licenses_private_ignore);
+    field!(LicensesPrivate, "registries", licenses_private_registries);
+    field!(
+        LicensesPrivate,
+        "ignore-sources",
+        licenses_private_ignore_sources
+    );
+    field!(
+        Licenses,
+        "unused-allowed-license",
+        licenses_unused_allowed_license
+    );
+    field!(
+        Licenses,
+        "unused-license-exception",
+        licenses_unused_license_exception
+    );
+    field!(Bans, "multiple-versions", bans_multiple_versions);
+    field!(
+        Bans,
+        "multiple-versions-include-dev",
+        bans_multiple_versions_include_dev
+    );
+    field!(Bans, "wildcards", bans_wildcards);
+    field!(Bans, "allow-wildcard-paths", bans_allow_wildcard_paths);
+    field!(Bans, "highlight", bans_highlight);
+    field!(
+        Bans,
+        "workspace-default-features",
+        bans_workspace_default_features
+    );
+    field!(
+        Bans,
+        "external-default-features",
+        bans_external_default_features
+    );
+    field!(Bans, "allow", bans_allow);
+    field!(Bans, "allow-workspace", bans_allow_workspace);
+    field!(Bans, "deny", bans_deny);
+    field!(Bans, "features", bans_features);
+    field!(Bans, "skip", bans_skip);
+    field!(Bans, "skip-tree", bans_skip_tree);
+    field!(
+        BansWorkspaceDependencies,
+        "duplicates",
+        bans_workspace_dependencies_duplicates
+    );
+    field!(
+        BansWorkspaceDependencies,
+        "include-path-dependencies",
+        bans_workspace_dependencies_include_path_dependencies
+    );
+    field!(
+        BansWorkspaceDependencies,
+        "unused",
+        bans_workspace_dependencies_unused
+    );
+    field!(BansBuild, "executables", bans_build_executables);
+    field!(BansBuild, "interpreted", bans_build_interpreted);
+    field!(BansBuild, "script-extensions", bans_build_script_extensions);
+    field!(
+        BansBuild,
+        "enable-builtin-globs",
+        bans_build_enable_builtin_globs
+    );
+    field!(BansBuild, "globs", bans_build_globs);
+    field!(
+        BansBuild,
+        "include-dependencies",
+        bans_build_include_dependencies
+    );
+    field!(BansBuild, "include-workspace", bans_build_include_workspace);
+    field!(BansBuild, "include-archives", bans_build_include_archives);
+    field!(Sources, "unknown-registry", sources_unknown_registry);
+    field!(Sources, "unknown-git", sources_unknown_git);
+    field!(Sources, "required-git-spec", sources_required_git_spec);
+    field!(Sources, "allow-git", sources_allow_git);
+    field!(Sources, "private", sources_private);
+    field!(Sources, "allow-registry", sources_allow_registry);
+    field!(SourcesAllowOrg, "github", sources_allow_org_github);
+    field!(SourcesAllowOrg, "gitlab", sources_allow_org_gitlab);
+    field!(SourcesAllowOrg, "bitbucket", sources_allow_org_bitbucket);
+    field!(
+        Sources,
+        "unused-allowed-source",
+        sources_unused_allowed_source
+    );
+    constrain_table_parents(&source.table_keys, &mut requirement);
+    requirement
+}
+
+fn constrain_table_field(
+    requirement: &mut DenyTomlRequirements,
+    table: DenyTable,
+    file_key: &str,
+    value: &impl FileKeyRequirement,
+) {
+    let keys = requirement.table_keys.entry(table).or_default();
+    value.constrain_file_key(file_key, keys);
+}
+
+fn constrain_table_parents(
+    explicit: &std::collections::BTreeMap<DenyTable, ItemRequirements<KeyedItem<()>>>,
+    requirement: &mut DenyTomlRequirements,
+) {
+    let child_requirements = requirement
+        .table_keys
+        .iter()
+        .chain(explicit)
+        .map(|(table, keys)| (*table, keys.clone()))
+        .collect::<Vec<_>>();
+    for (table, keys) in child_requirements {
+        let mut table_presence = ItemRequirements::default();
+        keys.constrain_file_key("table", &mut table_presence);
+        let messages = table_presence
+            .required
+            .into_iter()
+            .map(|(_, message)| message)
+            .collect::<BTreeSet<_>>();
+        for message in messages {
+            require_table(requirement, table, &message);
+        }
+    }
+}
+
+fn require_table(requirement: &mut DenyTomlRequirements, table: DenyTable, message: &str) {
+    let Some((parent, file_key)) = table.parent() else {
+        return;
+    };
+    requirement
+        .table_keys
+        .entry(parent)
+        .or_default()
+        .required
+        .push((
+            KeyedItem {
+                file_key: file_key.to_owned(),
+                value: (),
+            },
+            message.to_owned(),
+        ));
+    require_table(requirement, parent, message);
+}
+
+impl DenyTable {
+    const fn parent(self) -> Option<(Self, &'static str)> {
+        match self {
+            Self::Root => None,
+            Self::Graph => Some((Self::Root, "graph")),
+            Self::Output => Some((Self::Root, "output")),
+            Self::Advisories => Some((Self::Root, "advisories")),
+            Self::Licenses => Some((Self::Root, "licenses")),
+            Self::LicensesPrivate => Some((Self::Licenses, "private")),
+            Self::Bans => Some((Self::Root, "bans")),
+            Self::BansWorkspaceDependencies => Some((Self::Bans, "workspace-dependencies")),
+            Self::BansBuild => Some((Self::Bans, "build")),
+            Self::Sources => Some((Self::Root, "sources")),
+            Self::SourcesAllowOrg => Some((Self::Sources, "allow-org")),
+        }
+    }
+
+    const fn finding_key(self) -> &'static str {
+        match self {
+            Self::Root => "deny.toml",
+            Self::Graph => "graph",
+            Self::Output => "output",
+            Self::Advisories => "advisories",
+            Self::Licenses => "licenses",
+            Self::LicensesPrivate => "licenses.private",
+            Self::Bans => "bans",
+            Self::BansWorkspaceDependencies => "bans.workspace-dependencies",
+            Self::BansBuild => "bans.build",
+            Self::Sources => "sources",
+            Self::SourcesAllowOrg => "sources.allow-org",
         }
     }
 }

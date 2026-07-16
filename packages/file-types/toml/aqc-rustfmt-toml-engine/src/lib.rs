@@ -10,15 +10,15 @@ mod requirement;
 
 #[cfg(feature = "api")]
 pub use aqc_file_engine_core::{
-    ConfigScalar, ForbiddenGlobRequirements, ListRequirements, ScalarAssertion,
+    ConfigScalar, ForbiddenGlobRequirements, ItemRequirements, KeyedItem, ListRequirements,
+    ScalarAssertion,
 };
 #[cfg(feature = "api")]
 pub use engine::RustfmtTomlEngine;
 #[cfg(feature = "api")]
 pub use requirement::{
-    ResolvedRustfmtExactSettings, ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements,
-    RustfmtIgnorePathGlob, RustfmtListSetting, RustfmtScalarRequirements, RustfmtScalarSetting,
-    RustfmtTomlRequirements,
+    ResolvedRustfmtScalarSettings, ResolvedRustfmtTomlRequirements, RustfmtIgnorePathGlob,
+    RustfmtListSetting, RustfmtScalarRequirements, RustfmtScalarSetting, RustfmtTomlRequirements,
 };
 
 /// Stable engine id; matches this crate's `[package].name` and the value

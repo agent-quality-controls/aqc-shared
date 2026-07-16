@@ -6,10 +6,10 @@ use toml_edit::{DocumentMut, Item};
 use crate::requirement::ResolvedDenyTomlRequirements;
 
 use super::{
-    exact::apply_exact_settings,
     items::apply_items,
     lists::apply_lists,
     scalars::{apply_scalars, touch_core_scalar_helpers},
+    support::table_path_mut,
 };
 
 pub(crate) fn apply(
@@ -20,10 +20,110 @@ pub(crate) fn apply(
     touch_core_scalar_helpers(findings);
     reject_unsupported_source_key(doc, findings);
 
+    remove_rejected_table_keys(doc, requirement, findings);
     apply_items(doc, requirement, findings);
     apply_scalars(doc, requirement, findings);
     apply_lists(doc, requirement, findings);
-    apply_exact_settings(doc, requirement, findings);
+    report_missing_table_keys(doc, requirement, findings);
+}
+
+fn remove_rejected_table_keys(
+    doc: &mut DocumentMut,
+    requirement: &ResolvedDenyTomlRequirements,
+    findings: &mut Vec<Finding>,
+) {
+    for (table, keys) in &requirement.table_keys {
+        if *table == crate::requirement::DenyTable::Root {
+            aqc_toml_engine_core::remove_rejected_table_keys(
+                doc.as_table_mut(),
+                "",
+                keys,
+                findings,
+            );
+            continue;
+        }
+        let path = table.path();
+        if let Some(table_like) = table_path_mut(doc, path) {
+            aqc_toml_engine_core::remove_rejected_table_keys(
+                table_like,
+                table.display_key(),
+                keys,
+                findings,
+            );
+        } else {
+            let mut absent = toml_edit::Table::new();
+            aqc_toml_engine_core::remove_rejected_table_keys(
+                &mut absent,
+                table.display_key(),
+                keys,
+                findings,
+            );
+        }
+    }
+}
+
+fn report_missing_table_keys(
+    doc: &DocumentMut,
+    requirement: &ResolvedDenyTomlRequirements,
+    findings: &mut Vec<Finding>,
+) {
+    for (table, keys) in &requirement.table_keys {
+        if *table == crate::requirement::DenyTable::Root {
+            aqc_toml_engine_core::report_missing_table_keys(doc.as_table(), "", keys, findings);
+            continue;
+        }
+        let path = table.path();
+        if let Some(table_like) = super::support::table_path_ref(doc, path) {
+            aqc_toml_engine_core::report_missing_table_keys(
+                table_like,
+                table.display_key(),
+                keys,
+                findings,
+            );
+        } else {
+            let absent = toml_edit::Table::new();
+            aqc_toml_engine_core::report_missing_table_keys(
+                &absent,
+                table.display_key(),
+                keys,
+                findings,
+            );
+        }
+    }
+}
+
+impl crate::requirement::DenyTable {
+    const fn path(self) -> &'static [&'static str] {
+        match self {
+            Self::Root => &[],
+            Self::Graph => &["graph"],
+            Self::Output => &["output"],
+            Self::Advisories => &["advisories"],
+            Self::Licenses => &["licenses"],
+            Self::LicensesPrivate => &["licenses", "private"],
+            Self::Bans => &["bans"],
+            Self::BansWorkspaceDependencies => &["bans", "workspace-dependencies"],
+            Self::BansBuild => &["bans", "build"],
+            Self::Sources => &["sources"],
+            Self::SourcesAllowOrg => &["sources", "allow-org"],
+        }
+    }
+
+    const fn display_key(self) -> &'static str {
+        match self {
+            Self::Root => "",
+            Self::Graph => "graph",
+            Self::Output => "output",
+            Self::Advisories => "advisories",
+            Self::Licenses => "licenses",
+            Self::LicensesPrivate => "licenses.private",
+            Self::Bans => "bans",
+            Self::BansWorkspaceDependencies => "bans.workspace-dependencies",
+            Self::BansBuild => "bans.build",
+            Self::Sources => "sources",
+            Self::SourcesAllowOrg => "sources.allow-org",
+        }
+    }
 }
 
 fn reject_unsupported_source_key(doc: &mut DocumentMut, findings: &mut Vec<Finding>) {

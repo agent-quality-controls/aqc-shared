@@ -1,5 +1,6 @@
 use aqc_file_engine_core::{
-    FileEngine, Finding, ListRequirements, Provenance, ScalarAssertion, Severity,
+    FileEngine, Finding, ItemRequirements, KeyedItem, ListRequirements, Provenance,
+    ScalarAssertion, Severity,
 };
 use aqc_rust_toolchain_toml_engine::{
     ResolvedRustToolchainTomlRequirements, RustToolchainChannel, RustToolchainPath,
@@ -235,7 +236,7 @@ fn reconcile_canonicalizes_components_and_targets() {
 }
 
 #[test]
-fn exact_settings_reports_and_removes_unknown_toolchain_fields() {
+fn explicit_membership_reports_and_removes_unknown_toolchain_fields() {
     let output = reconcile(
         "[toolchain]\nchannel = \"stable\"\nfuture-setting = true\n",
         RustToolchainTomlRequirements {
@@ -243,7 +244,16 @@ fn exact_settings_reports_and_removes_unknown_toolchain_fields() {
                 RustToolchainChannel::stable(),
                 "channel".to_owned(),
             )),
-            exact_settings: Some("exact settings".to_owned()),
+            toolchain_keys: ItemRequirements {
+                exact: Some((
+                    vec![KeyedItem {
+                        file_key: "channel".to_owned(),
+                        value: (),
+                    }],
+                    "exact settings".to_owned(),
+                )),
+                ..ItemRequirements::default()
+            },
             ..RustToolchainTomlRequirements::default()
         },
     );
@@ -258,6 +268,200 @@ fn exact_settings_reports_and_removes_unknown_toolchain_fields() {
                 if key == "toolchain.future-setting" && message == "exact settings"
         )
     }));
+}
+
+#[test]
+fn explicit_toolchain_membership_reports_missing_and_forbidden_keys() {
+    let output = reconcile(
+        "[toolchain]\nforbidden = true\n",
+        RustToolchainTomlRequirements {
+            toolchain_keys: ItemRequirements {
+                required: vec![(toolchain_key("missing"), "required".to_owned())],
+                forbidden: vec![(toolchain_key("forbidden"), "forbidden".to_owned())],
+                ..ItemRequirements::default()
+            },
+            ..RustToolchainTomlRequirements::default()
+        },
+    );
+
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::UnwritableRequiredKey { key, .. } if key == "toolchain.missing"
+    )));
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "toolchain.forbidden" && message == "forbidden"
+    )));
+}
+
+#[test]
+fn exact_toolchain_membership_does_not_authorize_path_or_empty_targets() {
+    let requirement = RustToolchainTomlRequirements {
+        channel: Some(ScalarAssertion::Equals(
+            RustToolchainChannel::stable(),
+            "channel".to_owned(),
+        )),
+        toolchain_keys: exact_toolchain_keys(["channel"], "channel only"),
+        ..RustToolchainTomlRequirements::default()
+    };
+    let output = reconcile(
+        "[toolchain]\nchannel = \"stable\"\npath = \"/opt/rust\"\n",
+        requirement.clone(),
+    );
+    assert!(
+        !String::from_utf8(first_bytes(&output))
+            .unwrap_or_default()
+            .contains("path")
+    );
+
+    let initialized = reconcile_none(requirement);
+    let rendered = String::from_utf8(first_bytes(&initialized)).unwrap_or_default();
+    assert!(rendered.contains("channel = \"stable\""));
+    assert!(!rendered.contains("targets"));
+}
+
+#[test]
+fn exact_toolchain_membership_initializes_to_a_fixed_point() {
+    let requirement = RustToolchainTomlRequirements {
+        channel: Some(ScalarAssertion::Equals(
+            RustToolchainChannel::stable(),
+            "channel".to_owned(),
+        )),
+        toolchain_keys: exact_toolchain_keys(["channel"], "channel only"),
+        ..RustToolchainTomlRequirements::default()
+    };
+    let resolved = RustToolchainTomlRequirements::merge(vec![(prov("policy"), requirement)])
+        .expect("requirements must merge");
+    let initialized = <RustToolchainTomlEngine as FileEngine<_>>::reconcile(None, &resolved);
+    let second = <RustToolchainTomlEngine as FileEngine<_>>::reconcile(
+        Some(&initialized.expected_bytes),
+        &resolved,
+    );
+
+    assert!(second.findings.is_empty());
+}
+
+#[test]
+fn conflicting_exact_toolchain_keys_fail_merge() {
+    let requirement = |key_name: &str| RustToolchainTomlRequirements {
+        toolchain_keys: exact_toolchain_keys([key_name], key_name),
+        ..RustToolchainTomlRequirements::default()
+    };
+    let conflicts = RustToolchainTomlRequirements::merge(vec![
+        (prov("one"), requirement("channel")),
+        (prov("two"), requirement("path")),
+    ])
+    .expect_err("different exact toolchain keys must conflict");
+
+    assert!(conflicts.iter().any(|conflict| conflict.key == "toolchain"));
+}
+
+#[test]
+fn exact_empty_toolchain_membership_fails_merge() {
+    let requirement = RustToolchainTomlRequirements {
+        toolchain_keys: exact_toolchain_keys([], "no toolchain keys"),
+        ..RustToolchainTomlRequirements::default()
+    };
+    let conflicts = RustToolchainTomlRequirements::merge(vec![(prov("policy"), requirement)])
+        .expect_err("rust-toolchain.toml cannot contain an empty [toolchain] table");
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "toolchain" && conflict.reason == "empty-toolchain-table"
+    }));
+}
+
+#[test]
+fn exact_toolchain_keys_cannot_exclude_a_constructive_value_requirement() {
+    let requirement = RustToolchainTomlRequirements {
+        channel: Some(ScalarAssertion::Equals(
+            RustToolchainChannel::stable(),
+            "stable channel".to_owned(),
+        )),
+        toolchain_keys: exact_toolchain_keys([], "no toolchain keys"),
+        ..RustToolchainTomlRequirements::default()
+    };
+
+    let conflicts = RustToolchainTomlRequirements::merge(vec![(prov("policy"), requirement)])
+        .expect_err("value and membership requirements must conflict");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.key == "toolchain.channel")
+    );
+}
+
+#[test]
+fn exact_membership_removes_an_absent_scalar_before_child_reconciliation() {
+    let output = reconcile(
+        "[toolchain]\nchannel = \"stable\"\nprofile = \"minimal\"\n",
+        RustToolchainTomlRequirements {
+            profile: Some(ScalarAssertion::Absent("profile absent".to_owned())),
+            toolchain_keys: exact_toolchain_keys(["channel"], "channel only"),
+            ..RustToolchainTomlRequirements::default()
+        },
+    );
+
+    assert!(
+        !String::from_utf8(first_bytes(&output))
+            .unwrap_or_default()
+            .contains("profile")
+    );
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "toolchain.profile" && message == "channel only"
+    )));
+    assert!(!output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "toolchain.profile" && message == "profile absent"
+    )));
+}
+
+#[test]
+fn toolchain_membership_findings_include_all_exact_contributors() {
+    let requirement = || RustToolchainTomlRequirements {
+        toolchain_keys: exact_toolchain_keys(["channel"], "channel only"),
+        ..RustToolchainTomlRequirements::default()
+    };
+    let resolved = RustToolchainTomlRequirements::merge(vec![
+        (prov("two"), requirement()),
+        (prov("one"), requirement()),
+    ])
+    .expect("agreeing requirements must merge");
+    let output = <RustToolchainTomlEngine as FileEngine<_>>::reconcile(
+        Some(b"[toolchain]\nchannel = \"stable\"\nunknown = true\n"),
+        &resolved,
+    );
+
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, attribution, .. }
+            if key == "toolchain.unknown"
+                && attribution == &[prov("one"), prov("two")]
+    )));
+}
+
+fn toolchain_key(file_key: &str) -> KeyedItem<()> {
+    KeyedItem {
+        file_key: file_key.to_owned(),
+        value: (),
+    }
+}
+
+fn exact_toolchain_keys<const N: usize>(
+    keys: [&str; N],
+    message: &str,
+) -> ItemRequirements<KeyedItem<()>> {
+    ItemRequirements {
+        exact: Some((
+            keys.into_iter().map(toolchain_key).collect(),
+            message.to_owned(),
+        )),
+        ..ItemRequirements::default()
+    }
 }
 
 fn baseline_req() -> RustToolchainTomlRequirements {

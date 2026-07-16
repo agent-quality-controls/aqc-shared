@@ -10,11 +10,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aqc_deny_toml_engine::{
     DenyBuildGlobSpec, DenyConfidenceThreshold, DenyDuration, DenyFeatureBanSpec,
-    DenyGraphTargetSpec, DenyLintLevel, DenyNonEmptyString, DenyPackageReasonSpec, DenyTomlEngine,
-    DenyTomlRequirements, ResolvedDenyTomlRequirements,
+    DenyGraphTargetSpec, DenyLintLevel, DenyNonEmptyString, DenyPackageReasonSpec, DenyTable,
+    DenyTomlEngine, DenyTomlRequirements, ResolvedDenyTomlRequirements,
 };
 use aqc_file_engine_core::{
-    FileEngine, Finding, ItemRequirements, ListRequirements, Provenance, ScalarAssertion,
+    FileEngine, Finding, ItemRequirements, KeyedItem, ListRequirements, Provenance, ScalarAssertion,
 };
 
 #[test]
@@ -232,7 +232,13 @@ fn exact_bans_build_removes_extra() {
     let output = reconcile(
         "[bans.build]\nunknown = true\nexecutables = \"deny\"\n",
         DenyTomlRequirements {
-            exact_settings: Some("exact".to_owned()),
+            table_keys: BTreeMap::from([(
+                DenyTable::BansBuild,
+                ItemRequirements {
+                    exact: Some((vec![key("executables")], "exact".to_owned())),
+                    ..ItemRequirements::default()
+                },
+            )]),
             ..DenyTomlRequirements::default()
         },
     );
@@ -241,6 +247,13 @@ fn exact_bans_build_removes_extra() {
         !expected.contains("unknown"),
         "exact settings should remove unknown bans.build key"
     );
+}
+
+fn key(file_key: &str) -> KeyedItem<()> {
+    KeyedItem {
+        file_key: file_key.to_owned(),
+        value: (),
+    }
 }
 
 #[test]
@@ -328,6 +341,315 @@ fn item_collections_write_required_items() {
             && expected.contains("globs = [\"**/*.sh\"]"),
         "array item helpers should write required items"
     );
+}
+
+#[test]
+fn explicit_membership_reconciles_every_modeled_deny_table() {
+    let current = r"unknown-root = true
+[graph]
+unknown = true
+[output]
+unknown = true
+[advisories]
+unknown = true
+[licenses]
+unknown = true
+[licenses.private]
+unknown = true
+[bans]
+unknown = true
+[bans.workspace-dependencies]
+unknown = true
+[bans.build]
+unknown = true
+[sources]
+unknown = true
+[sources.allow-org]
+unknown = true
+";
+    let exact = |keys: &[&str]| ItemRequirements {
+        exact: Some((
+            keys.iter().map(|key_name| key(key_name)).collect(),
+            "exact table".to_owned(),
+        )),
+        ..ItemRequirements::default()
+    };
+    let output = reconcile(
+        current,
+        DenyTomlRequirements {
+            table_keys: BTreeMap::from([
+                (
+                    DenyTable::Root,
+                    exact(&[
+                        "graph",
+                        "output",
+                        "advisories",
+                        "licenses",
+                        "bans",
+                        "sources",
+                    ]),
+                ),
+                (DenyTable::Graph, exact(&[])),
+                (DenyTable::Output, exact(&[])),
+                (DenyTable::Advisories, exact(&[])),
+                (DenyTable::Licenses, exact(&["private"])),
+                (DenyTable::LicensesPrivate, exact(&[])),
+                (DenyTable::Bans, exact(&["workspace-dependencies", "build"])),
+                (DenyTable::BansWorkspaceDependencies, exact(&[])),
+                (DenyTable::BansBuild, exact(&[])),
+                (DenyTable::Sources, exact(&["allow-org"])),
+                (DenyTable::SourcesAllowOrg, exact(&[])),
+            ]),
+            ..DenyTomlRequirements::default()
+        },
+    );
+
+    assert!(!expected(&output).contains("unknown"));
+    assert_eq!(output.findings.len(), 11);
+}
+
+#[test]
+fn explicit_membership_reports_missing_and_forbidden_deny_keys() {
+    let output = reconcile(
+        "[graph]\nforbidden = true\n",
+        DenyTomlRequirements {
+            table_keys: BTreeMap::from([(
+                DenyTable::Graph,
+                ItemRequirements {
+                    required: vec![(key("missing"), "required".to_owned())],
+                    forbidden: vec![(key("forbidden"), "forbidden".to_owned())],
+                    ..ItemRequirements::default()
+                },
+            )]),
+            ..DenyTomlRequirements::default()
+        },
+    );
+
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::UnwritableRequiredKey { key, .. } if key == "graph.missing"
+    )));
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { key, message, .. }
+            if key == "graph.forbidden" && message == "forbidden"
+    )));
+    assert!(!expected(&output).contains("forbidden"));
+}
+
+#[test]
+fn conflicting_exact_deny_table_keys_fail_merge() {
+    let requirement = |key_name: &str| DenyTomlRequirements {
+        table_keys: BTreeMap::from([(
+            DenyTable::Graph,
+            ItemRequirements {
+                exact: Some((vec![key(key_name)], key_name.to_owned())),
+                ..ItemRequirements::default()
+            },
+        )]),
+        ..DenyTomlRequirements::default()
+    };
+    let conflicts = DenyTomlRequirements::merge(vec![
+        (
+            Provenance {
+                policy: "one".to_owned(),
+            },
+            requirement("one"),
+        ),
+        (
+            Provenance {
+                policy: "two".to_owned(),
+            },
+            requirement("two"),
+        ),
+    ])
+    .expect_err("different exact graph key sets must conflict");
+
+    assert!(conflicts.iter().any(|conflict| conflict.key == "graph"));
+}
+
+#[test]
+fn exact_deny_table_keys_cannot_exclude_a_constructive_value_requirement() {
+    let requirement = DenyTomlRequirements {
+        bans_multiple_versions: Some(ScalarAssertion::Equals(
+            DenyLintLevel::Deny,
+            "deny duplicates".to_owned(),
+        )),
+        table_keys: BTreeMap::from([(
+            DenyTable::Bans,
+            ItemRequirements {
+                exact: Some((Vec::new(), "no bans keys".to_owned())),
+                ..ItemRequirements::default()
+            },
+        )]),
+        ..DenyTomlRequirements::default()
+    };
+
+    let conflicts = DenyTomlRequirements::merge(vec![(
+        Provenance {
+            policy: "policy".to_owned(),
+        },
+        requirement,
+    )])
+    .expect_err("value and membership requirements must conflict");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.key == "bans.multiple-versions")
+    );
+}
+
+#[test]
+fn exact_parent_keys_cannot_exclude_a_constructive_child_membership() {
+    let exact = |keys: &[&str], message: &str| ItemRequirements {
+        exact: Some((
+            keys.iter().map(|key_name| key(key_name)).collect(),
+            message.to_owned(),
+        )),
+        ..ItemRequirements::default()
+    };
+    let requirements = DenyTomlRequirements {
+        table_keys: BTreeMap::from([
+            (DenyTable::Root, exact(&[], "no root tables")),
+            (DenyTable::Graph, exact(&["targets"], "graph has targets")),
+        ]),
+        ..DenyTomlRequirements::default()
+    };
+
+    let conflicts = DenyTomlRequirements::merge(vec![(
+        Provenance {
+            policy: "policy".to_owned(),
+        },
+        requirements,
+    )])
+    .expect_err("constructive child membership must require its parent table");
+
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.key == "deny.toml.graph"),
+        "unexpected conflicts: {conflicts:?}"
+    );
+}
+
+#[test]
+fn absent_deny_scalar_is_excluded_from_exact_membership() {
+    let output = reconcile(
+        "[bans]\nmultiple-versions = \"deny\"\n",
+        DenyTomlRequirements {
+            bans_multiple_versions: Some(ScalarAssertion::Absent("must be absent".to_owned())),
+            table_keys: BTreeMap::from([(
+                DenyTable::Bans,
+                ItemRequirements {
+                    exact: Some((Vec::new(), "no bans keys".to_owned())),
+                    ..ItemRequirements::default()
+                },
+            )]),
+            ..DenyTomlRequirements::default()
+        },
+    );
+
+    assert_eq!(output.findings.len(), 1);
+    assert!(!expected(&output).contains("multiple-versions"));
+}
+
+#[test]
+fn rejected_table_key_is_not_also_validated_as_child_content() {
+    let output = reconcile(
+        "[advisories]\nignore = [\"RUSTSEC-0000-0000\"]\n",
+        DenyTomlRequirements {
+            advisories_ignore: ItemRequirements {
+                exact: Some((Vec::new(), "no ignored advisories".to_owned())),
+                ..ItemRequirements::default()
+            },
+            table_keys: BTreeMap::from([(
+                DenyTable::Advisories,
+                ItemRequirements {
+                    exact: Some((Vec::new(), "no advisories keys".to_owned())),
+                    ..ItemRequirements::default()
+                },
+            )]),
+            ..DenyTomlRequirements::default()
+        },
+    );
+
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::Mismatch { key, message, .. }]
+            if key == "advisories.ignore" && message == "no advisories keys"
+    ));
+}
+
+#[test]
+fn constructive_deny_membership_initializes_to_a_fixed_point() {
+    let requirement = DenyTomlRequirements {
+        bans_multiple_versions: Some(ScalarAssertion::Equals(
+            DenyLintLevel::Deny,
+            "deny duplicates".to_owned(),
+        )),
+        table_keys: BTreeMap::from([(
+            DenyTable::Bans,
+            ItemRequirements {
+                exact: Some((vec![key("multiple-versions")], "only duplicates".to_owned())),
+                ..ItemRequirements::default()
+            },
+        )]),
+        ..DenyTomlRequirements::default()
+    };
+    let resolved = DenyTomlRequirements::merge(vec![(
+        Provenance {
+            policy: "policy".to_owned(),
+        },
+        requirement,
+    )])
+    .expect("requirements must merge");
+    let initialized = <DenyTomlEngine as FileEngine<_>>::reconcile(None, &resolved);
+    let second =
+        <DenyTomlEngine as FileEngine<_>>::reconcile(Some(&initialized.expected_bytes), &resolved);
+
+    assert!(expected(&initialized).contains("multiple-versions = \"deny\""));
+    assert!(second.findings.is_empty());
+}
+
+#[test]
+fn deny_membership_findings_include_all_exact_contributors() {
+    let requirement = || DenyTomlRequirements {
+        table_keys: BTreeMap::from([(
+            DenyTable::Bans,
+            ItemRequirements {
+                exact: Some((Vec::new(), "no bans keys".to_owned())),
+                ..ItemRequirements::default()
+            },
+        )]),
+        ..DenyTomlRequirements::default()
+    };
+    let resolved = DenyTomlRequirements::merge(vec![
+        (
+            Provenance {
+                policy: "two".to_owned(),
+            },
+            requirement(),
+        ),
+        (
+            Provenance {
+                policy: "one".to_owned(),
+            },
+            requirement(),
+        ),
+    ])
+    .expect("agreeing requirements must merge");
+    let output =
+        <DenyTomlEngine as FileEngine<_>>::reconcile(Some(b"[bans]\nunknown = true\n"), &resolved);
+
+    assert!(matches!(
+        output.findings.as_slice(),
+        [Finding::Mismatch { attribution, .. }]
+            if attribution == &[
+                Provenance { policy: "one".to_owned() },
+                Provenance { policy: "two".to_owned() },
+            ]
+    ));
 }
 
 fn scalar_req() -> DenyTomlRequirements {

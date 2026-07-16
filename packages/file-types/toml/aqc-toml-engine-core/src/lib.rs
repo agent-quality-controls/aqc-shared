@@ -15,6 +15,8 @@ mod lists;
 #[cfg(feature = "api")]
 mod scalars;
 #[cfg(feature = "api")]
+mod table_keys;
+#[cfg(feature = "api")]
 mod tables;
 
 #[cfg(feature = "api")]
@@ -34,6 +36,8 @@ pub use scalars::{
     ScalarFieldEdit, apply_scalar_assertion, parse_or_report, render_item, render_scalar,
     scalar_assertion_fails, scalar_field_edit, scalar_item, scalar_matches,
 };
+#[cfg(feature = "api")]
+pub use table_keys::{remove_rejected_table_keys, report_missing_table_keys};
 #[cfg(feature = "api")]
 pub use tables::{
     ensure_array_of_tables, ensure_nested, ensure_table, ensure_table_at, table_at, table_at_mut,

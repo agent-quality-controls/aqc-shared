@@ -1,6 +1,8 @@
 //! Reconcile identities of dynamic `[lints.<tool>]` tables.
 
-use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
+use aqc_file_engine_core::{
+    Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity, item_presence_difference,
+};
 use aqc_toml_engine_core::{ensure_table, table_ref};
 use toml_edit::{DocumentMut, Item};
 
@@ -10,18 +12,18 @@ pub(crate) fn apply(
     requirements: &ResolvedItemRequirements<KeyedItem<()>>,
     findings: &mut Vec<Finding>,
 ) {
-    let exact_items = requirements.exact.as_ref().map(|exact| &exact.items);
-    for (tool, entry) in requirements.required.iter().chain(
-        exact_items
-            .into_iter()
-            .flat_map(|items| items.iter())
-            .filter(|(tool, _)| !requirements.required.contains_key(*tool)),
-    ) {
-        let present =
-            table_ref(doc, "lints").is_some_and(|table| table.get(tool).is_some_and(is_lint_table));
-        if present {
-            continue;
-        }
+    let current = table_ref(doc, "lints")
+        .map(|table| {
+            table
+                .iter()
+                .filter(|(_, item)| is_lint_table(item))
+                .map(|(key, _)| key.to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    let difference = item_presence_difference(&current, requirements);
+
+    for (tool, entry) in difference.missing {
         findings.push(Finding::Mismatch {
             key: format!("[lints.{tool}]"),
             selector: None,
@@ -34,37 +36,24 @@ pub(crate) fn apply(
         ensure_table(doc, "lints")[tool] = Item::Table(toml_edit::Table::new());
     }
 
-    let exact_identities = requirements.exact.as_ref().map(|exact| &exact.identities);
-    let existing = table_ref(doc, "lints")
-        .map(|table| {
-            table
-                .iter()
-                .filter(|(_, item)| is_lint_table(item))
-                .map(|(key, _)| key.to_owned())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    for tool in existing {
-        if let Some(entry) = requirements.forbidden.get(&tool) {
-            remove_table(doc, &tool);
-            findings.push(Finding::Mismatch {
-                key: format!("[lints.{tool}]"),
-                selector: None,
-                current: Some("table present".to_owned()),
-                expected: "absent".to_owned(),
-                message: entry
-                    .collected
-                    .first()
-                    .map(|(_, message)| message.clone())
-                    .unwrap_or_default(),
-                severity: Severity::Error,
-                attribution: entry.attribution(),
-            });
-        } else if exact_identities.is_some_and(|allowed| !allowed.contains(&tool)) {
-            let Some(exact) = requirements.exact.as_ref() else {
-                continue;
-            };
-            remove_table(doc, &tool);
+    for (tool, entry) in difference.forbidden {
+        remove_table(doc, tool);
+        findings.push(Finding::Mismatch {
+            key: format!("[lints.{tool}]"),
+            selector: None,
+            current: Some("table present".to_owned()),
+            expected: "absent".to_owned(),
+            message: entry
+                .collected
+                .first()
+                .map_or_else(String::new, |(_, message)| message.clone()),
+            severity: Severity::Error,
+            attribution: entry.attribution(),
+        });
+    }
+    if let Some(exact) = &requirements.exact {
+        for tool in difference.unexpected {
+            remove_table(doc, tool);
             findings.push(Finding::Mismatch {
                 key: format!("[lints.{tool}]"),
                 selector: None,
@@ -73,8 +62,7 @@ pub(crate) fn apply(
                 message: exact
                     .collected
                     .first()
-                    .map(|(_, (_, message))| message.clone())
-                    .unwrap_or_default(),
+                    .map_or_else(String::new, |(_, (_, message))| message.clone()),
                 severity: Severity::Error,
                 attribution: exact
                     .collected

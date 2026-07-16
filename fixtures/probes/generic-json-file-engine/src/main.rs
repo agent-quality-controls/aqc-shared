@@ -26,9 +26,19 @@ fn reconcile(
 
 fn finding(value: &Finding) -> Value {
     match value {
-        Finding::Mismatch { key, selector, .. } => {
-            json!({"kind": "mismatch", "key": key, "selector": selector})
-        }
+        Finding::Mismatch {
+            key,
+            selector,
+            expected,
+            message,
+            ..
+        } => json!({
+            "kind": "mismatch",
+            "key": key,
+            "selector": selector,
+            "expected": expected,
+            "message": message,
+        }),
         Finding::InvalidRequirements {
             key, contributors, ..
         } => {

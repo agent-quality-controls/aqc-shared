@@ -1,4 +1,7 @@
-use aqc_file_engine_core::{ConflictEntry, ItemRequirements, KeyedItem, Provenance, resolve_items};
+use aqc_file_engine_core::{
+    ConflictEntry, FileKeyRequirement, ItemRequirements, KeyedItem, Provenance, ScalarAssertion,
+    resolve_items, resolve_key_membership,
+};
 use schemars as _;
 use serde as _;
 
@@ -244,6 +247,100 @@ fn differing_exact_identity_sets_conflict_with_exact_messages() {
                     (prov("left"), "only a".to_owned()),
                     (prov("right"), "only b".to_owned()),
                 ]
+    }));
+}
+
+#[test]
+fn scalar_value_constraints_participate_in_key_membership_merge() {
+    let mut membership = ItemRequirements {
+        required: Vec::new(),
+        forbidden: Vec::new(),
+        exact: Some((Vec::new(), "no keys".to_owned())),
+    };
+    ScalarAssertion::Equals(1_u8, "value required".to_owned())
+        .constrain_file_key("value", &mut membership);
+
+    let mut conflicts = Vec::new();
+    let _ = resolve_items(
+        "settings",
+        vec![(prov("policy"), membership)],
+        &mut conflicts,
+    );
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "settings.value"
+            && conflict.reason == "exact-items-reject-unlisted-required-item"
+    }));
+}
+
+#[test]
+fn absent_scalar_becomes_forbidden_key_membership() {
+    let mut membership = ItemRequirements {
+        required: vec![(
+            KeyedItem {
+                file_key: "value".to_owned(),
+                value: (),
+            },
+            "value required".to_owned(),
+        )],
+        forbidden: Vec::new(),
+        exact: None,
+    };
+    ScalarAssertion::<u8>::Absent("value absent".to_owned())
+        .constrain_file_key("value", &mut membership);
+
+    let mut conflicts = Vec::new();
+    let _ = resolve_items(
+        "settings",
+        vec![(prov("policy"), membership)],
+        &mut conflicts,
+    );
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "settings.value" && conflict.reason == "item-required-and-forbidden"
+    }));
+}
+
+#[test]
+fn derived_key_constraints_do_not_become_reconciliation_membership() {
+    let explicit = ItemRequirements::<KeyedItem<()>>::default();
+    let mut constrained = ItemRequirements::default();
+    ScalarAssertion::<u8>::Present("value required".to_owned())
+        .constrain_file_key("value", &mut constrained);
+    let mut conflicts = Vec::new();
+
+    let resolved = resolve_key_membership(
+        "settings",
+        vec![(prov("policy"), explicit)],
+        vec![(prov("policy"), constrained)],
+        &mut conflicts,
+    );
+
+    assert!(conflicts.is_empty());
+    assert!(resolved.required.is_empty());
+}
+
+#[test]
+fn derived_key_constraints_are_checked_against_explicit_membership() {
+    let explicit = ItemRequirements {
+        exact: Some((Vec::new(), "no settings".to_owned())),
+        ..ItemRequirements::default()
+    };
+    let mut derived = ItemRequirements::default();
+    ScalarAssertion::<u8>::Present("value required".to_owned())
+        .constrain_file_key("value", &mut derived);
+    let mut conflicts = Vec::new();
+
+    let _ = resolve_key_membership(
+        "settings",
+        vec![(prov("policy"), explicit)],
+        vec![(prov("policy"), derived)],
+        &mut conflicts,
+    );
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "settings.value"
+            && conflict.reason == "exact-items-reject-unlisted-required-item"
     }));
 }
 

@@ -9,6 +9,7 @@ use aqc_file_engine_core::{
 };
 use aqc_yaml_engine_core::{
     ParsedYamlMapping, YamlFieldValue, apply_scalar_assertion, parse_yaml_mapping,
+    remove_rejected_effective_root_keys, report_missing_effective_root_keys,
 };
 
 use super::support;
@@ -27,23 +28,37 @@ pub(crate) fn reconcile(
         }
     };
     let mut findings = Vec::new();
-    apply_scalars(&document, requirement, &mut findings);
-    apply_list(
-        &document,
-        "minimumReleaseAgeExclude",
-        &requirement.minimum_release_age_exclude,
-        &requirement.forbidden_minimum_release_age_exclude_globs,
-        &mut findings,
-    );
-    apply_list(
-        &document,
-        "trustPolicyExclude",
-        &requirement.trust_policy_exclude,
-        &requirement.forbidden_trust_policy_exclude_globs,
-        &mut findings,
-    );
-    apply_allow_builds(&document, requirement, &mut findings);
-    apply_exact_settings(&document, requirement, &mut findings);
+    let Some(rejected) =
+        remove_rejected_effective_root_keys(&document, &requirement.root_keys, &mut findings)
+    else {
+        return aqc_file_engine_core::EngineOutput {
+            expected_bytes: document.render(),
+            findings,
+        };
+    };
+    apply_scalars(&document, requirement, &rejected, &mut findings);
+    if !rejected.contains("minimumReleaseAgeExclude") {
+        apply_list(
+            &document,
+            "minimumReleaseAgeExclude",
+            &requirement.minimum_release_age_exclude,
+            &requirement.forbidden_minimum_release_age_exclude_globs,
+            &mut findings,
+        );
+    }
+    if !rejected.contains("trustPolicyExclude") {
+        apply_list(
+            &document,
+            "trustPolicyExclude",
+            &requirement.trust_policy_exclude,
+            &requirement.forbidden_trust_policy_exclude_globs,
+            &mut findings,
+        );
+    }
+    if !rejected.contains("allowBuilds") {
+        apply_allow_builds(&document, requirement, &mut findings);
+    }
+    report_missing_effective_root_keys(&document, &requirement.root_keys, &mut findings);
     aqc_file_engine_core::EngineOutput {
         expected_bytes: document.render(),
         findings,
@@ -53,80 +68,110 @@ pub(crate) fn reconcile(
 fn apply_scalars(
     document: &ParsedYamlMapping,
     requirement: &ResolvedPnpmWorkspaceYamlRequirements,
+    rejected: &BTreeSet<String>,
     findings: &mut Vec<Finding>,
 ) {
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "strictPeerDependencies",
         requirement.strict_peer_dependencies.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "engineStrict",
         requirement.engine_strict.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "minimumReleaseAge",
         requirement.minimum_release_age.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "minimumReleaseAgeStrict",
         requirement.minimum_release_age_strict.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "minimumReleaseAgeIgnoreMissingTime",
         requirement.minimum_release_age_ignore_missing_time.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "trustPolicy",
         requirement.trust_policy.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "trustLockfile",
         requirement.trust_lockfile.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "trustPolicyIgnoreAfter",
         requirement.trust_policy_ignore_after.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "blockExoticSubdeps",
         requirement.block_exotic_subdeps.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "pmOnFail",
         requirement.pm_on_fail.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "strictDepBuilds",
         requirement.strict_dep_builds.as_ref(),
+        rejected,
         findings,
     );
-    apply_scalar_assertion(
+    apply_scalar_unless_rejected(
         document,
         "dangerouslyAllowAllBuilds",
         requirement.dangerously_allow_all_builds.as_ref(),
+        rejected,
         findings,
     );
+}
+
+fn apply_scalar_unless_rejected<T: aqc_yaml_engine_core::YamlScalar>(
+    document: &ParsedYamlMapping,
+    key: &str,
+    requirement: Option<
+        &aqc_file_engine_core::ResolvedRequirement<
+            aqc_file_engine_core::ScalarAssertion<T>,
+            aqc_file_engine_core::ScalarAssertion<T>,
+        >,
+    >,
+    rejected: &BTreeSet<String>,
+    findings: &mut Vec<Finding>,
+) {
+    if !rejected.contains(key) {
+        apply_scalar_assertion(document, key, requirement, findings);
+    }
 }
 
 fn apply_list(
@@ -381,129 +426,6 @@ fn desired_items(
         let _ = desired.remove(key);
     }
     desired
-}
-
-fn apply_exact_settings(
-    document: &ParsedYamlMapping,
-    requirement: &ResolvedPnpmWorkspaceYamlRequirements,
-    findings: &mut Vec<Finding>,
-) {
-    if requirement.exact_settings.is_empty() {
-        return;
-    }
-    let attribution = requirement
-        .exact_settings
-        .iter()
-        .map(|(provenance, _)| provenance.clone())
-        .collect::<Vec<_>>();
-    let message = requirement
-        .exact_settings
-        .first()
-        .map_or_else(String::new, |(_, message)| message.clone());
-    let Ok(effective) = document.effective_keys() else {
-        support::push_collection_mismatch("<<", message, attribution, None, findings);
-        return;
-    };
-    let direct = document.direct_keys().into_iter().collect::<BTreeSet<_>>();
-    let authorized = authorized_settings(requirement);
-    for key in effective
-        .into_iter()
-        .filter(|key| !authorized.contains(key.as_str()))
-    {
-        findings.push(Finding::Mismatch {
-            key: key.clone(),
-            selector: None,
-            current: Some("present".to_owned()),
-            expected: "setting absent".to_owned(),
-            message: message.clone(),
-            severity: Severity::Error,
-            attribution: attribution.clone(),
-        });
-        if direct.contains(&key) {
-            let rendered = document.render();
-            let candidate = parse_yaml_mapping(Some(&rendered), "YAML document");
-            if candidate.is_ok_and(|candidate| {
-                candidate.remove(&key);
-                candidate
-                    .effective_keys()
-                    .is_ok_and(|keys| !keys.contains(&key))
-            }) {
-                document.remove(&key);
-            }
-        }
-    }
-}
-
-fn authorized_settings(requirement: &ResolvedPnpmWorkspaceYamlRequirements) -> BTreeSet<&str> {
-    let mut settings = BTreeSet::new();
-    for (key, present) in [
-        (
-            "strictPeerDependencies",
-            requirement.strict_peer_dependencies.is_some(),
-        ),
-        ("engineStrict", requirement.engine_strict.is_some()),
-        (
-            "minimumReleaseAge",
-            requirement.minimum_release_age.is_some(),
-        ),
-        (
-            "minimumReleaseAgeStrict",
-            requirement.minimum_release_age_strict.is_some(),
-        ),
-        (
-            "minimumReleaseAgeIgnoreMissingTime",
-            requirement
-                .minimum_release_age_ignore_missing_time
-                .is_some(),
-        ),
-        ("trustPolicy", requirement.trust_policy.is_some()),
-        ("trustLockfile", requirement.trust_lockfile.is_some()),
-        (
-            "trustPolicyIgnoreAfter",
-            requirement.trust_policy_ignore_after.is_some(),
-        ),
-        (
-            "blockExoticSubdeps",
-            requirement.block_exotic_subdeps.is_some(),
-        ),
-        ("pmOnFail", requirement.pm_on_fail.is_some()),
-        ("strictDepBuilds", requirement.strict_dep_builds.is_some()),
-        (
-            "dangerouslyAllowAllBuilds",
-            requirement.dangerously_allow_all_builds.is_some(),
-        ),
-    ] {
-        if present {
-            let _ = settings.insert(key);
-        }
-    }
-    if has_list_requirement(&requirement.minimum_release_age_exclude)
-        || !requirement
-            .forbidden_minimum_release_age_exclude_globs
-            .globs
-            .is_empty()
-    {
-        let _ = settings.insert("minimumReleaseAgeExclude");
-    }
-    if has_list_requirement(&requirement.trust_policy_exclude)
-        || !requirement
-            .forbidden_trust_policy_exclude_globs
-            .globs
-            .is_empty()
-    {
-        let _ = settings.insert("trustPolicyExclude");
-    }
-    if !requirement.allow_builds.required.is_empty()
-        || !requirement.allow_builds.forbidden.is_empty()
-        || requirement.allow_builds.exact.is_some()
-        || !requirement
-            .forbidden_allowed_build_package_globs
-            .globs
-            .is_empty()
-    {
-        let _ = settings.insert("allowBuilds");
-    }
-    settings
 }
 
 fn has_list_requirement(requirement: &ResolvedListRequirements) -> bool {
