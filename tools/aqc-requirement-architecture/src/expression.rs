@@ -28,6 +28,7 @@ pub(crate) fn adapter_violations(
             membership_field_names,
             adapter_root_names,
             membership_bindings: BTreeSet::new(),
+            requirement_bindings: BTreeSet::new(),
             context: None,
             context_returns_membership: false,
             crate_name: &parsed_crate.crate_name,
@@ -47,6 +48,7 @@ struct AdapterExpressionVisitor<'a> {
     membership_field_names: &'a BTreeSet<String>,
     adapter_root_names: &'a BTreeSet<String>,
     membership_bindings: BTreeSet<String>,
+    requirement_bindings: BTreeSet<String>,
     context: Option<String>,
     context_returns_membership: bool,
     crate_name: &'a str,
@@ -95,7 +97,8 @@ impl AdapterExpressionVisitor<'_> {
             }
             Expr::Group(group) => self.is_membership_value(group.expr.as_ref()),
             Expr::MethodCall(call) => {
-                call.method == "map" && self.is_membership_value(call.receiver.as_ref())
+                self.membership_functions.contains(&call.method.to_string())
+                    || call.method == "map" && self.is_membership_value(call.receiver.as_ref())
             }
             Expr::Paren(paren) => self.is_membership_value(paren.expr.as_ref()),
             Expr::Path(path) => path.path.segments.last().is_some_and(|segment| {
@@ -131,6 +134,9 @@ impl AdapterExpressionVisitor<'_> {
             Expr::Path(path) => path.path.segments.last().is_some_and(|segment| {
                 self.membership_bindings
                     .contains(&segment.ident.to_string())
+                    || self
+                        .requirement_bindings
+                        .contains(&segment.ident.to_string())
             }),
             Expr::Reference(reference) => {
                 self.is_tracked_requirement_access(reference.expr.as_ref())
@@ -156,6 +162,22 @@ impl AdapterExpressionVisitor<'_> {
             let _ = self.membership_bindings.insert(name);
         }
     }
+
+    fn track_tuple_membership(&mut self, local: &Local) {
+        let (Pat::Tuple(tuple), Some(init)) = (&local.pat, local.init.as_ref()) else {
+            return;
+        };
+        if !self.is_membership_value(init.expr.as_ref()) {
+            return;
+        }
+        self.membership_bindings.extend(
+            tuple
+                .elems
+                .iter()
+                .filter_map(local_binding_name)
+                .filter(|name| self.membership_field_names.contains(name)),
+        );
+    }
 }
 
 impl Visit<'_> for AdapterExpressionVisitor<'_> {
@@ -163,10 +185,12 @@ impl Visit<'_> for AdapterExpressionVisitor<'_> {
         let previous = self.context.replace(item.sig.ident.to_string());
         let previous_membership = self.context_returns_membership;
         let previous_bindings = std::mem::take(&mut self.membership_bindings);
+        let previous_requirements = std::mem::take(&mut self.requirement_bindings);
         self.track_membership_parameters(&item.sig);
         self.context_returns_membership = return_type_is_membership(&item.sig.output, self.aliases);
         syn::visit::visit_item_fn(self, item);
         self.membership_bindings = previous_bindings;
+        self.requirement_bindings = previous_requirements;
         self.context_returns_membership = previous_membership;
         self.context = previous;
     }
@@ -175,10 +199,12 @@ impl Visit<'_> for AdapterExpressionVisitor<'_> {
         let previous = self.context.replace(item.sig.ident.to_string());
         let previous_membership = self.context_returns_membership;
         let previous_bindings = std::mem::take(&mut self.membership_bindings);
+        let previous_requirements = std::mem::take(&mut self.requirement_bindings);
         self.track_membership_parameters(&item.sig);
         self.context_returns_membership = return_type_is_membership(&item.sig.output, self.aliases);
         syn::visit::visit_impl_item_fn(self, item);
         self.membership_bindings = previous_bindings;
+        self.requirement_bindings = previous_requirements;
         self.context_returns_membership = previous_membership;
         self.context = previous;
     }
@@ -292,6 +318,7 @@ impl Visit<'_> for AdapterExpressionVisitor<'_> {
                 let _ = self.membership_bindings.insert(name);
             }
         }
+        self.track_tuple_membership(local);
         syn::visit::visit_local(self, local);
     }
 }
@@ -302,19 +329,26 @@ impl AdapterExpressionVisitor<'_> {
             let FnArg::Typed(argument) = argument else {
                 continue;
             };
-            if !contains_explicit_membership(&argument.ty, self.aliases, &mut BTreeSet::new())
-                && !type_resolves_to_adapter_root(
-                    &argument.ty,
-                    self.aliases,
-                    self.adapter_root_names,
-                    &mut BTreeSet::new(),
-                )
-            {
+            let is_membership =
+                contains_explicit_membership(&argument.ty, self.aliases, &mut BTreeSet::new());
+            let is_requirement = type_resolves_to_adapter_root(
+                &argument.ty,
+                self.aliases,
+                self.adapter_root_names,
+                &mut BTreeSet::new(),
+            );
+            if !is_membership && !is_requirement {
                 continue;
             }
-            if let Some(name) = local_binding_name(&argument.pat) {
-                let _ = self.membership_bindings.insert(name);
-            }
+            let Some(name) = local_binding_name(&argument.pat) else {
+                continue;
+            };
+            let bindings = if is_membership {
+                &mut self.membership_bindings
+            } else {
+                &mut self.requirement_bindings
+            };
+            let _ = bindings.insert(name);
         }
     }
 }
