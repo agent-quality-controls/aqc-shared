@@ -81,12 +81,16 @@ implementation will not commit.
   a distinct composed requirement shape.
 - `exact` contains only keys required to be present. A value assertion does
   not make its key required; absence assertions are omitted from `exact`.
+- `allowed` closes membership without requiring its listed items. Multiple
+  allowed collections intersect. Required and exact items outside an allowed
+  collection conflict during merge. File engines use resolved membership and
+  must not implement separate allowlist behavior.
 - Engines use `FileKeyRequirement` and `resolve_key_membership` to detect
   conflicts between value requirements and explicit key membership. Derived
   key constraints do not produce duplicate file findings.
 - Requirement roots and reachable child structs must use core requirement
   vocabulary. Do not reimplement core membership types in format engines.
-- Adapter membership fields may only receive policy-supplied membership
+- Adapter membership fields, including `allowed`, may only receive policy-supplied membership
   directly or through `ItemRequirements::map`. Do not construct, replace,
   mutate, default, or obtain membership through local or cross-crate helpers.
 - AQC must not name downstream policies, adapters, Shackles products, or

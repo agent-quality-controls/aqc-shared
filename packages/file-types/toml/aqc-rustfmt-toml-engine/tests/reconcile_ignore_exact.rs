@@ -367,6 +367,7 @@ fn setting_key(file_key: &str) -> KeyedItem<()> {
 
 fn exact_keys<const N: usize>(keys: [&str; N], message: &str) -> ItemRequirements<KeyedItem<()>> {
     ItemRequirements {
+        allowed: None,
         exact: Some((
             keys.into_iter().map(setting_key).collect(),
             message.to_owned(),

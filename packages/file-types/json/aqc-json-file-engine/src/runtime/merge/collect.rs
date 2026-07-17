@@ -213,7 +213,10 @@ fn collect_object_requirements(
     presence: &mut PresenceInputs,
 ) {
     for (path, keys) in requirements.into_iter().filter(|(_, keys)| {
-        !keys.required.is_empty() || !keys.forbidden.is_empty() || keys.exact.is_some()
+        !keys.required.is_empty()
+            || !keys.forbidden.is_empty()
+            || keys.allowed.is_some()
+            || keys.exact.is_some()
     }) {
         collect_object_requirement(provenance, &path, &keys, kinds, presence);
         inputs

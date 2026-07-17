@@ -1,13 +1,12 @@
-//! Item and forbidden-glob merge functions.
+//! Item merge functions.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    ConflictEntry, Contributor, ExactItemsInput, FileItemRequirement, ForbiddenGlobRequirement,
-    ForbiddenItemMap, GlobAssertionGroups, GlobInput, GlobResolutionMap, ItemAssertionGroups,
-    ItemAssertionInput, ItemInput, ItemPresenceDifference, ItemRequirementMap, KeyedItem,
-    RequiredItemResolution, ResolvedExactItems, ResolvedForbiddenGlobRequirements,
-    ResolvedItemRequirements, ResolvedRequirement, sort_provenanced,
+    AllowedItemsInput, ConflictEntry, Contributor, ExactItemsInput, FileItemRequirement,
+    ForbiddenItemMap, ItemAssertionGroups, ItemAssertionInput, ItemInput, ItemPresenceDifference,
+    ItemRequirementMap, KeyedItem, RequiredItemResolution, ResolvedAllowedItems,
+    ResolvedExactItems, ResolvedItemRequirements, ResolvedRequirement, sort_provenanced,
 };
 use crate::{FindingKey, types::Provenance};
 
@@ -46,9 +45,19 @@ where
         .iter()
         .filter(|(identity, _)| current.contains(*identity))
         .collect();
-    let unexpected = requirements.exact.as_ref().map_or_else(Vec::new, |exact| {
+    let permitted = requirements
+        .exact
+        .as_ref()
+        .map(|exact| &exact.identities)
+        .or_else(|| {
+            requirements
+                .allowed
+                .as_ref()
+                .map(|allowed| &allowed.identities)
+        });
+    let unexpected = permitted.map_or_else(Vec::new, |permitted| {
         current
-            .difference(&exact.identities)
+            .difference(permitted)
             .filter(|identity| !requirements.forbidden.contains_key(*identity))
             .collect()
     });
@@ -74,13 +83,21 @@ where
     collect_item_groups(input, &mut grouped);
 
     let resolved_required = resolve_required_items(key, grouped.required.clone(), conflicts);
-    let resolved_forbidden = resolve_forbidden_items(grouped.forbidden);
+    let resolved_forbidden = resolve_forbidden_items(grouped.forbidden.clone());
+    let resolved_allowed = resolve_allowed_items(&grouped.allowed_inputs);
 
-    report_required_forbidden_conflicts(key, &resolved_required, &resolved_forbidden, conflicts);
+    report_required_forbidden_conflicts(key, &grouped.required, &resolved_forbidden, conflicts);
+    report_allowed_conflicts(
+        key,
+        &grouped.allowed_inputs,
+        &grouped.exact_inputs,
+        &grouped.required,
+        conflicts,
+    );
     report_exact_conflicts(
         key,
         &grouped.exact_inputs,
-        &resolved_required,
+        &grouped.required,
         &resolved_forbidden,
         conflicts,
     );
@@ -96,6 +113,7 @@ where
     ResolvedItemRequirements {
         required: resolved_required,
         forbidden: resolved_forbidden,
+        allowed: resolved_allowed,
         exact,
     }
 }
@@ -124,50 +142,6 @@ pub fn resolve_key_membership(
         }
     }
     resolved
-}
-
-pub fn resolve_forbidden_globs<Glob>(
-    _key: &str,
-    mut input: Vec<GlobInput<Glob>>,
-    conflicts: &mut Vec<ConflictEntry>,
-) -> ResolvedForbiddenGlobRequirements<Glob>
-where
-    Glob: ForbiddenGlobRequirement,
-    Glob::Identity: ToString,
-{
-    conflicts.reserve(0);
-    sort_provenanced(&mut input);
-    let mut by_glob = GlobAssertionGroups::<Glob>::new();
-
-    for (prov, globs) in input {
-        for (glob, msg) in globs.globs {
-            by_glob
-                .entry(glob.merge_identity())
-                .or_default()
-                .push((prov.clone(), (glob, msg)));
-        }
-    }
-
-    let mut resolved_globs = GlobResolutionMap::<Glob>::new();
-    for (identity, items) in by_glob {
-        let Some((_, (first, _))) = items.first() else {
-            continue;
-        };
-        let _ = resolved_globs.insert(
-            identity,
-            ResolvedRequirement {
-                merged: first.clone(),
-                collected: items
-                    .into_iter()
-                    .map(|(prov, (_, msg))| (prov, msg))
-                    .collect(),
-            },
-        );
-    }
-
-    ResolvedForbiddenGlobRequirements {
-        globs: resolved_globs,
-    }
 }
 
 pub fn compose_item_by<Item, Semantic>(
@@ -233,6 +207,8 @@ where
     forbidden: ItemAssertionGroups<Item>,
     /// Exact item assertions by item identity.
     exact_items: ItemAssertionGroups<Item>,
+    /// Explicit optional-identity allowlists supplied by policies.
+    allowed_inputs: Vec<AllowedItemsInput<Item>>,
     /// Explicit complete collections supplied by policies.
     exact_inputs: Vec<ExactItemsInput<Item>>,
 }
@@ -246,6 +222,7 @@ where
             required: ItemAssertionGroups::<Item>::new(),
             forbidden: ItemAssertionGroups::<Item>::new(),
             exact_items: ItemAssertionGroups::<Item>::new(),
+            allowed_inputs: Vec::new(),
             exact_inputs: Vec::new(),
         }
     }
@@ -271,6 +248,9 @@ where
                 .or_default()
                 .push((prov.clone(), (item, msg)));
         }
+        if let Some(allowed) = items.allowed {
+            grouped.allowed_inputs.push((prov.clone(), allowed));
+        }
         if let Some((exact, msg)) = items.exact {
             for item in &exact {
                 grouped
@@ -282,6 +262,31 @@ where
             grouped.exact_inputs.push((prov, (exact, msg)));
         }
     }
+}
+
+/// Intersect optional-identity allowlists while preserving every contributor.
+fn resolve_allowed_items<Item>(
+    inputs: &[AllowedItemsInput<Item>],
+) -> Option<ResolvedAllowedItems<Item>>
+where
+    Item: FileItemRequirement,
+{
+    let (_, (first, _)) = inputs.first()?;
+    let mut identities = first
+        .iter()
+        .map(FileItemRequirement::merge_identity)
+        .collect::<BTreeSet<_>>();
+    for (_, (next, _)) in inputs.iter().skip(1) {
+        let next = next
+            .iter()
+            .map(FileItemRequirement::merge_identity)
+            .collect::<BTreeSet<_>>();
+        identities.retain(|identity| next.contains(identity));
+    }
+    Some(ResolvedAllowedItems {
+        identities,
+        collected: inputs.to_vec(),
+    })
 }
 
 /// Resolve required item assertions for each item identity.
@@ -332,7 +337,7 @@ where
 /// Report identities that are both required and forbidden.
 fn report_required_forbidden_conflicts<Item, Key>(
     key: &Key,
-    resolved_required: &ItemRequirementMap<Item>,
+    required_inputs: &ItemAssertionGroups<Item>,
     resolved_forbidden: &ForbiddenItemMap<Item>,
     conflicts: &mut Vec<ConflictEntry>,
 ) where
@@ -340,15 +345,11 @@ fn report_required_forbidden_conflicts<Item, Key>(
     Item::Identity: ToString,
     Key: FindingKey + ?Sized,
 {
-    for identity in resolved_required.keys() {
+    for identity in required_inputs.keys() {
         if let Some(forbidden) = resolved_forbidden.get(identity) {
             let mut contributors = Vec::new();
-            if let Some(req) = resolved_required.get(identity) {
-                contributors.extend(
-                    req.collected
-                        .iter()
-                        .map(|(prov, _)| required_contributor(prov)),
-                );
+            if let Some(req) = required_inputs.get(identity) {
+                contributors.extend(req.iter().map(|(prov, _)| required_contributor(prov)));
             }
             contributors.extend(
                 forbidden
@@ -365,11 +366,59 @@ fn report_required_forbidden_conflicts<Item, Key>(
     }
 }
 
+/// Report constructive requirements excluded by an optional-identity allowlist.
+fn report_allowed_conflicts<Item, Key>(
+    key: &Key,
+    allowed_inputs: &[AllowedItemsInput<Item>],
+    exact_inputs: &[ExactItemsInput<Item>],
+    required_inputs: &ItemAssertionGroups<Item>,
+    conflicts: &mut Vec<ConflictEntry>,
+) where
+    Item: FileItemRequirement,
+    Item::Identity: ToString,
+    Key: FindingKey + ?Sized,
+{
+    let mut constructive = BTreeMap::<Item::Identity, Vec<Contributor>>::new();
+    for (identity, required) in required_inputs {
+        constructive.entry(identity.clone()).or_default().extend(
+            required
+                .iter()
+                .map(|(provenance, _)| required_contributor(provenance)),
+        );
+    }
+    for (provenance, (items, message)) in exact_inputs {
+        for identity in items.iter().map(FileItemRequirement::merge_identity) {
+            let contributor = (provenance.clone(), message.clone());
+            let contributors = constructive.entry(identity).or_default();
+            if !contributors.contains(&contributor) {
+                contributors.push(contributor);
+            }
+        }
+    }
+
+    for (identity, constructive_contributors) in constructive {
+        let mut contributors = allowed_inputs
+            .iter()
+            .filter(|(_, (items, _))| !items.iter().any(|item| item.merge_identity() == identity))
+            .map(|(provenance, (_, message))| (provenance.clone(), message.clone()))
+            .collect::<Vec<_>>();
+        if contributors.is_empty() {
+            continue;
+        }
+        contributors.extend(constructive_contributors);
+        conflicts.push(ConflictEntry {
+            key: key.child_key(&identity.to_string()),
+            reason: "allowed-items-reject-required-item".to_owned(),
+            contributors,
+        });
+    }
+}
+
 /// Report identity disagreements and exact conflicts with required/forbidden assertions.
 fn report_exact_conflicts<Item, Key>(
     key: &Key,
     exact_inputs: &[ExactItemsInput<Item>],
-    resolved_required: &ItemRequirementMap<Item>,
+    required_inputs: &ItemAssertionGroups<Item>,
     resolved_forbidden: &ForbiddenItemMap<Item>,
     conflicts: &mut Vec<ConflictEntry>,
 ) where
@@ -402,16 +451,12 @@ fn report_exact_conflicts<Item, Key>(
     }
 
     for ((exact_prov, (_, exact_msg)), allowed) in exact_inputs.iter().zip(&identity_sets) {
-        for (identity, req) in resolved_required {
+        for (identity, req) in required_inputs {
             if allowed.contains(identity) {
                 continue;
             }
             let mut contributors = vec![(exact_prov.clone(), exact_msg.clone())];
-            contributors.extend(
-                req.collected
-                    .iter()
-                    .map(|(prov, _)| required_contributor(prov)),
-            );
+            contributors.extend(req.iter().map(|(prov, _)| required_contributor(prov)));
             conflicts.push(ConflictEntry {
                 key: key.child_key(&identity.to_string()),
                 reason: "exact-items-reject-unlisted-required-item".to_owned(),

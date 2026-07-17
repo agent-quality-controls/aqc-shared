@@ -142,6 +142,7 @@ fn exact_test_requirements() -> aqc_file_engine_core::ResolvedItemRequirements<T
             ItemRequirements {
                 required: Vec::new(),
                 forbidden: Vec::new(),
+                allowed: None,
                 exact: Some((
                     vec![TestItem {
                         key: "a".to_owned(),
@@ -236,6 +237,7 @@ fn table_key_reconciliation_reports_missing_required_keys_as_unwritable() {
 #[test]
 fn child_reconciliation_satisfies_membership_without_a_duplicate_missing_finding() {
     let requirements = resolved_table_keys(ItemRequirements {
+        allowed: None,
         exact: Some((vec![table_key("required")], "exact message".to_owned())),
         ..ItemRequirements::default()
     });
@@ -262,6 +264,7 @@ fn child_reconciliation_satisfies_membership_without_a_duplicate_missing_finding
 fn table_key_reconciliation_removes_forbidden_and_unexpected_keys() {
     let requirements = resolved_table_keys(ItemRequirements {
         forbidden: vec![(table_key("forbidden"), "forbidden message".to_owned())],
+        allowed: None,
         exact: Some((vec![table_key("allowed")], "exact message".to_owned())),
         ..ItemRequirements::default()
     });
@@ -294,8 +297,32 @@ fn table_key_reconciliation_removes_forbidden_and_unexpected_keys() {
 }
 
 #[test]
+fn allowed_table_keys_remove_extras_without_requiring_optional_keys() {
+    let requirements = resolved_table_keys(ItemRequirements {
+        allowed: Some((vec![table_key("optional")], "allowed message".to_owned())),
+        ..ItemRequirements::default()
+    });
+    let mut table = Table::new();
+    let _ = table.insert("unexpected", toml_edit::value(1));
+    let mut findings = Vec::new();
+
+    remove_rejected_table_keys(&mut table, "settings", &requirements, &mut findings);
+    report_missing_table_keys(&table, "settings", &requirements, &mut findings);
+
+    assert!(table.is_empty());
+    assert!(matches!(
+        findings.as_slice(),
+        [Finding::Mismatch { key, expected, message, .. }]
+            if key == "settings.unexpected"
+                && expected == "absent (not allowed)"
+                && message == "allowed message"
+    ));
+}
+
+#[test]
 fn exact_empty_table_key_reconciliation_removes_every_key() {
     let requirements = resolved_table_keys(ItemRequirements {
+        allowed: None,
         exact: Some((Vec::new(), "exact empty".to_owned())),
         ..ItemRequirements::default()
     });

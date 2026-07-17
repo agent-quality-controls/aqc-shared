@@ -2,7 +2,8 @@ use std::cmp::Reverse;
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity, item_presence_difference,
+    FileItemRequirement, Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity,
+    item_presence_difference,
 };
 use aqc_json_engine_core::{JsonObject, NonObjectParentAction, reconcile_scalar_assertion};
 
@@ -121,17 +122,20 @@ fn reconcile_object_keys(
         );
         let _ = document.remove_object_key(&components, key);
     }
-    if let Some(exact) = &requirement.exact {
+    if let Some(membership) = requirement.membership() {
         for key in difference.unexpected {
             push_object_key_finding(
                 path,
                 key,
-                "absent (exact keys)",
-                exact
-                    .collected
-                    .first()
-                    .map_or_else(String::new, |(_, (_, message))| message.clone()),
-                exact_attribution(exact),
+                if membership.is_exact() {
+                    "absent (exact keys)"
+                } else {
+                    "absent (not allowed)"
+                },
+                membership
+                    .message_for_rejected(|item| item.merge_identity() == *key)
+                    .to_owned(),
+                membership.attribution_for_rejected(|item| item.merge_identity() == *key),
                 findings,
             );
             let _ = document.remove_object_key(&components, key);
@@ -165,6 +169,12 @@ fn object_message(requirement: &ResolvedItemRequirements<KeyedItem<()>>) -> Stri
         .flat_map(|resolved| resolved.collected.iter().map(|(_, (_, message))| message))
         .chain(
             requirement
+                .allowed
+                .iter()
+                .flat_map(|resolved| resolved.collected.iter().map(|(_, (_, message))| message)),
+        )
+        .chain(
+            requirement
                 .forbidden
                 .values()
                 .flat_map(|resolved| resolved.collected.iter().map(|(_, message)| message)),
@@ -191,6 +201,12 @@ fn object_attribution(requirement: &ResolvedItemRequirements<KeyedItem<()>>) -> 
                 .values()
                 .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
         )
+        .chain(requirement.allowed.iter().flat_map(|allowed| {
+            allowed
+                .collected
+                .iter()
+                .map(|(provenance, _)| provenance.clone())
+        }))
         .chain(requirement.exact.iter().flat_map(exact_attribution))
         .collect::<Vec<_>>();
     attribution.sort();

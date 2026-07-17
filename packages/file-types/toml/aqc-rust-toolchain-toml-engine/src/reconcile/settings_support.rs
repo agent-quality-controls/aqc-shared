@@ -19,7 +19,11 @@ pub(super) fn report_invalid_requirement_combinations(
     if !has_path_value_requirement(requirement) {
         return;
     }
-    if let Some(channel) = &requirement.channel {
+    if let Some(channel) = requirement
+        .channel
+        .as_ref()
+        .filter(|resolved| !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
+    {
         findings.push(invalid_requirements(
             "toolchain.channel",
             "`path` and `channel` cannot both be required.",
@@ -31,7 +35,11 @@ pub(super) fn report_invalid_requirement_combinations(
                 .collect(),
         ));
     }
-    if let Some(profile) = &requirement.profile {
+    if let Some(profile) = requirement
+        .profile
+        .as_ref()
+        .filter(|resolved| !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
+    {
         findings.push(invalid_requirements(
             "toolchain.profile",
             "`path` disables channel-based toolchain fields.",
@@ -43,7 +51,7 @@ pub(super) fn report_invalid_requirement_combinations(
                 .collect(),
         ));
     }
-    if !list_is_empty(&requirement.components) {
+    if list_requires_presence(&requirement.components) {
         findings.push(invalid_requirements(
             "toolchain.components",
             "`path` disables channel-based toolchain fields.",
@@ -55,7 +63,7 @@ pub(super) fn report_invalid_requirement_combinations(
                 .collect(),
         ));
     }
-    if !list_is_empty(&requirement.targets) {
+    if list_requires_presence(&requirement.targets) {
         findings.push(invalid_requirements(
             "toolchain.targets",
             "`path` disables channel-based toolchain fields.",
@@ -74,15 +82,6 @@ pub(super) fn report_existing_file_conflicts(
     requirement: &ResolvedRustToolchainTomlRequirements,
     findings: &mut Vec<file_core::Finding>,
 ) {
-    if table.contains_key("channel") && table.contains_key("path") {
-        push_unwritable(
-            findings,
-            "toolchain.path",
-            "absent when channel is set",
-            requirement,
-        );
-        let _ = table.remove("path");
-    }
     if table.contains_key("path") && has_channel_based_requirements(requirement) {
         push_unwritable(
             findings,
@@ -383,21 +382,27 @@ fn item_attribution(
         .collect()
 }
 
-pub(super) fn has_requirements(requirement: &ResolvedRustToolchainTomlRequirements) -> bool {
-    requirement.channel.is_some()
-        || requirement.path.is_some()
-        || requirement.profile.is_some()
-        || !list_is_empty(&requirement.components)
-        || !list_is_empty(&requirement.targets)
-        || !item_requirements_are_empty(&requirement.toolchain_keys)
+pub(super) fn requires_toolchain_table(
+    requirement: &ResolvedRustToolchainTomlRequirements,
+) -> bool {
+    requirement
+        .channel
+        .as_ref()
+        .is_some_and(|resolved| !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
+        || requirement.path.as_ref().is_some_and(|resolved| {
+            !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_))
+        })
+        || requirement.profile.as_ref().is_some_and(|resolved| {
+            !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_))
+        })
+        || list_requires_presence(&requirement.components)
+        || list_requires_presence(&requirement.targets)
+        || !requirement.toolchain_keys.required.is_empty()
+        || requirement.toolchain_keys.exact.is_some()
 }
 
-fn item_requirements_are_empty(
-    requirement: &file_core::ResolvedItemRequirements<file_core::KeyedItem<()>>,
-) -> bool {
-    requirement.required.is_empty()
-        && requirement.forbidden.is_empty()
-        && requirement.exact.is_none()
+pub(super) fn list_requires_presence(requirement: &file_core::ResolvedListRequirements) -> bool {
+    !requirement.contains.is_empty() || requirement.exact.is_some()
 }
 
 pub(super) fn has_path_value_requirement(
@@ -410,10 +415,15 @@ pub(super) fn has_path_value_requirement(
 }
 
 fn has_channel_based_requirements(requirement: &ResolvedRustToolchainTomlRequirements) -> bool {
-    requirement.channel.is_some()
-        || requirement.profile.is_some()
-        || !list_is_empty(&requirement.components)
-        || !list_is_empty(&requirement.targets)
+    requirement
+        .channel
+        .as_ref()
+        .is_some_and(|resolved| !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
+        || requirement.profile.as_ref().is_some_and(|resolved| {
+            !matches!(resolved.merged, file_core::ScalarAssertion::Absent(_))
+        })
+        || list_requires_presence(&requirement.components)
+        || list_requires_presence(&requirement.targets)
 }
 
 pub(super) fn list_is_empty(requirement: &file_core::ResolvedListRequirements) -> bool {

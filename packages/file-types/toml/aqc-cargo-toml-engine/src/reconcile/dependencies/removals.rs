@@ -14,7 +14,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, Provenance, ResolvedForbiddenGlobRequirements, Severity};
+use aqc_file_engine_core::{
+    Finding, Provenance, ResolvedForbiddenGlobRequirements, ResolvedItemMembership, Severity,
+};
 use globset::{GlobBuilder, GlobMatcher};
 use toml_edit::{DocumentMut, TableLike};
 
@@ -24,7 +26,7 @@ use aqc_toml_engine_core::table_at_mut;
 
 #[derive(Debug)]
 pub(super) struct PlannedDependencyRemoval {
-    current: DependencySpec,
+    current: String,
     expected: BTreeSet<String>,
     messages: BTreeSet<String>,
     attribution: BTreeSet<Provenance>,
@@ -33,7 +35,7 @@ pub(super) struct PlannedDependencyRemoval {
 fn queue_removal(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
     file_key: String,
-    current: DependencySpec,
+    current: String,
     expected: &str,
     msg: &str,
     attribution: &[Provenance],
@@ -72,16 +74,25 @@ pub(super) fn queue_forbidden_matches(
 fn read_forbidden_matches(
     table: &dyn TableLike,
     requirement: &DependencyRequirement,
-) -> Vec<(String, DependencySpec)> {
+) -> Vec<(String, String)> {
     if let Some(file_key) = requirement.file_key.as_deref() {
-        return read_spec(table, file_key)
-            .map(|spec| vec![(file_key.to_owned(), spec)])
+        return table
+            .get(file_key)
+            .map(|item| {
+                let display = read_spec(table, file_key)
+                    .as_ref()
+                    .map_or_else(|| item.to_string(), |spec| format!("{spec:?}"));
+                vec![(file_key.to_owned(), display)]
+            })
             .unwrap_or_default();
     }
     let Some(package) = requirement.value.package.as_deref() else {
         return Vec::new();
     };
     find_all_by_package(table, package)
+        .into_iter()
+        .map(|(file_key, spec)| (file_key, format!("{spec:?}")))
+        .collect()
 }
 
 pub(super) fn apply_package_glob_forbids(
@@ -123,7 +134,7 @@ pub(super) fn apply_package_glob_forbids(
             queue_removal(
                 removals,
                 file_key,
-                current,
+                format!("{current:?}"),
                 "absent (package glob)",
                 &message,
                 &attribution,
@@ -156,36 +167,59 @@ fn read_package_glob_matches(
         .collect()
 }
 
-/// Drop on-disk entries not allowed by the exact collection.
-pub(super) fn queue_exact_extras(
+/// Drop on-disk entries rejected by closed dependency membership.
+pub(super) fn queue_membership_extras(
     removals: &mut BTreeMap<String, PlannedDependencyRemoval>,
     table: Option<&dyn TableLike>,
-    allowed: &[DependencyRequirement],
-    message: &str,
-    attribution: &[Provenance],
+    membership: &ResolvedItemMembership<'_, DependencyRequirement>,
 ) {
     let Some(table) = table else {
         return;
     };
     let extras = table
         .iter()
-        .filter_map(|(file_key, _)| {
-            let spec = read_spec(table, file_key)?;
-            let effective_package = effective_package(file_key, &spec).to_owned();
-            let allowed = allowed.iter().any(|requirement| {
-                requirement_matches_file_item(requirement, file_key, &effective_package)
-            });
-            (!allowed).then(|| (file_key.to_owned(), spec))
+        .filter(|(file_key, _)| !removals.contains_key(*file_key))
+        .filter_map(|(file_key, item)| {
+            let spec = read_spec(table, file_key);
+            let effective_package = spec
+                .as_ref()
+                .map(|spec| effective_package(file_key, spec).to_owned());
+            let allowed = membership
+                .identities()
+                .iter()
+                .any(|identity| match identity {
+                    crate::requirement::DependencyIdentity::Package(package) => {
+                        Some(package) == effective_package.as_ref()
+                    }
+                    crate::requirement::DependencyIdentity::LocalKey(key) => key == file_key,
+                    crate::requirement::DependencyIdentity::Invalid => false,
+                });
+            (!allowed).then(|| {
+                let display = spec
+                    .as_ref()
+                    .map_or_else(|| item.to_string(), |spec| format!("{spec:?}"));
+                (file_key.to_owned(), effective_package, display)
+            })
         })
         .collect::<Vec<_>>();
-    for (extra, current) in &extras {
+    for (extra, effective_package, current) in &extras {
+        let matches = |requirement: &DependencyRequirement| {
+            requirement.value.package.as_deref().map_or_else(
+                || requirement.file_key.as_deref() == Some(extra.as_str()),
+                |package| Some(package) == effective_package.as_deref(),
+            )
+        };
         queue_removal(
             removals,
             extra.clone(),
             current.clone(),
-            "absent (exact collection)",
-            message,
-            attribution,
+            if membership.is_exact() {
+                "absent (exact collection)"
+            } else {
+                "absent (not allowed)"
+            },
+            membership.message_for_rejected(matches),
+            &membership.attribution_for_rejected(matches),
         );
     }
 }
@@ -201,7 +235,7 @@ pub(super) fn remove_dependency_entries_once(
         findings.push(Finding::Mismatch {
             key: format!("{display_path}.{file_key}"),
             selector: None,
-            current: Some(format!("{:?}", removal.current)),
+            current: Some(removal.current),
             expected: removal.expected.into_iter().collect::<Vec<_>>().join("; "),
             message: removal.messages.into_iter().collect::<Vec<_>>().join("; "),
             severity: Severity::Error,
@@ -211,15 +245,4 @@ pub(super) fn remove_dependency_entries_once(
             let _ = t.remove(file_key.as_str());
         }
     }
-}
-
-fn requirement_matches_file_item(
-    requirement: &DependencyRequirement,
-    file_key: &str,
-    effective_package: &str,
-) -> bool {
-    requirement.file_key.as_deref().map_or_else(
-        || requirement.value.package.as_deref() == Some(effective_package),
-        |required_key| required_key == file_key,
-    )
 }

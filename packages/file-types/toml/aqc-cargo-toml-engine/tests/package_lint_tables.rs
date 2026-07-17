@@ -37,6 +37,7 @@ fn table_requirements(
                 .into_iter()
                 .map(|(tool, message)| (table_item(tool), message.to_owned()))
                 .collect(),
+            allowed: None,
             exact: exact.map(|(tools, message)| {
                 (
                     tools.into_iter().map(table_item).collect(),
@@ -62,6 +63,7 @@ fn inline_requirement(tool: &str) -> cargo::CargoTomlRequirements {
             engine_core::ItemRequirements {
                 required: vec![(lint, "forbid unsafe".to_owned())],
                 forbidden: Vec::new(),
+                allowed: None,
                 exact: None,
             },
         )]))),
@@ -134,6 +136,25 @@ fn exact_empty_reports_each_local_lint_table_separately() {
     assert_eq!(findings.len(), 2);
     assert_eq!(mismatch_count_for_key(&findings, "[lints.rust]"), 1);
     assert_eq!(mismatch_count_for_key(&findings, "[lints.clippy]"), 1);
+}
+
+#[test]
+fn allowed_only_package_lint_tables_remove_extras_without_requiring_allowed_tables() {
+    let requirement = cargo::CargoTomlRequirements {
+        package_lint_tables: engine_core::ItemRequirements {
+            allowed: Some((vec![table_item("rust")], "only rust is allowed".to_owned())),
+            ..engine_core::ItemRequirements::default()
+        },
+        ..Default::default()
+    };
+    let findings = cargo_findings_with(
+        Some(b"[lints.clippy]\nunwrap_used = \"deny\"\n"),
+        vec![(prov("policy"), requirement)],
+    );
+
+    assert_eq!(findings.len(), 1);
+    assert_eq!(mismatch_count_for_key(&findings, "[lints.clippy]"), 1);
+    assert_eq!(mismatch_count_for_key(&findings, "[lints.rust]"), 0);
 }
 
 #[test]

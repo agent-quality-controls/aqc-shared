@@ -84,19 +84,22 @@ class LocalCargoSourceTests(unittest.TestCase):
 
         reader = threading.Thread(target=read_while_writing)
         reader.start()
-        with ThreadPoolExecutor(max_workers=8) as workers:
-            list(
-                workers.map(
-                    lambda index: MODULE.write_patch_config(
-                        self.root,
-                        config,
-                        (first if index % 2 == 0 else second,),
-                    ),
-                    range(64),
+        try:
+            with ThreadPoolExecutor(max_workers=8) as workers:
+                list(
+                    workers.map(
+                        lambda index: MODULE.write_patch_config(
+                            self.root,
+                            config,
+                            (first if index % 2 == 0 else second,),
+                        ),
+                        range(64),
+                    )
                 )
-            )
-        stop.set()
-        reader.join()
+        finally:
+            stop.set()
+            reader.join(timeout=5)
+        self.assertFalse(reader.is_alive())
         self.assertEqual(parse_errors, [])
         self.assertGreater(observed, 0)
         tomllib.loads(config.read_text())

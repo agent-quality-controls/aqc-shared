@@ -6,6 +6,7 @@ use crate::types::{PnpmPackageSelectorGlob, ResolvedPnpmWorkspaceYamlRequirement
 use aqc_file_engine_core::{
     Finding, KeyedItem, ResolvedForbiddenGlobRequirements, ResolvedItemRequirements,
     ResolvedListRequirements, Severity, apply_list_requirements, exact_list_difference,
+    item_presence_difference,
 };
 use aqc_yaml_engine_core::{
     ParsedYamlMapping, YamlFieldValue, apply_scalar_assertion, parse_yaml_mapping,
@@ -346,6 +347,7 @@ fn apply_allow_builds(
 ) {
     if requirement.allow_builds.required.is_empty()
         && requirement.allow_builds.forbidden.is_empty()
+        && requirement.allow_builds.allowed.is_none()
         && requirement.allow_builds.exact.is_none()
         && requirement
             .forbidden_allowed_build_package_globs
@@ -380,15 +382,35 @@ fn apply_allow_builds(
             support::push_glob_item_finding("allowBuilds", selector, &compiled_globs, findings);
         }
     }
-    let mut desired = desired_items(&current, &requirement.allow_builds);
-    let requirement_changed = desired != current;
+    let mut desired = desired_items(&current, &requirement.allow_builds, false);
+    let non_membership_changed = desired != current;
+    let current_keys = current.keys().cloned().collect::<BTreeSet<_>>();
+    let difference = item_presence_difference(&current_keys, &requirement.allow_builds);
+    if let Some(membership) = requirement
+        .allow_builds
+        .membership()
+        .filter(|membership| !membership.is_exact())
+    {
+        for selector in difference.unexpected {
+            support::push_collection_mismatch(
+                "allowBuilds",
+                membership
+                    .message_for_rejected(|item| item.file_key == *selector)
+                    .to_owned(),
+                membership.attribution_for_rejected(|item| item.file_key == *selector),
+                Some(selector.clone()),
+                findings,
+            );
+        }
+    }
+    desired = desired_items(&desired, &requirement.allow_builds, true);
     desired.retain(|selector, allowed| {
         !*allowed
             || !compiled_globs
                 .iter()
                 .any(|glob| glob.matcher.is_match(selector))
     });
-    if requirement_changed {
+    if non_membership_changed {
         support::push_collection_mismatch(
             "allowBuilds",
             "allowBuilds entries do not satisfy the resolved requirement".to_owned(),
@@ -408,6 +430,7 @@ fn apply_allow_builds(
 fn desired_items(
     current: &BTreeMap<String, bool>,
     requirement: &ResolvedItemRequirements<KeyedItem<bool>>,
+    apply_membership: bool,
 ) -> BTreeMap<String, bool> {
     let mut desired = requirement.exact.as_ref().map_or_else(
         || current.clone(),
@@ -424,6 +447,11 @@ fn desired_items(
     }
     for key in requirement.forbidden.keys() {
         let _ = desired.remove(key);
+    }
+    if apply_membership {
+        if let Some(membership) = requirement.membership() {
+            desired.retain(|key, _| membership.identities().contains(key));
+        }
     }
     desired
 }

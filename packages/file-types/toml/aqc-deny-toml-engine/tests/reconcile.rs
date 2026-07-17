@@ -235,6 +235,7 @@ fn exact_bans_build_removes_extra() {
             table_keys: BTreeMap::from([(
                 DenyTable::BansBuild,
                 ItemRequirements {
+                    allowed: None,
                     exact: Some((vec![key("executables")], "exact".to_owned())),
                     ..ItemRequirements::default()
                 },
@@ -368,6 +369,7 @@ unknown = true
 unknown = true
 ";
     let exact = |keys: &[&str]| ItemRequirements {
+        allowed: None,
         exact: Some((
             keys.iter().map(|key_name| key(key_name)).collect(),
             "exact table".to_owned(),
@@ -443,6 +445,7 @@ fn conflicting_exact_deny_table_keys_fail_merge() {
         table_keys: BTreeMap::from([(
             DenyTable::Graph,
             ItemRequirements {
+                allowed: None,
                 exact: Some((vec![key(key_name)], key_name.to_owned())),
                 ..ItemRequirements::default()
             },
@@ -478,6 +481,7 @@ fn exact_deny_table_keys_cannot_exclude_a_constructive_value_requirement() {
         table_keys: BTreeMap::from([(
             DenyTable::Bans,
             ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "no bans keys".to_owned())),
                 ..ItemRequirements::default()
             },
@@ -503,6 +507,7 @@ fn exact_deny_table_keys_cannot_exclude_a_constructive_value_requirement() {
 #[test]
 fn exact_parent_keys_cannot_exclude_a_constructive_child_membership() {
     let exact = |keys: &[&str], message: &str| ItemRequirements {
+        allowed: None,
         exact: Some((
             keys.iter().map(|key_name| key(key_name)).collect(),
             message.to_owned(),
@@ -542,6 +547,7 @@ fn absent_deny_scalar_is_excluded_from_exact_membership() {
             table_keys: BTreeMap::from([(
                 DenyTable::Bans,
                 ItemRequirements {
+                    allowed: None,
                     exact: Some((Vec::new(), "no bans keys".to_owned())),
                     ..ItemRequirements::default()
                 },
@@ -560,12 +566,14 @@ fn rejected_table_key_is_not_also_validated_as_child_content() {
         "[advisories]\nignore = [\"RUSTSEC-0000-0000\"]\n",
         DenyTomlRequirements {
             advisories_ignore: ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "no ignored advisories".to_owned())),
                 ..ItemRequirements::default()
             },
             table_keys: BTreeMap::from([(
                 DenyTable::Advisories,
                 ItemRequirements {
+                    allowed: None,
                     exact: Some((Vec::new(), "no advisories keys".to_owned())),
                     ..ItemRequirements::default()
                 },
@@ -591,6 +599,7 @@ fn constructive_deny_membership_initializes_to_a_fixed_point() {
         table_keys: BTreeMap::from([(
             DenyTable::Bans,
             ItemRequirements {
+                allowed: None,
                 exact: Some((vec![key("multiple-versions")], "only duplicates".to_owned())),
                 ..ItemRequirements::default()
             },
@@ -618,6 +627,7 @@ fn deny_membership_findings_include_all_exact_contributors() {
         table_keys: BTreeMap::from([(
             DenyTable::Bans,
             ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "no bans keys".to_owned())),
                 ..ItemRequirements::default()
             },

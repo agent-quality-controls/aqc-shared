@@ -170,6 +170,12 @@ pub fn assigned_exact(values: &std::collections::BTreeMap<String, String>) -> Me
     requirements
 }
 
+pub fn assigned_allowed(values: &std::collections::BTreeMap<String, String>) -> Membership {
+    let mut requirements = ItemRequirements::default();
+    requirements.allowed = Some(values.keys().map(|_| KeyedItem(())).collect());
+    requirements
+}
+
 pub fn renamed_local_membership_mutation(requirement: RejectedAdapterRequirement) -> Membership {
     let mut state = requirement.setting_keys;
     state.exact = Some(Vec::new());

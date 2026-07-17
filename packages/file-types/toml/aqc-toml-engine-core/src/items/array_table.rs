@@ -6,8 +6,8 @@ use aqc_file_engine_core::{Finding, ResolvedItemRequirements, Severity};
 use toml_edit::{ArrayOfTables, DocumentMut};
 
 use crate::items::support::{
-    CurrentItems, array_item, ensure_array_table, exact_attribution, first_exact_message,
-    forbidden_message, item_key, item_message, remove_array_table_items, report_duplicate_identity,
+    CurrentItems, array_item, ensure_array_table, forbidden_message, item_key, item_message,
+    remove_array_table_items, report_duplicate_identity,
 };
 use crate::items::types::{TomlArrayTableItem, TomlItemField};
 
@@ -23,6 +23,7 @@ pub fn reconcile_array_table_items<ItemType>(
 {
     if requirements.required.is_empty()
         && requirements.forbidden.is_empty()
+        && requirements.allowed.is_none()
         && requirements.exact.is_none()
     {
         return;
@@ -43,7 +44,7 @@ pub fn reconcile_array_table_items<ItemType>(
     }
     apply_forbidden_array_table_items(array, field, requirements, findings);
     if !current.duplicate {
-        apply_exact_array_table_items(array, field, requirements, findings);
+        apply_closed_membership_array_table_items(array, field, requirements, findings);
     }
 }
 
@@ -177,7 +178,7 @@ fn apply_forbidden_array_table_items<ItemType>(
     }
 }
 
-fn apply_exact_array_table_items<ItemType>(
+fn apply_closed_membership_array_table_items<ItemType>(
     array: &mut ArrayOfTables,
     field: TomlItemField<'_>,
     requirements: &ResolvedItemRequirements<ItemType>,
@@ -186,10 +187,10 @@ fn apply_exact_array_table_items<ItemType>(
     ItemType: TomlArrayTableItem,
     ItemType::Identity: ToString,
 {
-    let Some(exact) = &requirements.exact else {
+    let Some(membership) = requirements.membership() else {
         return;
     };
-    let allowed = &exact.identities;
+    let allowed = membership.identities();
     for identity in remove_array_table_items(array, |table| {
         ItemType::read_table(table)
             .ok()
@@ -200,10 +201,18 @@ fn apply_exact_array_table_items<ItemType>(
             key: item_key::<ItemType>(field, &identity),
             selector: None,
             current: Some(identity.to_string()),
-            expected: "absent (exact collection)".to_owned(),
-            message: first_exact_message(requirements),
+            expected: if membership.is_exact() {
+                "absent (exact collection)"
+            } else {
+                "absent (not allowed)"
+            }
+            .to_owned(),
+            message: membership
+                .message_for_rejected(|item| item.merge_identity() == identity)
+                .to_owned(),
             severity: Severity::Error,
-            attribution: exact_attribution(requirements),
+            attribution: membership
+                .attribution_for_rejected(|item| item.merge_identity() == identity),
         });
     }
 }

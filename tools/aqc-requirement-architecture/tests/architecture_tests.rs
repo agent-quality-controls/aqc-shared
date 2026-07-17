@@ -92,6 +92,7 @@ fn assert_expected_functions(messages: &str) {
         "optional_filter",
         "represented_discovery",
         "assigned_exact",
+        "assigned_allowed",
         "renamed_local_membership_mutation",
         "hidden_default_construction",
         "cross_crate_membership_helper",
@@ -175,6 +176,13 @@ fn policy_construction_and_adapter_map_are_accepted() {
         "Policy construction, imported_membership_alias, adapter map, neutral engine defaults, unrelated field mutations, and unrelated macros must pass: {:?}",
         report.violations
     );
+}
+
+#[test]
+fn policy_allowed_construction_is_accepted() {
+    let report = check_repository_roots(&core_manifest(), &[fixture("accepted")])
+        .expect("The accepted fixtures must produce an architecture report.");
+    assert!(report.violations.is_empty(), "{:#?}", report.violations);
 }
 
 #[test]

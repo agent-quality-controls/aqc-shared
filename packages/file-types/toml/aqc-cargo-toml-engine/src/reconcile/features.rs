@@ -10,7 +10,10 @@
 
 use std::collections::BTreeSet;
 
-use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
+use aqc_file_engine_core::{
+    FileItemRequirement, Finding, KeyedItem, Provenance, ResolvedItemMembership,
+    ResolvedItemRequirements, Severity,
+};
 use aqc_toml_engine_core::{
     ensure_table, table_list_values, table_list_values_optional, table_ref, write_table_list,
 };
@@ -52,19 +55,8 @@ pub(crate) fn apply(
             .unwrap_or_default();
         apply_forbidden(doc, feature, &msg, &attribution, findings);
     }
-    if let Some(exact) = &merged.exact {
-        let attribution = exact
-            .collected
-            .iter()
-            .map(|(provenance, _)| provenance.clone())
-            .collect::<Vec<_>>();
-        let allowed = exact.identities.clone();
-        let message = exact
-            .collected
-            .first()
-            .map(|(_, (_, message))| message.as_str())
-            .unwrap_or_default();
-        apply_exact_extras(doc, &allowed, message, &attribution, findings);
+    if let Some(membership) = merged.membership() {
+        apply_membership_extras(doc, &membership, findings);
     }
 }
 
@@ -125,18 +117,19 @@ fn apply_forbidden(
 }
 
 /// Drop features not present in the exact collection.
-fn apply_exact_extras(
+fn apply_membership_extras(
     doc: &mut DocumentMut,
-    allowed: &BTreeSet<String>,
-    message: &str,
-    attribution: &[Provenance],
+    membership: &ResolvedItemMembership<'_, KeyedItem<FeatureMembers>>,
     findings: &mut Vec<Finding>,
 ) {
     let Some(table) = table_ref(doc, "features") else {
         return;
     };
     let on_disk: BTreeSet<String> = table.iter().map(|(k, _)| k.to_owned()).collect();
-    let extras: Vec<String> = on_disk.difference(allowed).cloned().collect();
+    let extras: Vec<String> = on_disk
+        .difference(membership.identities())
+        .cloned()
+        .collect();
     for extra in &extras {
         let current =
             table_ref(doc, "features").map_or_else(Vec::new, |t| table_list_values(t, extra));
@@ -144,10 +137,18 @@ fn apply_exact_extras(
             key: format!("[features].{extra}"),
             selector: None,
             current: Some(format!("{current:?}")),
-            expected: "absent (exact collection)".to_owned(),
-            message: message.to_owned(),
+            expected: if membership.is_exact() {
+                "absent (exact collection)"
+            } else {
+                "absent (not allowed)"
+            }
+            .to_owned(),
+            message: membership
+                .message_for_rejected(|item| item.merge_identity() == *extra)
+                .to_owned(),
             severity: Severity::Error,
-            attribution: attribution.to_vec(),
+            attribution: membership
+                .attribution_for_rejected(|item| item.merge_identity() == *extra),
         });
         if let Some(t) = doc.get_mut("features").and_then(Item::as_table_mut) {
             let _ = t.remove(extra);

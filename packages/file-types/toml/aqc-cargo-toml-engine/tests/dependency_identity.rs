@@ -67,6 +67,7 @@ fn required_and_forbidden_different_dependency_identities_coexist() {
             package_requirement("openssl", None),
             "no openssl".to_owned(),
         )],
+        allowed: None,
         exact: None,
     });
     let _resolved = cargo::CargoTomlRequirements::merge(vec![(prov("p1"), req)])
@@ -86,6 +87,7 @@ fn required_and_forbidden_same_dependency_identity_conflict() {
                 package_requirement("serde_json", None),
                 "no serde".to_owned(),
             )],
+            allowed: None,
             exact: None,
         }),
     )]);
@@ -100,6 +102,7 @@ fn exact_collection_rejects_outside_required_identity() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((
             vec![package_requirement("serde_json", Some("1"))],
             "only serde".to_owned(),
@@ -108,6 +111,7 @@ fn exact_collection_rejects_outside_required_identity() {
     let outside = dep_item_req(engine_core::ItemRequirements {
         required: vec![(package_requirement("toml", Some("0.8")), "toml".to_owned())],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let conflicts = cargo::CargoTomlRequirements::merge(vec![
@@ -128,6 +132,7 @@ fn exact_collection_rejects_dependency_without_identity() {
     let requirement = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((
             vec![cargo::DependencyRequirement {
                 file_key: None,
@@ -157,6 +162,7 @@ fn exact_collection_rejects_two_packages_using_one_file_key() {
     let requirement = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((
             vec![
                 local_dependency_requirement("json", Some("serde_json"), Some("1")),
@@ -191,6 +197,7 @@ fn dependency_local_key_requirement_does_not_pass_on_package_only_match() {
             "need rename".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let findings = cargo_findings_with(
@@ -210,6 +217,7 @@ fn dependency_package_identity_requirement_passes_under_renamed_key() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let findings = cargo_findings_with(
@@ -227,6 +235,7 @@ fn dependency_package_identity_forbid_catches_renamed_key() {
             package_requirement("serde_json", None),
             "no serde".to_owned(),
         )],
+        allowed: None,
         exact: None,
     });
     let out = cargo_output(
@@ -252,6 +261,7 @@ fn local_key_requirement_and_package_identity_forbid_conflict() {
                 package_requirement("serde_json", None),
                 "no serde".to_owned(),
             )],
+            allowed: None,
             exact: None,
         }),
     )]);
@@ -274,6 +284,7 @@ fn same_package_identity_with_different_explicit_file_keys_conflicts() {
                 ),
             ],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         }),
     )]);
@@ -295,6 +306,7 @@ fn package_identity_requirement_checks_all_duplicate_package_entries() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let findings = cargo_findings_with(
@@ -322,6 +334,7 @@ fn local_key_json_and_package_identity_json_do_not_collide() {
                 ),
             ],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         }),
     )]);
@@ -344,6 +357,7 @@ fn invalid_dependency_requirement_conflicts() {
                 "invalid".to_owned(),
             )],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         }),
     )]);
@@ -361,6 +375,7 @@ fn patch_package_identity_requirement_without_file_key_is_unwritable() {
                 "serde".to_owned(),
             )],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         },
     );
@@ -378,6 +393,7 @@ fn package_identity_dependency_is_satisfied_by_plain_key() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let findings = cargo_findings_with(
@@ -405,6 +421,7 @@ fn missing_package_identity_dependency_writes_package_name() {
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
@@ -429,6 +446,7 @@ fn package_identity_dependency_init_reports_unwritable_when_package_key_is_reser
             ),
         ],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
@@ -449,6 +467,7 @@ fn package_identity_dependency_init_reports_unwritable_when_existing_key_is_diff
             "serde".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let out = cargo_output(
@@ -478,6 +497,7 @@ fn explicit_dependency_file_key_conflict_does_not_overwrite_package_identity() {
             ),
         ],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let out = cargo_output(None, vec![(prov("p1"), req)]);
@@ -507,6 +527,7 @@ fn renamed_forbidden_package_reports_one_finding() {
             package_requirement("serde_json", None),
             "no serde".to_owned(),
         )],
+        allowed: None,
         exact: None,
     });
     let findings = cargo_findings_with(
@@ -514,6 +535,78 @@ fn renamed_forbidden_package_reports_one_finding() {
         vec![(prov("p1"), req)],
     );
     assert_eq!(findings.len(), 1);
+}
+
+#[test]
+fn forbidden_dependency_outside_allowed_reports_only_forbidden_classification() {
+    let req = dep_item_req(engine_core::ItemRequirements {
+        required: Vec::new(),
+        forbidden: vec![(
+            package_requirement("serde_json", None),
+            "no serde".to_owned(),
+        )],
+        allowed: Some((
+            vec![package_requirement("anyhow", None)],
+            "only anyhow is allowed".to_owned(),
+        )),
+        exact: None,
+    });
+    let findings = cargo_findings_with(
+        Some(b"[dependencies]\njson = { package = \"serde_json\", version = \"1\" }\n"),
+        vec![(prov("p1"), req)],
+    );
+
+    assert_eq!(findings.len(), 1);
+    assert!(matches!(
+        findings.first(),
+        Some(engine_core::Finding::Mismatch { expected, message, attribution, .. })
+            if expected == "absent" && message == "no serde" && attribution == &[prov("p1")]
+    ));
+}
+
+#[test]
+fn closed_dependency_membership_removes_malformed_dependency_values() {
+    for membership in [
+        engine_core::ItemRequirements {
+            allowed: Some((Vec::new(), "no dependencies are allowed".to_owned())),
+            ..engine_core::ItemRequirements::default()
+        },
+        engine_core::ItemRequirements {
+            exact: Some((Vec::new(), "dependencies must be empty".to_owned())),
+            ..engine_core::ItemRequirements::default()
+        },
+    ] {
+        let output = cargo_output(
+            Some(b"[dependencies]\nevil = 1\n"),
+            vec![(prov("p1"), dep_item_req(membership))],
+        );
+
+        assert_eq!(output.findings.len(), 1);
+        assert!(
+            !String::from_utf8(output.expected_bytes)
+                .expect("engine output should remain UTF-8")
+                .contains("evil")
+        );
+    }
+}
+
+#[test]
+fn local_key_forbidden_dependency_removes_a_malformed_value() {
+    let req = dep_item_req(engine_core::ItemRequirements {
+        forbidden: vec![(
+            local_dependency_requirement("evil", None, None),
+            "evil is forbidden".to_owned(),
+        )],
+        ..engine_core::ItemRequirements::default()
+    });
+    let output = cargo_output(Some(b"[dependencies]\nevil = 1\n"), vec![(prov("p1"), req)]);
+
+    assert_eq!(output.findings.len(), 1);
+    assert!(
+        !String::from_utf8(output.expected_bytes)
+            .expect("engine output should remain UTF-8")
+            .contains("evil")
+    );
 }
 
 fn first_bytes(output: &aqc_file_engine_core::EngineOutput) -> Vec<u8> {

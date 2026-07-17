@@ -35,5 +35,8 @@ pub fn cargo_lint_table_requirements(
 
 /// Returns true when a lint table contains at least one emitted requirement.
 fn has_lint_requirements(table: &CargoLintTableRequirements) -> bool {
-    !table.required.is_empty() || !table.forbidden.is_empty() || table.exact.is_some()
+    !table.required.is_empty()
+        || !table.forbidden.is_empty()
+        || table.allowed.is_some()
+        || table.exact.is_some()
 }

@@ -180,8 +180,10 @@ impl AdapterExpressionVisitor<'_> {
                 let name = identifier.to_string();
                 self.membership_field_names.contains(&name)
                     && self.is_tracked_requirement_access(field.base.as_ref())
-                    || matches!(name.as_str(), "required" | "forbidden" | "exact")
-                        && self.is_membership_collection_access(field.base.as_ref())
+                    || matches!(
+                        name.as_str(),
+                        "required" | "forbidden" | "allowed" | "exact"
+                    ) && self.is_membership_collection_access(field.base.as_ref())
             }
             Expr::Group(group) => self.is_membership_collection_access(group.expr.as_ref()),
             Expr::Index(index) => self.is_membership_collection_access(index.expr.as_ref()),
@@ -683,9 +685,14 @@ impl Visit<'_> for AdapterExpressionVisitor<'_> {
                     &mut BTreeSet::new(),
                 )
             });
-        if is_membership && pattern.fields.iter().any(|field| {
-            matches!(&field.member, Member::Named(identifier) if matches!(identifier.to_string().as_str(), "required" | "forbidden" | "exact"))
-        }) {
+        if is_membership
+            && pattern.fields.iter().any(|field| {
+                matches!(&field.member, Member::Named(identifier) if matches!(
+                    identifier.to_string().as_str(),
+                    "required" | "forbidden" | "allowed" | "exact"
+                ))
+            })
+        {
             self.report("destructures membership internals");
         }
         syn::visit::visit_pat_struct(self, pattern);

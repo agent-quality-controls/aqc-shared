@@ -120,7 +120,10 @@ pub(super) fn report_duplicate_identity<ItemType>(
     ItemType: FileItemRequirement,
     ItemType::Identity: ToString,
 {
-    if requirements.required.is_empty() && requirements.exact.is_none() {
+    if requirements.required.is_empty()
+        && requirements.allowed.is_none()
+        && requirements.exact.is_none()
+    {
         return;
     }
     findings.push(Finding::InvalidRequirements {
@@ -190,20 +193,6 @@ pub(super) fn forbidden_message(collected: &[(Provenance, String)]) -> String {
         .unwrap_or_default()
 }
 
-pub(super) fn first_exact_message<ItemType>(
-    requirements: &ResolvedItemRequirements<ItemType>,
-) -> String
-where
-    ItemType: FileItemRequirement,
-{
-    requirements
-        .exact
-        .as_ref()
-        .and_then(|exact| exact.collected.first())
-        .map(|(_, (_, msg))| msg.clone())
-        .unwrap_or_default()
-}
-
 pub(super) fn item_attribution<ItemType>(
     requirements: &ResolvedItemRequirements<ItemType>,
 ) -> Vec<Provenance>
@@ -220,21 +209,12 @@ where
                 .values()
                 .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
         )
-        .chain(exact_attribution(requirements))
-        .collect()
-}
-
-pub(super) fn exact_attribution<ItemType>(
-    requirements: &ResolvedItemRequirements<ItemType>,
-) -> Vec<Provenance>
-where
-    ItemType: FileItemRequirement,
-{
-    requirements
-        .exact
-        .iter()
-        .flat_map(|exact| exact.collected.iter())
-        .map(|(provenance, _)| provenance.clone())
+        .chain(
+            requirements
+                .membership()
+                .into_iter()
+                .flat_map(|membership| membership.all_attribution()),
+        )
         .collect()
 }
 
@@ -255,6 +235,12 @@ where
         .required
         .values()
         .flat_map(|resolved| resolved.collected.iter().map(|(_, (_, msg))| msg.as_str()))
+        .chain(
+            requirements
+                .allowed
+                .iter()
+                .flat_map(|allowed| allowed.collected.iter().map(|(_, (_, msg))| msg.as_str())),
+        )
         .chain(
             requirements
                 .forbidden

@@ -82,6 +82,7 @@ fn dep_items(
                 )
             })
             .collect(),
+        allowed: None,
         exact,
     }
 }
@@ -120,6 +121,7 @@ fn keyed_items<Entry: Default + Clone>(
                 )
             })
             .collect(),
+        allowed: None,
         exact,
     }
 }

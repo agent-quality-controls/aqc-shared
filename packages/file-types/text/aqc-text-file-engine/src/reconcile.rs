@@ -97,6 +97,17 @@ fn reject_unsupported_contents(
                 .collect(),
         });
     }
+    if let Some(allowed) = &requirements.contents.allowed {
+        findings.push(Finding::InvalidRequirements {
+            key: "contents".to_owned(),
+            message: "text contained contents do not support allowed collections".to_owned(),
+            contributors: allowed
+                .collected
+                .iter()
+                .map(|(prov, (_, message))| (prov.policy.clone(), message.clone()))
+                .collect(),
+        });
+    }
     if let Some(exact) = &requirements.contents.exact {
         findings.push(Finding::InvalidRequirements {
             key: "contents".to_owned(),

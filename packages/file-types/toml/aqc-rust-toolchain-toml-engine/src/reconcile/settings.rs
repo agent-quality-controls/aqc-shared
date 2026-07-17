@@ -30,6 +30,9 @@ pub(crate) fn apply(
     findings: &mut Vec<file_core::Finding>,
 ) {
     support::report_invalid_requirement_combinations(requirement, findings);
+    if doc.get("toolchain").is_none() && !support::requires_toolchain_table(requirement) {
+        return;
+    }
     let table = ensure_toolchain_table(doc, requirement, findings);
     toml_core::remove_rejected_table_keys(
         table,
@@ -43,6 +46,26 @@ pub(crate) fn apply(
     if support::has_path_value_requirement(requirement) {
         if let Some(path) = &requirement.path {
             apply_path(table, path, findings);
+        }
+        if let Some(channel) = requirement
+            .channel
+            .as_ref()
+            .filter(|resolved| matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
+        {
+            apply_channel(table, channel, findings);
+        }
+        if let Some(profile) = requirement
+            .profile
+            .as_ref()
+            .filter(|resolved| matches!(resolved.merged, file_core::ScalarAssertion::Absent(_)))
+        {
+            apply_profile(table, profile, findings);
+        }
+        if !support::list_requires_presence(&requirement.components) {
+            apply_list(table, "components", &requirement.components, findings);
+        }
+        if !support::list_requires_presence(&requirement.targets) {
+            apply_list(table, "targets", &requirement.targets, findings);
         }
         toml_core::report_missing_table_keys(
             table,
@@ -83,7 +106,7 @@ fn ensure_toolchain_table<'a>(
                 support::requirement_attribution(requirement),
             );
             let _ = doc.remove("toolchain");
-        } else if support::has_requirements(requirement) {
+        } else if support::requires_toolchain_table(requirement) {
             findings.push(file_core::Finding::Mismatch {
                 key: "toolchain".to_owned(),
                 selector: None,

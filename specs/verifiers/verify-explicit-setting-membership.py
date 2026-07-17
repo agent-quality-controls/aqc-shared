@@ -21,6 +21,7 @@ PACKAGES = {
     "json": ROOT / "packages/file-types/json/aqc-json-file-engine",
     "toml": ROOT / "packages/file-types/toml/aqc-toml-engine-core",
     "cargo": ROOT / "packages/file-types/toml/aqc-cargo-toml-engine",
+    "clippy": ROOT / "packages/file-types/toml/aqc-clippy-toml-engine",
     "deny": ROOT / "packages/file-types/toml/aqc-deny-toml-engine",
     "toolchain": ROOT / "packages/file-types/toml/aqc-rust-toolchain-toml-engine",
     "rustfmt": ROOT / "packages/file-types/toml/aqc-rustfmt-toml-engine",
@@ -246,7 +247,10 @@ def format_reconciliation(errors: list[str], executed: list[str]) -> None:
     require_terms(
         errors,
         "format tests",
-        "\n".join(test_text(PACKAGES[name]) for name in ("json", "cargo", "toml", "yaml")),
+        "\n".join(
+            test_text(PACKAGES[name])
+            for name in ("json", "cargo", "clippy", "toml", "yaml")
+        ),
         [
             ("object", "json"),
             ("lint", "cargo"),
@@ -257,9 +261,18 @@ def format_reconciliation(errors: list[str], executed: list[str]) -> None:
             ("parent_removal_precedes_child_reconciliation",),
         ],
     )
-    require_declared_cases(errors, "format reconciliation", "\n".join(sources.values()) + "\n" + "\n".join(test_text(PACKAGES[name]) for name in ("json", "cargo", "toml", "yaml")))
+    require_declared_cases(
+        errors,
+        "format reconciliation",
+        "\n".join(sources.values())
+        + "\n"
+        + "\n".join(
+            test_text(PACKAGES[name])
+            for name in ("json", "cargo", "clippy", "toml", "yaml")
+        ),
+    )
     if not errors:
-        run_tests(errors, executed, ["json", "cargo", "toml", "yaml"])
+        run_tests(errors, executed, ["json", "cargo", "clippy", "toml", "yaml"])
 
 
 def migrated_engines(errors: list[str], executed: list[str]) -> None:

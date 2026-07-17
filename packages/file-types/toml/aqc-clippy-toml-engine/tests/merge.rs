@@ -75,6 +75,7 @@ fn disallowed_items(
     ItemRequirements {
         required,
         forbidden,
+        allowed: None,
         exact,
     }
 }
@@ -183,6 +184,7 @@ fn exact_only_disallowed_path_matching_glob_conflicts() {
         disallowed_methods: ItemRequirements {
             required: Vec::new(),
             forbidden: Vec::new(),
+            allowed: None,
             exact: Some((
                 vec![forbid("std::env::set_var")],
                 "exact methods".to_owned(),
@@ -216,6 +218,7 @@ fn required_and_exact_disallowed_path_glob_conflict_preserves_all_attribution() 
         disallowed_methods: ItemRequirements {
             required: vec![(forbid("std::env::set_var"), "required method".to_owned())],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         },
         ..ClippyTomlRequirements::default()
@@ -224,6 +227,7 @@ fn required_and_exact_disallowed_path_glob_conflict_preserves_all_attribution() 
         disallowed_methods: ItemRequirements {
             required: Vec::new(),
             forbidden: Vec::new(),
+            allowed: None,
             exact: Some((
                 vec![forbid("std::env::set_var")],
                 "exact methods".to_owned(),
@@ -430,6 +434,27 @@ fn clippy_forbidden_absent_does_not_create_empty_array() {
             .expect("engine output should remain valid UTF-8 TOML text"),
         ""
     );
+}
+
+#[test]
+fn clippy_allowed_only_disallowed_items_remove_extras() {
+    let req = ClippyTomlRequirements {
+        disallowed_methods: ItemRequirements {
+            allowed: Some((
+                vec![forbid("std::mem::forget")],
+                "only the declared method is allowed".to_owned(),
+            )),
+            ..ItemRequirements::default()
+        },
+        ..ClippyTomlRequirements::default()
+    };
+    let output = clippy_output(
+        Some(b"disallowed-methods = [\"std::env::set_var\"]\n"),
+        vec![(prov("p1"), req)],
+    );
+
+    assert_eq!(first_bytes(&output), b"disallowed-methods = []\n");
+    assert_eq!(output.findings.len(), 1);
 }
 
 #[test]

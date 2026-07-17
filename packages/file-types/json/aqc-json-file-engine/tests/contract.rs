@@ -253,6 +253,7 @@ fn exact_root_keys_report_and_remove_only_extra_keys() {
         object_keys: BTreeMap::from([(
             JsonPath::root(),
             ItemRequirements {
+                allowed: None,
                 exact: Some((
                     vec![KeyedItem {
                         file_key: "managed".to_owned(),
@@ -281,6 +282,7 @@ fn exact_root_keys_accept_a_matching_root_without_a_shape_finding() {
         object_keys: BTreeMap::from([(
             JsonPath::root(),
             ItemRequirements {
+                allowed: None,
                 exact: Some((
                     vec![KeyedItem {
                         file_key: "managed".to_owned(),
@@ -311,6 +313,7 @@ fn object_closure_cannot_exclude_a_managed_descendant() {
         object_keys: BTreeMap::from([(
             JsonPath::new("parent"),
             ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "closed parent".to_owned())),
                 ..ItemRequirements::default()
             },
@@ -586,6 +589,7 @@ fn object_closure_accepts_descendants_that_do_not_require_presence() {
         object_keys: BTreeMap::from([(
             JsonPath::new("parent"),
             ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "empty parent".to_owned())),
                 ..ItemRequirements::default()
             },
@@ -677,6 +681,7 @@ fn exact_empty_nested_object_is_initialized() {
         object_keys: BTreeMap::from([(
             JsonPath::new("nested"),
             ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "empty object".to_owned())),
                 ..ItemRequirements::default()
             },
@@ -691,12 +696,39 @@ fn exact_empty_nested_object_is_initialized() {
 }
 
 #[test]
+fn allowed_only_object_keys_remove_extras_without_creating_optional_keys() {
+    let requirement = JsonFileRequirements {
+        object_keys: BTreeMap::from([(
+            JsonPath::root(),
+            ItemRequirements {
+                allowed: Some((
+                    vec![KeyedItem {
+                        file_key: "optional".to_owned(),
+                        value: (),
+                    }],
+                    "only optional is allowed".to_owned(),
+                )),
+                ..ItemRequirements::default()
+            },
+        )]),
+        ..JsonFileRequirements::default()
+    };
+    let resolved = JsonFileRequirements::merge(vec![(provenance("policy"), requirement)])
+        .expect("requirements must resolve");
+    let output = JsonFileEngine::reconcile(Some(br#"{"extra":1}"#), &resolved);
+
+    assert_eq!(output.expected_bytes, b"{}");
+    assert_eq!(output.findings.len(), 1);
+}
+
+#[test]
 fn descendant_objects_are_created_before_ancestor_key_checks() {
     let requirement = JsonFileRequirements {
         object_keys: BTreeMap::from([
             (
                 JsonPath::new("parent"),
                 ItemRequirements {
+                    allowed: None,
                     exact: Some((
                         vec![KeyedItem {
                             file_key: "child".to_owned(),
@@ -710,6 +742,7 @@ fn descendant_objects_are_created_before_ancestor_key_checks() {
             (
                 JsonPath::new("parent").child("child"),
                 ItemRequirements {
+                    allowed: None,
                     exact: Some((Vec::new(), "child object".to_owned())),
                     ..ItemRequirements::default()
                 },
@@ -1068,6 +1101,7 @@ fn blocked_object_parent_reports_one_shape_finding_without_rewriting_bytes() {
         object_keys: BTreeMap::from([(
             JsonPath::new("parent").child("nested"),
             ItemRequirements {
+                allowed: None,
                 exact: Some((Vec::new(), "empty object".to_owned())),
                 ..ItemRequirements::default()
             },

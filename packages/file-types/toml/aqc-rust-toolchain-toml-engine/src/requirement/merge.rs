@@ -54,10 +54,7 @@ impl RustToolchainTomlRequirements {
                 .collect(),
             reqs.iter()
                 .map(|(provenance, requirement)| {
-                    (
-                        provenance.clone(),
-                        toolchain_key_constraints(requirement),
-                    )
+                    (provenance.clone(), toolchain_key_constraints(requirement))
                 })
                 .collect(),
             &mut conflicts,

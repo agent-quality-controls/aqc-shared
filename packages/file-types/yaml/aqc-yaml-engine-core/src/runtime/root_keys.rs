@@ -3,8 +3,8 @@
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    Finding, KeyedItem, Provenance, ResolvedExactItems, ResolvedItemRequirements, Severity,
-    item_presence_difference,
+    FileItemRequirement, Finding, KeyedItem, Provenance, ResolvedExactItems,
+    ResolvedItemRequirements, Severity, item_presence_difference,
 };
 
 use crate::ParsedYamlMapping;
@@ -47,17 +47,25 @@ pub fn remove_rejected_effective_root_keys(
         });
         let _ = document.remove_if_effectively_absent(key);
     }
-    if let Some(exact) = &requirements.exact {
+    if let Some(membership) = requirements.membership() {
         for key in difference.unexpected {
             let _ = rejected.insert(key.clone());
             findings.push(Finding::Mismatch {
                 key: key.clone(),
                 selector: None,
                 current: Some("present".to_owned()),
-                expected: "absent (exact keys)".to_owned(),
-                message: exact_message(exact),
+                expected: if membership.is_exact() {
+                    "absent (exact keys)"
+                } else {
+                    "absent (not allowed)"
+                }
+                .to_owned(),
+                message: membership
+                    .message_for_rejected(|item| item.merge_identity() == *key)
+                    .to_owned(),
                 severity: Severity::Error,
-                attribution: exact_attribution(exact),
+                attribution: membership
+                    .attribution_for_rejected(|item| item.merge_identity() == *key),
             });
             let _ = document.remove_if_effectively_absent(key);
         }
@@ -101,6 +109,14 @@ fn membership_message(requirements: &ResolvedItemRequirements<KeyedItem<()>>) ->
         .cloned();
     required
         .or(forbidden)
+        .or_else(|| {
+            requirements.allowed.as_ref().map(|allowed| {
+                allowed
+                    .collected
+                    .first()
+                    .map_or_else(String::new, |(_, (_, message))| message.clone())
+            })
+        })
         .or_else(|| requirements.exact.as_ref().map(exact_message))
         .unwrap_or_default()
 }
@@ -118,6 +134,12 @@ fn membership_attribution(
                 .values()
                 .flat_map(aqc_file_engine_core::ResolvedRequirement::attribution),
         )
+        .chain(requirements.allowed.iter().flat_map(|allowed| {
+            allowed
+                .collected
+                .iter()
+                .map(|(provenance, _)| provenance.clone())
+        }))
         .chain(requirements.exact.iter().flat_map(exact_attribution))
         .collect::<Vec<_>>();
     attribution.sort();

@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::item_model::FileItemRequirement;
 use crate::types::Provenance;
 
 pub type Provenanced<T> = (Provenance, T);
@@ -36,6 +37,8 @@ pub type ResolvedStringMembers = BTreeMap<String, ResolvedRequirement<(), String
 pub type MemberInputs = BTreeMap<String, Contributors>;
 pub type ExactItems<Item> = MessagePair<Vec<Item>>;
 pub type ExactItemsInput<Item> = Provenanced<ExactItems<Item>>;
+pub type AllowedItems<Item> = MessagePair<Vec<Item>>;
+pub type AllowedItemsInput<Item> = Provenanced<AllowedItems<Item>>;
 pub type MapInput<K, A> = Provenanced<BTreeMap<K, A>>;
 pub type MapInputs<K, A> = Vec<MapInput<K, A>>;
 pub type GroupedAssertions<K, A> = BTreeMap<K, Vec<Provenanced<A>>>;
@@ -179,6 +182,7 @@ where
 pub struct ItemRequirements<Item> {
     pub required: Vec<ItemAssertion<Item>>,
     pub forbidden: Vec<ItemAssertion<Item>>,
+    pub allowed: Option<AllowedItems<Item>>,
     pub exact: Option<ExactItems<Item>>,
 }
 
@@ -267,6 +271,9 @@ impl<Item> ItemRequirements<Item> {
                 .into_iter()
                 .map(|(item, message)| (map_item(item), message))
                 .collect(),
+            allowed: self
+                .allowed
+                .map(|(items, message)| (items.into_iter().map(&mut map_item).collect(), message)),
             exact: self
                 .exact
                 .map(|(items, message)| (items.into_iter().map(&mut map_item).collect(), message)),
@@ -279,68 +286,10 @@ impl<Item> Default for ItemRequirements<Item> {
         Self {
             required: Vec::new(),
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         }
     }
-}
-
-/// A composed exact item collection with its complete attribution.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedExactItems<Item>
-where
-    Item: FileItemRequirement,
-{
-    pub identities: BTreeSet<Item::Identity>,
-    pub items: ItemRequirementMap<Item>,
-    pub collected: Vec<ExactItemsInput<Item>>,
-}
-
-/// Resolved item requirements with attribution on every member.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedItemRequirements<Item>
-where
-    Item: FileItemRequirement,
-{
-    pub required: ItemRequirementMap<Item>,
-    pub forbidden: ForbiddenItemMap<Item>,
-    pub exact: Option<ResolvedExactItems<Item>>,
-}
-
-/// Differences between present file-item identities and resolved requirements.
-#[derive(Debug)]
-pub struct ItemPresenceDifference<'a, Item>
-where
-    Item: FileItemRequirement,
-{
-    pub missing: Vec<(&'a Item::Identity, &'a RequiredItemResolution<Item>)>,
-    pub forbidden: Vec<(&'a Item::Identity, &'a ForbiddenItemResolution<Item>)>,
-    pub unexpected: Vec<&'a Item::Identity>,
-}
-
-impl<Item> Default for ResolvedItemRequirements<Item>
-where
-    Item: FileItemRequirement,
-{
-    fn default() -> Self {
-        Self {
-            required: BTreeMap::new(),
-            forbidden: BTreeMap::new(),
-            exact: None,
-        }
-    }
-}
-
-/// A file-item requirement that can identify and compose matching policy input.
-pub trait FileItemRequirement: Sized + Clone {
-    type Identity: Ord + Clone + std::fmt::Debug;
-
-    fn merge_identity(&self) -> Self::Identity;
-
-    fn compose_item(
-        key: &str,
-        items: Vec<ItemAssertionInput<Self>>,
-        conflicts: &mut Vec<ConflictEntry>,
-    ) -> Option<RequiredItemResolution<Self>>;
 }
 
 /// Forbidden-glob requirement for collections where policy names a glob.

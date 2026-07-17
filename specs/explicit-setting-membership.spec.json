@@ -1,477 +1,902 @@
 {
-  "version": 4,
-  "requirements": {
-    "tree": {
-      "verifier": ["builtin:tree"],
-      "reason": "Plan Files and Permanent Architecture Gate: implementation, test, checker, gate, and final Specular surfaces.",
-      "required": [
-        "packages/aqc-file-engine-core/src/lib.rs",
-        "packages/aqc-file-engine-core/src/merge/items.rs",
-        "packages/aqc-file-engine-core/src/merge/model.rs",
-        "packages/aqc-file-engine-core/tests/exact_items.rs",
-        "packages/aqc-file-engine-core/tests/public_contract.rs",
-        "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/document.rs",
-        "packages/file-types/json/aqc-json-engine-core/src/runtime/parse.rs",
-        "packages/file-types/json/aqc-json-file-engine/tests/contract.rs",
-        "packages/file-types/toml/aqc-toml-engine-core/src/lib.rs",
-        "packages/file-types/toml/aqc-toml-engine-core/tests/core_contract.rs",
-        "packages/file-types/toml/aqc-cargo-toml-engine/tests/contract.rs",
-        "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/model.rs",
-        "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/merge.rs",
-        "packages/file-types/toml/aqc-deny-toml-engine/guardrail3-rs.toml",
-        "packages/file-types/toml/aqc-deny-toml-engine/tests/reconcile.rs",
-        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/model.rs",
-        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/merge.rs",
-        "packages/file-types/toml/aqc-rust-toolchain-toml-engine/tests/behavior.rs",
-        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs",
-        "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/merge.rs",
-        "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/reconcile_ignore_exact.rs",
-        "packages/file-types/yaml/aqc-yaml-engine-core/src/lib.rs",
-        "packages/file-types/yaml/aqc-yaml-engine-core/src/runtime/decode.rs",
-        "packages/file-types/yaml/aqc-yaml-engine-core/tests/core_contract.rs",
-        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/types/model.rs",
-        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/types/merge.rs",
-        "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/tests/engine_requirement.rs",
-        "tools/aqc-requirement-architecture/Cargo.toml",
-        "tools/aqc-requirement-architecture/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/src/main.rs",
-        "tools/aqc-requirement-architecture/tests/architecture_tests.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-core/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-core/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-consumer/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-consumer/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade-consumer/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade-consumer/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/canonical-facade/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/canonical-facade/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade-consumer/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade-consumer/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/macro-only/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/macro-only/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/custom-source/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/custom-source/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/custom-source/requirements.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/custom-source/nested_alias.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/custom-source/outer/hidden.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/core/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/engine/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/external-membership/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/Cargo.lock",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/Cargo.lock",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/Cargo.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/Cargo.lock",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/src/lib.rs",
-        "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/core/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/engine/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/external-membership/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/rejected/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/inventory/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/adapter/guardrail3-rs.toml",
-        "tools/aqc-requirement-architecture/tests/fixtures/accepted/policy/guardrail3-rs.toml",
-        "scripts/check-workspaces.sh",
-        "scripts/test-check-workspaces-failures.sh",
-        "scripts/test-local-cargo-source.py",
-        "scripts/local_cargo_source.py",
-        ".githooks/pre-commit",
-        ".githooks/bin/g3rs",
-        ".githooks/pre-push",
-        "fixture3.yaml",
-        "specs/explicit-setting-membership.spec.json",
-        "specs/explicit-setting-membership.spec.coverage.md",
-        "specs/verifiers/verify-explicit-setting-membership.py"
-      ]
-    },
-    "content": [
-      {
-        "verifier": ["builtin:content"],
-        "files": [
-          "packages/aqc-file-engine-core/src/merge/model.rs",
-          "packages/aqc-file-engine-core/src/merge/items.rs"
+    "version": 4,
+    "requirements": {
+        "tree": {
+            "verifier": [
+                "builtin:tree"
+            ],
+            "reason": "Plan Files and Permanent Architecture Gate: implementation, test, checker, gate, and final Specular surfaces.",
+            "required": [
+                "packages/aqc-file-engine-core/src/lib.rs",
+                "packages/aqc-file-engine-core/src/merge/items.rs",
+                "packages/aqc-file-engine-core/src/merge/item_model.rs",
+                "packages/aqc-file-engine-core/src/merge/forbidden_globs.rs",
+                "packages/aqc-file-engine-core/src/merge/model.rs",
+                "packages/aqc-file-engine-core/tests/exact_items.rs",
+                "packages/aqc-file-engine-core/tests/public_contract.rs",
+                "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/document.rs",
+                "packages/file-types/json/aqc-json-engine-core/src/runtime/parse.rs",
+                "packages/file-types/json/aqc-json-file-engine/tests/contract.rs",
+                "packages/file-types/toml/aqc-toml-engine-core/src/lib.rs",
+                "packages/file-types/toml/aqc-toml-engine-core/tests/core_contract.rs",
+                "packages/file-types/toml/aqc-cargo-toml-engine/tests/contract.rs",
+                "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/model.rs",
+                "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/merge.rs",
+                "packages/file-types/toml/aqc-deny-toml-engine/guardrail3-rs.toml",
+                "packages/file-types/toml/aqc-deny-toml-engine/tests/reconcile.rs",
+                "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/model.rs",
+                "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/merge.rs",
+                "packages/file-types/toml/aqc-rust-toolchain-toml-engine/tests/behavior.rs",
+                "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs",
+                "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/merge.rs",
+                "packages/file-types/toml/aqc-rustfmt-toml-engine/tests/reconcile_ignore_exact.rs",
+                "packages/file-types/yaml/aqc-yaml-engine-core/src/lib.rs",
+                "packages/file-types/yaml/aqc-yaml-engine-core/src/runtime/decode.rs",
+                "packages/file-types/yaml/aqc-yaml-engine-core/tests/core_contract.rs",
+                "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/types/model.rs",
+                "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/types/merge.rs",
+                "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/tests/engine_requirement.rs",
+                "tools/aqc-requirement-architecture/Cargo.toml",
+                "tools/aqc-requirement-architecture/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/src/main.rs",
+                "tools/aqc-requirement-architecture/tests/architecture_tests.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-core/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-core/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-consumer/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/counterfeit-consumer/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade-consumer/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/mixed-facade-consumer/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/canonical-facade/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/canonical-facade/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade-consumer/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/duplicate-facade-consumer/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/macro-only/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/macro-only/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/custom-source/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/custom-source/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/custom-source/requirements.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/custom-source/nested_alias.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/custom-source/outer/hidden.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/core/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/engine/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/external-membership/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/Cargo.lock",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-a/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/Cargo.lock",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-b/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/Cargo.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/Cargo.lock",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/src/lib.rs",
+                "tools/aqc-requirement-architecture/tests/fixtures/requirement-facade-consumer/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/core/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/engine/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/external-membership/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/rejected/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/inventory/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/adapter/guardrail3-rs.toml",
+                "tools/aqc-requirement-architecture/tests/fixtures/accepted/policy/guardrail3-rs.toml",
+                "scripts/check-workspaces.sh",
+                "scripts/test-check-workspaces-failures.sh",
+                "scripts/test-local-cargo-source.py",
+                "scripts/local_cargo_source.py",
+                ".githooks/pre-commit",
+                ".githooks/bin/g3rs",
+                ".githooks/pre-push",
+                "fixture3.yaml",
+                "specs/explicit-setting-membership.spec.json",
+                "specs/explicit-setting-membership.spec.coverage.md",
+                "specs/verifiers/verify-explicit-setting-membership.py"
+            ]
+        },
+        "content": [
+            {
+                "verifier": ["builtin:content"],
+                "files": ["tools/aqc-requirement-architecture/tests/fixtures/accepted/policy/src/lib.rs"],
+                "exists": ["policy_constructs_allowed", "allowed: Some"],
+                "reason": "Plan Architecture Gate: policy-authored allowed membership is accepted by the permanent checker."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/aqc-file-engine-core/src/merge/model.rs",
+                    "packages/aqc-file-engine-core/src/merge/item_model.rs",
+                    "packages/aqc-file-engine-core/src/merge/items.rs"
+                ],
+                "exists": [
+                    "pub struct ItemPresenceDifference",
+                    "pub missing: Vec<",
+                    "pub forbidden: Vec<",
+                    "pub unexpected: Vec<",
+                    "pub fn item_presence_difference",
+                    "pub fn map",
+                    "pub allowed: Option<AllowedItems<Item>>",
+                    "pub struct ResolvedAllowedItems",
+                    "pub enum ResolvedItemMembership",
+                    "pub const fn membership",
+                    "pub fn message_for_rejected",
+                    "pub fn attribution_for_rejected",
+                    "pub trait FileKeyRequirement",
+                    "pub fn resolve_key_membership"
+                ],
+                "forbidden": [
+                    "exact_settings",
+                    "closed_settings"
+                ],
+                "reason": "Plan Core compares item presence and maps ItemRequirements without semantic closure markers."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/aqc-file-engine-core/src/lib.rs"
+                ],
+                "required": [
+                    "ItemPresenceDifference",
+                    "AllowedItems",
+                    "ResolvedAllowedItems",
+                    "ResolvedItemMembership",
+                    "item_presence_difference",
+                    "FileKeyRequirement",
+                    "resolve_key_membership"
+                ],
+                "reason": "Plan Core compares item presence: the universal API is exported from the core facade."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/document.rs"
+                ],
+                "required": [
+                    "item_presence_difference"
+                ],
+                "reason": "Plan Format mechanics: JSON object reconciliation reuses the core comparison."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_lint_tables.rs"
+                ],
+                "required": [
+                    "item_presence_difference"
+                ],
+                "reason": "Plan Format mechanics: Cargo lint-table reconciliation reuses the core comparison."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-toml-engine-core/src/**/*.rs"
+                ],
+                "exists": [
+                    "ResolvedItemRequirements<KeyedItem<()>>",
+                    "item_presence_difference",
+                    "remove_rejected_table_keys",
+                    "report_missing_table_keys"
+                ],
+                "forbidden": [
+                    "pub fn reconcile_table_keys("
+                ],
+                "reason": "Plan Format mechanics: TOML core enforces rejection before child reconciliation and missing-key reporting afterward."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/yaml/aqc-yaml-engine-core/src/**/*.rs"
+                ],
+                "exists": [
+                    "ResolvedItemRequirements<KeyedItem<()>>",
+                    "item_presence_difference",
+                    "effective"
+                ],
+                "reason": "Plan Format mechanics: YAML core compares explicit membership against effective root keys."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs"
+                ],
+                "exists": [
+                    "pub setting_keys: ItemRequirements<KeyedItem<()>>",
+                    "ResolvedItemRequirements<KeyedItem<()>>"
+                ],
+                "reason": "Plan Engine requirement surfaces: Rustfmt exposes raw and resolved explicit setting membership."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/model.rs"
+                ],
+                "exists": [
+                    "pub toolchain_keys: ItemRequirements<KeyedItem<()>>",
+                    "ResolvedItemRequirements<KeyedItem<()>>"
+                ],
+                "reason": "Plan Engine requirement surfaces: Rust toolchain exposes raw and resolved explicit table membership."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/types/model.rs"
+                ],
+                "exists": [
+                    "pub root_keys: ItemRequirements<KeyedItem<()>>",
+                    "ResolvedItemRequirements<KeyedItem<()>>"
+                ],
+                "reason": "Plan Engine requirement surfaces: pnpm exposes raw and resolved explicit effective-root membership."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-deny-toml-engine/src/requirement/model.rs"
+                ],
+                "exists": [
+                    "pub table_keys: BTreeMap<DenyTable, ItemRequirements<KeyedItem<()>>>",
+                    "BTreeMap<DenyTable, ResolvedItemRequirements<KeyedItem<()>>>"
+                ],
+                "reason": "Plan Engine requirement surfaces: Deny indexes explicit raw and resolved membership by modeled table."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-deny-toml-engine/guardrail3-rs.toml"
+                ],
+                "required": [
+                    "g3rs-code/too-many-effective-code-lines",
+                    "src/requirement/merge.rs",
+                    "effective-code-lines",
+                    "exhaustively mirrors every supported deny.toml field"
+                ],
+                "reason": "Deny requirement merge is intentionally schema-shaped and keeps its exhaustive field mapping auditable in one module."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "packages/file-types/**/src/**/*.rs"
+                ],
+                "forbidden": [
+                    "exact_settings",
+                    "closed_settings"
+                ],
+                "reason": "Plan Goal and Exact keeps one meaning: all engine closure flags and compatibility aliases are removed."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "tools/aqc-requirement-architecture/src/**/*.rs"
+                ],
+                "exists": [
+                    "EngineRequirement",
+                    "AdapterRequirement",
+                    "ItemRequirements",
+                    "SemanticClosureField",
+                    "AdapterMembershipConstruction",
+                    "RequirementRoot"
+                ],
+                "forbidden": [
+                    "shakrs_",
+                    "shakts_",
+                    "Shackles"
+                ],
+                "reason": "Plan Permanent Architecture Gate: the checker uses universal requirement vocabulary and emits inventory without product knowledge."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "scripts/check-workspaces.sh"
+                ],
+                "required": [
+                    "specular lint",
+                    "specular verify",
+                    "explicit-setting-membership.spec.json",
+                    "shackles|shakrs|shakts",
+                    "cargo metadata",
+                    "find_workspaces",
+                    "cargo deny check",
+                    "cargo clippy",
+                    "cargo test",
+                    "fixture3 check --suite",
+                    ".cargo-target/gate",
+                    "AQC_GATE_CONFIG_SCOPE",
+                    "test-check-workspaces-failures.sh",
+                    "test-local-cargo-source.py",
+                    "|| return"
+                ],
+                "reason": "Fast Local Gates: AQC pre-push checks every production workspace, fixture suite, and permanent Specular contract with persistent isolated targets."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "scripts/test-check-workspaces-failures.sh"
+                ],
+                "required": [
+                    "for failure_stage in metadata deny clippy test",
+                    "run_rust_workspace",
+                    "continued after injected"
+                ],
+                "reason": "Fast Local Gates: executable failure injection proves that no workspace stage can be hidden by a later successful command."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "scripts/local_cargo_source.py"
+                ],
+                "required": [
+                    "tempfile.mkstemp",
+                    "os.replace",
+                    "transitive_local_packages",
+                    "FIXTURE3_CARGO_CONFIG_SCOPE",
+                    "config.read_text() == rendered",
+                    "materialize_git_tree",
+                    "read-tree",
+                    "checkout-index",
+                    "staged-root",
+                    "staged-tree"
+                ],
+                "forbidden": [
+                    "config.write_text"
+                ],
+                "reason": "Fast Local Gates: concurrent checks receive complete atomic Cargo patch configuration, while unchanged configuration retains stable metadata for Cargo fingerprint reuse."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "scripts/test-local-cargo-source.py"
+                ],
+                "required": [
+                    "test_unchanged_configuration_keeps_the_same_file",
+                    "test_concurrent_generation_never_exposes_partial_toml",
+                    "test_explicit_path_dependency_is_not_patched",
+                    "test_wrapper_honors_staged_after_path_and_uses_workspace_repository",
+                    "test_materialization_reads_the_named_tree_not_the_mutable_index",
+                    "staged-only",
+                    "cargo",
+                    "check",
+                    "--offline"
+                ],
+                "reason": "Fast Local Gates: executable regressions prove atomic, stable, path-aware Cargo configuration, immutable tree extraction, and compilation of staged-only source."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "tools/aqc-requirement-architecture/src/fs.rs"
+                ],
+                "required": [
+                    "EXCLUDED_ANYWHERE",
+                    "EXCLUDED_ROOT_DIRECTORIES",
+                    "add_tracked_target_manifests",
+                    "ls-files",
+                    "--cached",
+                    "production_crates_cannot_hide_below_generic_support_names",
+                    "repository_outputs_and_checker_fixtures_are_excluded"
+                ],
+                "forbidden": [
+                    "\"tests\",\n    \"vendor\""
+                ],
+                "reason": "Permanent Architecture Gate: generic directory names cannot hide production requirement crates from manifest discovery."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    ".githooks/pre-push"
+                ],
+                "required": [
+                    "scripts/check-workspaces.sh",
+                    "rev-parse HEAD",
+                    "local_sha",
+                    "diff --cached",
+                    "ls-files --others",
+                    "worktree add --quiet --detach",
+                    "AQC_GATE_CACHE_DIR",
+                    "AQC_GATE_CONFIG_SCOPE",
+                    "FIXTURE3_CARGO_CACHE_ROOT",
+                    "FIXTURE3_CARGO_CONFIG_SCOPE"
+                ],
+                "forbidden": [
+                    "cargo-homes/$cache_scope"
+                ],
+                "reason": "Plan Permanent Architecture Gate: the repository-owned pre-push hook runs the complete local architecture gate."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    ".githooks/pre-commit"
+                ],
+                "required": [
+                    "#!/usr/bin/env bash",
+                    "set -euo pipefail",
+                    "pre-commit.d/g3rs",
+                    "pre-commit.d/shakrs",
+                    ".githooks/bin",
+                    "AQC_G3RS_BINARY"
+                ],
+                "reason": "Fast Local Gates: the dispatcher executes both registered fragments and routes G3RS workspace commands through the repository's local Cargo environment wrapper."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    ".githooks/bin/g3rs"
+                ],
+                "required": [
+                    "local_cargo_source.py",
+                    "--manifest \"$source_manifest\"",
+                    "--staged",
+                    "--staged-root",
+                    "--staged-tree",
+                    "write-tree",
+                    "CARGO_HOME",
+                    "AQC_G3RS_BINARY"
+                ],
+                "reason": "Fast Local Gates: each staged G3RS workspace check receives transitive local patches whose metadata and source come from one content-addressed index snapshot."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    ".githooks/pre-commit.d/shakrs"
+                ],
+                "required": [
+                    "write-tree",
+                    "commit-tree",
+                    "worktree add",
+                    "unset GIT_DIR GIT_INDEX_FILE GIT_PREFIX GIT_WORK_TREE",
+                    "validate' repo --path \"$snapshot\""
+                ],
+                "reason": "Fast Local Gates: the managed pre-commit hook validates repository and workspace bytes from the staged-index worktree."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "fixtures/scripts/fixture3-exact-list-differences.py",
+                    "fixtures/scripts/fixture3-generic-json-file-engine.py",
+                    "fixtures/scripts/fixture3-shakts-pnpm-aqc.py",
+                    "fixtures/scripts/fixture3-shakts-tsc-aqc.py"
+                ],
+                "required": [
+                    "scripts",
+                    "local_cargo_source",
+                    "fixture_cargo_home"
+                ],
+                "forbidden": [
+                    "fixtures/scripts/local_cargo_source.py"
+                ],
+                "reason": "Fast Local Gates: every AQC fixture uses the clone-local shared Cargo source helper."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "specs/verifiers/verify-explicit-setting-membership.py"
+                ],
+                "required": [
+                    ".cargo-target",
+                    "gate",
+                    "CARGO_HOME",
+                    "CARGO_TARGET_DIR",
+                    "local_cargo_source.py",
+                    "AQC_GATE_CONFIG_SCOPE"
+                ],
+                "forbidden": [
+                    "TemporaryDirectory",
+                    "tempfile",
+                    "patch.crates-io"
+                ],
+                "reason": "Fast Local Gates: permanent Cargo tests reuse the same generated Cargo homes and stable targets as the workspace gate."
+            },
+            {
+                "verifier": [
+                    "builtin:content"
+                ],
+                "files": [
+                    "CONVENTIONS.md"
+                ],
+                "required": [
+                    "ItemRequirements<KeyedItem<()>>",
+                    "required to be present",
+                    "permanent architecture controls",
+                    "do not duplicate the checker invocation"
+                ],
+                "reason": "Plan Permanent Architecture Gate: AQC records the requirement vocabulary and permanent Specular ownership rules."
+            }
         ],
-        "exists": [
-          "pub struct ItemPresenceDifference",
-          "pub missing: Vec<",
-          "pub forbidden: Vec<",
-          "pub unexpected: Vec<",
-          "pub fn item_presence_difference",
-          "pub fn map",
-          "pub trait FileKeyRequirement",
-          "pub fn resolve_key_membership"
+        "dependencies": [
+            {
+                "verifier": [
+                    "builtin:cargo-dependencies"
+                ],
+                "files": [
+                    "tools/aqc-requirement-architecture/Cargo.toml"
+                ],
+                "required": [
+                    "cargo_metadata",
+                    "syn"
+                ],
+                "forbiddenGlobs": [
+                    "shackles-*",
+                    "shakrs-*",
+                    "shakts-*"
+                ],
+                "reason": "Plan Permanent Architecture Gate: the independent checker uses Cargo metadata and Rust AST parsing without product dependencies."
+            },
+            {
+                "verifier": [
+                    "builtin:cargo-dependencies"
+                ],
+                "files": [
+                    "packages/aqc-file-engine-core/Cargo.toml"
+                ],
+                "forbidden": [
+                    "aqc-json-file-engine",
+                    "aqc-toml-engine-core",
+                    "aqc-yaml-engine-core"
+                ],
+                "forbiddenGlobs": [
+                    "shackles-*",
+                    "shakrs-*",
+                    "shakts-*"
+                ],
+                "reason": "Plan Format mechanics: the universal comparison remains independent of formats and products."
+            },
+            {
+                "verifier": [
+                    "builtin:cargo-dependencies"
+                ],
+                "files": [
+                    "packages/file-types/json/aqc-json-file-engine/Cargo.toml",
+                    "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
+                    "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
+                    "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
+                    "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
+                    "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
+                    "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml",
+                    "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"
+                ],
+                "required": [
+                    "aqc-file-engine-core"
+                ],
+                "forbiddenGlobs": [
+                    "shackles-*",
+                    "shakrs-*",
+                    "shakts-*"
+                ],
+                "reason": "Plan Format mechanics and Engine surfaces: every affected format or engine consumes universal membership infrastructure and remains upstream-only."
+            }
         ],
-        "forbidden": ["exact_settings", "closed_settings"],
-        "reason": "Plan Core compares item presence and maps ItemRequirements without semantic closure markers."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/aqc-file-engine-core/src/lib.rs"],
-        "required": [
-          "ItemPresenceDifference",
-          "item_presence_difference",
-          "FileKeyRequirement",
-          "resolve_key_membership"
+        "enumerations": [
+            {
+                "verifier": [
+                    "builtin:rust-enumerations"
+                ],
+                "files": [
+                    "packages/file-types/toml/aqc-deny-toml-engine/src/**/*.rs"
+                ],
+                "name": "DenyTable",
+                "values": [
+                    "Root",
+                    "Graph",
+                    "Output",
+                    "Advisories",
+                    "Licenses",
+                    "LicensesPrivate",
+                    "Bans",
+                    "BansWorkspaceDependencies",
+                    "BansBuild",
+                    "Sources",
+                    "SourcesAllowOrg"
+                ],
+                "reason": "Plan Engine requirement surfaces: DenyTable is closed over every modeled table path."
+            }
         ],
-        "reason": "Plan Core compares item presence: the universal API is exported from the core facade."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/document.rs"],
-        "required": ["item_presence_difference"],
-        "reason": "Plan Format mechanics: JSON object reconciliation reuses the core comparison."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/toml/aqc-cargo-toml-engine/src/reconcile/package_lint_tables.rs"],
-        "required": ["item_presence_difference"],
-        "reason": "Plan Format mechanics: Cargo lint-table reconciliation reuses the core comparison."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/toml/aqc-toml-engine-core/src/**/*.rs"],
-        "exists": [
-          "ResolvedItemRequirements<KeyedItem<()>>",
-          "item_presence_difference",
-          "remove_rejected_table_keys",
-          "report_missing_table_keys"
-        ],
-        "forbidden": ["pub fn reconcile_table_keys("],
-        "reason": "Plan Format mechanics: TOML core enforces rejection before child reconciliation and missing-key reporting afterward."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/yaml/aqc-yaml-engine-core/src/**/*.rs"],
-        "exists": ["ResolvedItemRequirements<KeyedItem<()>>", "item_presence_difference", "effective"],
-        "reason": "Plan Format mechanics: YAML core compares explicit membership against effective root keys."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/toml/aqc-rustfmt-toml-engine/src/requirement/model.rs"],
-        "exists": [
-          "pub setting_keys: ItemRequirements<KeyedItem<()>>",
-          "ResolvedItemRequirements<KeyedItem<()>>"
-        ],
-        "reason": "Plan Engine requirement surfaces: Rustfmt exposes raw and resolved explicit setting membership."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/toml/aqc-rust-toolchain-toml-engine/src/requirement/model.rs"],
-        "exists": [
-          "pub toolchain_keys: ItemRequirements<KeyedItem<()>>",
-          "ResolvedItemRequirements<KeyedItem<()>>"
-        ],
-        "reason": "Plan Engine requirement surfaces: Rust toolchain exposes raw and resolved explicit table membership."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/src/types/model.rs"],
-        "exists": [
-          "pub root_keys: ItemRequirements<KeyedItem<()>>",
-          "ResolvedItemRequirements<KeyedItem<()>>"
-        ],
-        "reason": "Plan Engine requirement surfaces: pnpm exposes raw and resolved explicit effective-root membership."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/toml/aqc-deny-toml-engine/src/requirement/model.rs"],
-        "exists": [
-          "pub table_keys: BTreeMap<DenyTable, ItemRequirements<KeyedItem<()>>>",
-          "BTreeMap<DenyTable, ResolvedItemRequirements<KeyedItem<()>>>"
-        ],
-        "reason": "Plan Engine requirement surfaces: Deny indexes explicit raw and resolved membership by modeled table."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/toml/aqc-deny-toml-engine/guardrail3-rs.toml"],
-        "required": ["g3rs-code/too-many-effective-code-lines", "src/requirement/merge.rs", "effective-code-lines", "exhaustively mirrors every supported deny.toml field"],
-        "reason": "Deny requirement merge is intentionally schema-shaped and keeps its exhaustive field mapping auditable in one module."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["packages/file-types/**/src/**/*.rs"],
-        "forbidden": ["exact_settings", "closed_settings"],
-        "reason": "Plan Goal and Exact keeps one meaning: all engine closure flags and compatibility aliases are removed."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["tools/aqc-requirement-architecture/src/**/*.rs"],
-        "exists": [
-          "EngineRequirement",
-          "AdapterRequirement",
-          "ItemRequirements",
-          "SemanticClosureField",
-          "AdapterMembershipConstruction",
-          "RequirementRoot"
-        ],
-        "forbidden": ["shakrs_", "shakts_", "Shackles"],
-        "reason": "Plan Permanent Architecture Gate: the checker uses universal requirement vocabulary and emits inventory without product knowledge."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["scripts/check-workspaces.sh"],
-        "required": ["specular lint", "specular verify", "explicit-setting-membership.spec.json", "shackles|shakrs|shakts", "cargo metadata", "find_workspaces", "cargo deny check", "cargo clippy", "cargo test", "fixture3 check --suite", ".cargo-target/gate", "AQC_GATE_CONFIG_SCOPE", "test-check-workspaces-failures.sh", "test-local-cargo-source.py", "|| return"],
-        "reason": "Fast Local Gates: AQC pre-push checks every production workspace, fixture suite, and permanent Specular contract with persistent isolated targets."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["scripts/test-check-workspaces-failures.sh"],
-        "required": ["for failure_stage in metadata deny clippy test", "run_rust_workspace", "continued after injected"],
-        "reason": "Fast Local Gates: executable failure injection proves that no workspace stage can be hidden by a later successful command."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["scripts/local_cargo_source.py"],
-        "required": ["tempfile.mkstemp", "os.replace", "transitive_local_packages", "FIXTURE3_CARGO_CONFIG_SCOPE", "config.read_text() == rendered", "materialize_git_tree", "read-tree", "checkout-index", "staged-root", "staged-tree"],
-        "forbidden": ["config.write_text"],
-        "reason": "Fast Local Gates: concurrent checks receive complete atomic Cargo patch configuration, while unchanged configuration retains stable metadata for Cargo fingerprint reuse."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["scripts/test-local-cargo-source.py"],
-        "required": ["test_unchanged_configuration_keeps_the_same_file", "test_concurrent_generation_never_exposes_partial_toml", "test_explicit_path_dependency_is_not_patched", "test_wrapper_honors_staged_after_path_and_uses_workspace_repository", "test_materialization_reads_the_named_tree_not_the_mutable_index", "staged-only", "cargo", "check", "--offline"],
-        "reason": "Fast Local Gates: executable regressions prove atomic, stable, path-aware Cargo configuration, immutable tree extraction, and compilation of staged-only source."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["tools/aqc-requirement-architecture/src/fs.rs"],
-        "required": ["EXCLUDED_ANYWHERE", "EXCLUDED_ROOT_DIRECTORIES", "add_tracked_target_manifests", "ls-files", "--cached", "production_crates_cannot_hide_below_generic_support_names", "repository_outputs_and_checker_fixtures_are_excluded"],
-        "forbidden": ["\"tests\",\n    \"vendor\""],
-        "reason": "Permanent Architecture Gate: generic directory names cannot hide production requirement crates from manifest discovery."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": [".githooks/pre-push"],
-        "required": ["scripts/check-workspaces.sh", "rev-parse HEAD", "local_sha", "diff --cached", "ls-files --others", "worktree add --quiet --detach", "AQC_GATE_CACHE_DIR", "AQC_GATE_CONFIG_SCOPE", "FIXTURE3_CARGO_CACHE_ROOT", "FIXTURE3_CARGO_CONFIG_SCOPE"],
-        "forbidden": ["cargo-homes/$cache_scope"],
-        "reason": "Plan Permanent Architecture Gate: the repository-owned pre-push hook runs the complete local architecture gate."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": [".githooks/pre-commit"],
-        "required": ["#!/usr/bin/env bash", "set -euo pipefail", "pre-commit.d/g3rs", "pre-commit.d/shakrs", ".githooks/bin", "AQC_G3RS_BINARY"],
-        "reason": "Fast Local Gates: the dispatcher executes both registered fragments and routes G3RS workspace commands through the repository's local Cargo environment wrapper."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": [".githooks/bin/g3rs"],
-        "required": ["local_cargo_source.py", "--manifest \"$source_manifest\"", "--staged", "--staged-root", "--staged-tree", "write-tree", "CARGO_HOME", "AQC_G3RS_BINARY"],
-        "reason": "Fast Local Gates: each staged G3RS workspace check receives transitive local patches whose metadata and source come from one content-addressed index snapshot."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": [".githooks/pre-commit.d/shakrs"],
-        "required": ["write-tree", "commit-tree", "worktree add", "unset GIT_DIR GIT_INDEX_FILE GIT_PREFIX GIT_WORK_TREE", "validate' repo --path \"$snapshot\""],
-        "reason": "Fast Local Gates: the managed pre-commit hook validates repository and workspace bytes from the staged-index worktree."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["fixtures/scripts/fixture3-exact-list-differences.py", "fixtures/scripts/fixture3-generic-json-file-engine.py", "fixtures/scripts/fixture3-shakts-pnpm-aqc.py", "fixtures/scripts/fixture3-shakts-tsc-aqc.py"],
-        "required": ["scripts", "local_cargo_source", "fixture_cargo_home"],
-        "forbidden": ["fixtures/scripts/local_cargo_source.py"],
-        "reason": "Fast Local Gates: every AQC fixture uses the clone-local shared Cargo source helper."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["specs/verifiers/verify-explicit-setting-membership.py"],
-        "required": [".cargo-target", "gate", "CARGO_HOME", "CARGO_TARGET_DIR", "local_cargo_source.py", "AQC_GATE_CONFIG_SCOPE"],
-        "forbidden": ["TemporaryDirectory", "tempfile", "patch.crates-io"],
-        "reason": "Fast Local Gates: permanent Cargo tests reuse the same generated Cargo homes and stable targets as the workspace gate."
-      },
-      {
-        "verifier": ["builtin:content"],
-        "files": ["CONVENTIONS.md"],
-        "required": ["ItemRequirements<KeyedItem<()>>", "required to be present", "permanent architecture controls", "do not duplicate the checker invocation"],
-        "reason": "Plan Permanent Architecture Gate: AQC records the requirement vocabulary and permanent Specular ownership rules."
-      }
-    ],
-    "dependencies": [
-      {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["tools/aqc-requirement-architecture/Cargo.toml"],
-        "required": ["cargo_metadata", "syn"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan Permanent Architecture Gate: the independent checker uses Cargo metadata and Rust AST parsing without product dependencies."
-      },
-      {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": ["packages/aqc-file-engine-core/Cargo.toml"],
-        "forbidden": [
-          "aqc-json-file-engine",
-          "aqc-toml-engine-core",
-          "aqc-yaml-engine-core"
-        ],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan Format mechanics: the universal comparison remains independent of formats and products."
-      },
-      {
-        "verifier": ["builtin:cargo-dependencies"],
-        "files": [
-          "packages/file-types/json/aqc-json-file-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-toml-engine-core/Cargo.toml",
-          "packages/file-types/toml/aqc-cargo-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-deny-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-rust-toolchain-toml-engine/Cargo.toml",
-          "packages/file-types/toml/aqc-rustfmt-toml-engine/Cargo.toml",
-          "packages/file-types/yaml/aqc-yaml-engine-core/Cargo.toml",
-          "packages/file-types/yaml/aqc-pnpm-workspace-yaml-engine/Cargo.toml"
-        ],
-        "required": ["aqc-file-engine-core"],
-        "forbiddenGlobs": ["shackles-*", "shakrs-*", "shakts-*"],
-        "reason": "Plan Format mechanics and Engine surfaces: every affected format or engine consumes universal membership infrastructure and remains upstream-only."
-      }
-    ],
-    "enumerations": [
-      {
-        "verifier": ["builtin:rust-enumerations"],
-        "files": ["packages/file-types/toml/aqc-deny-toml-engine/src/**/*.rs"],
-        "name": "DenyTable",
-        "values": [
-          "Root",
-          "Graph",
-          "Output",
-          "Advisories",
-          "Licenses",
-          "LicensesPrivate",
-          "Bans",
-          "BansWorkspaceDependencies",
-          "BansBuild",
-          "Sources",
-          "SourcesAllowOrg"
-        ],
-        "reason": "Plan Engine requirement surfaces: DenyTable is closed over every modeled table path."
-      }
-    ],
-    "custom": [
-      {
-        "verifier": ["specs/verifiers/verify-explicit-setting-membership.py"],
-        "check": "core-item-presence-semantics",
-        "requiredTests": [
-          "item_requirements_map_preserves_every_collection_and_message",
-          "presence_difference_reports_missing_for_required_and_exact_once",
-          "presence_difference_reports_present_forbidden_and_preserves_attribution",
-          "presence_difference_reports_unexpected_exact_members_in_identity_order",
-          "exact_empty_reports_every_present_identity_as_unexpected",
-          "duplicate_exact_identities_are_returned_once",
-          "compatible_exact_sets_compose_and_incompatible_sets_conflict",
-          "required_outside_exact_and_forbidden_inside_exact_conflict",
-          "derived_key_constraints_do_not_become_reconciliation_membership",
-          "derived_key_constraints_are_checked_against_explicit_membership",
-          "exact_and_forbidden_membership_report_one_rejection_per_identity"
-        ],
-        "requiredTestOwners": ["core", "core", "core", "core", "core", "core", "core", "core", "core", "core", "core"],
-        "reason": "Plan Core compares item presence and Behavior Proof: merge, attribution, and lossless-map semantics require executable tests."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-explicit-setting-membership.py"],
-        "check": "format-membership-reconciliation",
-        "requiredTests": [
-          "exact_root_keys_report_and_remove_only_extra_keys",
-          "exact_empty_reports_each_local_lint_table_separately",
-          "table_key_reconciliation_reports_missing_required_keys_as_unwritable",
-          "table_key_reconciliation_removes_forbidden_and_unexpected_keys",
-          "direct_and_effective_root_keys_are_distinct",
-          "parent_removal_precedes_child_reconciliation",
-          "inherited_extra_is_reported_without_rewriting_anchor_sources",
-          "direct_key_removal_preserves_anchors_used_by_retained_keys"
-        ],
-        "requiredTestOwners": ["json", "cargo", "toml", "toml", "yaml", "yaml", "yaml", "yaml"],
-        "reason": "Plan Format mechanics and Behavior Proof: format-specific findings, mutation, and regression behavior require executable tests."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-explicit-setting-membership.py"],
-        "check": "migrated-engine-behavior",
-        "engines": ["deny", "rustfmt", "rust-toolchain", "pnpm-workspace"],
-        "requiredTests": [
-          "explicit_membership_reconciles_every_modeled_deny_table",
-          "explicit_membership_reports_missing_and_forbidden_deny_keys",
-          "conflicting_exact_deny_table_keys_fail_merge",
-          "absent_deny_scalar_is_excluded_from_exact_membership",
-          "constructive_deny_membership_initializes_to_a_fixed_point",
-          "explicit_setting_membership_reports_missing_and_forbidden_keys",
-          "absent_scalar_is_excluded_from_exact_membership",
-          "constructive_setting_membership_initializes_to_a_fixed_point",
-          "conflicting_exact_setting_keys_fail_merge",
-          "exact_toolchain_membership_does_not_authorize_path_or_empty_targets",
-          "exact_toolchain_membership_initializes_to_a_fixed_point",
-          "exact_empty_toolchain_membership_fails_merge",
-          "explicit_membership_reports_effective_keys_without_rewriting_anchor_sources",
-          "explicit_root_membership_reports_missing_and_forbidden_keys",
-          "conflicting_exact_root_keys_fail_merge",
-          "absent_and_glob_only_fields_are_not_implicitly_exact_members",
-          "inherited_rejected_root_key_has_one_membership_finding",
-          "rejected_anchor_owner_is_not_removed_or_followed_by_a_child_finding"
-        ],
-        "requiredTestOwners": ["deny", "deny", "deny", "deny", "deny", "rustfmt", "rustfmt", "rustfmt", "rustfmt", "toolchain", "toolchain", "toolchain", "pnpm", "pnpm", "pnpm", "pnpm", "pnpm", "pnpm"],
-        "reason": "Plan Engine requirement surfaces and Behavior Proof: migrated-engine behavior requires executable engine tests."
-      },
-      {
-        "verifier": ["specs/verifiers/verify-explicit-setting-membership.py"],
-        "check": "architecture-checker-semantics",
-        "repositoryRoots": ["."],
-        "requiredTests": [
-          "rejected_fixture_covers_membership_construction_and_disguised_roots",
-          "policy_construction_and_adapter_map_are_accepted",
-          "inventory_is_machine_readable_and_complete",
-          "imported_canonical_requirement_trait_is_inventoried",
-          "multi_hop_requirement_trait_reexport_is_inventoried",
-          "local_helper_produced_engine_membership_is_rejected",
-          "cross_crate_helper_produced_engine_membership_is_rejected",
-          "type_annotated_membership_local_is_tracked_and_rejected",
-          "unrelated_keys_field_is_accepted",
-          "canonical_origin_rejects_terminal_name_counterfeits",
-          "canonical_origin_accepts_public_reexport_chain",
-          "direct_transfer_typed_local_and_map_are_accepted",
-          "counterfeit_core_package_name_is_rejected",
-          "shadowed_membership_transfer_is_rejected",
-          "canonical_origin_rejects_nested_counterfeit_from_mixed_facade",
-          "canonical_origin_uses_dependency_manifest_identity",
-          "macro_only_requirement_crate_is_rejected",
-          "whole_engine_requirement_helpers_are_rejected",
-          "destructured_policy_membership_discard_is_rejected",
-          "unrelated_same_name_fields_are_accepted",
-          "adapter_self_and_qualified_impostor_cannot_discard_membership",
-          "custom_target_and_path_module_are_inventoried",
-          "closure_membership_parameter_is_rejected",
-          "inferred_closure_membership_is_rejected",
-          "parent_module_trait_alias_is_inventoried",
-          "semantic_type_aliases_are_resolved_in_their_declaring_module",
-          "qualified_local_adapter_root_is_tracked",
-          "imported_adapter_alias_is_tracked",
-          "tuple_bound_closure_alias_is_rejected",
-          "chained_parent_module_trait_alias_is_inventoried",
-          "nested_inline_path_module_is_inventoried",
-          "local_same_name_type_shadows_ancestor_adapter_root",
-          "imported_semantic_membership_alias_is_inventoried",
-          "referenced_closure_alias_is_rejected",
-          "generic_type_parameter_shadow_is_accepted",
-          "unrelated_same_terminal_output_is_accepted",
-          "glob_requirement_import_is_rejected",
-          "block_local_requirement_import_is_rejected"
-        ],
-        "requiredTestOwners": ["architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture", "architecture"],
-        "requiredProductionRoots": [
-          "aqc-cargo-toml-engine:CargoTomlRequirements:engine",
-          "aqc-clippy-toml-engine:ClippyTomlRequirements:engine",
-          "aqc-deny-toml-engine:DenyTomlRequirements:engine",
-          "aqc-json-file-engine:JsonFileRequirements:engine",
-          "aqc-package-json-engine:PackageJsonRequirements:engine",
-          "aqc-pnpm-workspace-yaml-engine:PnpmWorkspaceYamlRequirements:engine",
-          "aqc-rust-toolchain-toml-engine:RustToolchainTomlRequirements:engine",
-          "aqc-rustfmt-toml-engine:RustfmtTomlRequirements:engine",
-          "aqc-text-file-engine:TextFileRequirements:engine",
-          "aqc-tsconfig-json-engine:TsconfigJsonRequirements:engine"
-        ],
-        "reason": "Plan Permanent Architecture Gate: the permanent Specular verifier tests the checker and scans every declared repository root."
-      }
-    ]
-  }
+        "custom": [
+            {
+                "verifier": [
+                    "specs/verifiers/verify-explicit-setting-membership.py"
+                ],
+                "check": "core-item-presence-semantics",
+                "requiredTests": [
+                    "item_requirements_map_preserves_every_collection_and_message",
+                    "allowed_items_reject_extras_without_requiring_allowed_members",
+                    "allowed_items_intersect_without_becoming_required",
+                    "rejected_identity_uses_only_the_allowed_contributors_that_exclude_it",
+                    "allowed_conflict_survives_failed_required_value_composition",
+                    "required_item_outside_allowed_conflicts",
+                    "exact_item_outside_allowed_conflicts",
+                    "required_and_exact_item_outside_allowed_produce_one_conflict",
+                    "forbidden_item_inside_allowed_is_compatible",
+                    "presence_difference_reports_missing_for_required_and_exact_once",
+                    "presence_difference_reports_present_forbidden_and_preserves_attribution",
+                    "presence_difference_reports_unexpected_exact_members_in_identity_order",
+                    "exact_empty_reports_every_present_identity_as_unexpected",
+                    "duplicate_exact_identities_are_returned_once",
+                    "compatible_exact_sets_compose_and_incompatible_sets_conflict",
+                    "required_outside_exact_and_forbidden_inside_exact_conflict",
+                    "derived_key_constraints_do_not_become_reconciliation_membership",
+                    "derived_key_constraints_are_checked_against_explicit_membership",
+                    "exact_and_forbidden_membership_report_one_rejection_per_identity"
+                ],
+                "requiredTestOwners": [
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core",
+                    "core"
+                ],
+                "reason": "Plan Core compares item presence and Behavior Proof: merge, attribution, and lossless-map semantics require executable tests."
+            },
+            {
+                "verifier": [
+                    "specs/verifiers/verify-explicit-setting-membership.py"
+                ],
+                "check": "format-membership-reconciliation",
+                "requiredTests": [
+                    "exact_root_keys_report_and_remove_only_extra_keys",
+                    "exact_empty_reports_each_local_lint_table_separately",
+                    "table_key_reconciliation_reports_missing_required_keys_as_unwritable",
+                    "table_key_reconciliation_removes_forbidden_and_unexpected_keys",
+                    "allowed_table_keys_remove_extras_without_requiring_optional_keys",
+                    "allowed_only_object_keys_remove_extras_without_creating_optional_keys",
+                    "cargo_lint_helper_preserves_allowed_only_tables",
+                    "allowed_only_package_lint_tables_remove_extras_without_requiring_allowed_tables",
+                    "clippy_allowed_only_disallowed_items_remove_extras",
+                    "forbidden_dependency_outside_allowed_reports_only_forbidden_classification",
+                    "closed_dependency_membership_removes_malformed_dependency_values",
+                    "local_key_forbidden_dependency_removes_a_malformed_value",
+                    "direct_and_effective_root_keys_are_distinct",
+                    "parent_removal_precedes_child_reconciliation",
+                    "inherited_extra_is_reported_without_rewriting_anchor_sources",
+                    "direct_key_removal_preserves_anchors_used_by_retained_keys"
+                ],
+                "requiredTestOwners": [
+                    "json",
+                    "cargo",
+                    "toml",
+                    "toml",
+                    "toml",
+                    "json",
+                    "cargo",
+                    "cargo",
+                    "clippy",
+                    "cargo",
+                    "cargo",
+                    "cargo",
+                    "yaml",
+                    "yaml",
+                    "yaml",
+                    "yaml"
+                ],
+                "reason": "Plan Format mechanics and Behavior Proof: format-specific findings, mutation, and regression behavior require executable tests."
+            },
+            {
+                "verifier": [
+                    "specs/verifiers/verify-explicit-setting-membership.py"
+                ],
+                "check": "migrated-engine-behavior",
+                "engines": [
+                    "deny",
+                    "rustfmt",
+                    "rust-toolchain",
+                    "pnpm-workspace"
+                ],
+                "requiredTests": [
+                    "explicit_membership_reconciles_every_modeled_deny_table",
+                    "explicit_membership_reports_missing_and_forbidden_deny_keys",
+                    "conflicting_exact_deny_table_keys_fail_merge",
+                    "absent_deny_scalar_is_excluded_from_exact_membership",
+                    "constructive_deny_membership_initializes_to_a_fixed_point",
+                    "explicit_setting_membership_reports_missing_and_forbidden_keys",
+                    "absent_scalar_is_excluded_from_exact_membership",
+                    "constructive_setting_membership_initializes_to_a_fixed_point",
+                    "conflicting_exact_setting_keys_fail_merge",
+                    "exact_toolchain_membership_does_not_authorize_path_or_empty_targets",
+                    "exact_toolchain_membership_initializes_to_a_fixed_point",
+                    "allowed_only_toolchain_keys_leave_an_absent_table_absent",
+                    "nonconstructive_toolchain_key_membership_leaves_an_absent_table_absent",
+                    "exclusion_only_toolchain_lists_leave_an_absent_table_absent",
+                    "path_is_compatible_with_nonconstructive_channel_requirements",
+                    "exact_empty_toolchain_membership_fails_merge",
+                    "explicit_membership_reports_effective_keys_without_rewriting_anchor_sources",
+                    "explicit_root_membership_reports_missing_and_forbidden_keys",
+                    "conflicting_exact_root_keys_fail_merge",
+                    "absent_and_glob_only_fields_are_not_implicitly_exact_members",
+                    "inherited_rejected_root_key_has_one_membership_finding",
+                    "rejected_anchor_owner_is_not_removed_or_followed_by_a_child_finding",
+                    "allowed_only_allow_builds_removes_extras_without_creating_optional_entries"
+                ],
+                "requiredTestOwners": [
+                    "deny",
+                    "deny",
+                    "deny",
+                    "deny",
+                    "deny",
+                    "rustfmt",
+                    "rustfmt",
+                    "rustfmt",
+                    "rustfmt",
+                    "toolchain",
+                    "toolchain",
+                    "toolchain",
+                    "toolchain",
+                    "toolchain",
+                    "toolchain",
+                    "toolchain",
+                    "pnpm",
+                    "pnpm",
+                    "pnpm",
+                    "pnpm",
+                    "pnpm",
+                    "pnpm",
+                    "pnpm"
+                ],
+                "reason": "Plan Engine requirement surfaces and Behavior Proof: migrated-engine behavior requires executable engine tests."
+            },
+            {
+                "verifier": [
+                    "specs/verifiers/verify-explicit-setting-membership.py"
+                ],
+                "check": "architecture-checker-semantics",
+                "repositoryRoots": [
+                    "."
+                ],
+                "requiredTests": [
+                    "rejected_fixture_covers_membership_construction_and_disguised_roots",
+                    "policy_construction_and_adapter_map_are_accepted",
+                    "policy_allowed_construction_is_accepted",
+                    "inventory_is_machine_readable_and_complete",
+                    "imported_canonical_requirement_trait_is_inventoried",
+                    "multi_hop_requirement_trait_reexport_is_inventoried",
+                    "local_helper_produced_engine_membership_is_rejected",
+                    "cross_crate_helper_produced_engine_membership_is_rejected",
+                    "type_annotated_membership_local_is_tracked_and_rejected",
+                    "unrelated_keys_field_is_accepted",
+                    "canonical_origin_rejects_terminal_name_counterfeits",
+                    "canonical_origin_accepts_public_reexport_chain",
+                    "direct_transfer_typed_local_and_map_are_accepted",
+                    "counterfeit_core_package_name_is_rejected",
+                    "shadowed_membership_transfer_is_rejected",
+                    "canonical_origin_rejects_nested_counterfeit_from_mixed_facade",
+                    "canonical_origin_uses_dependency_manifest_identity",
+                    "macro_only_requirement_crate_is_rejected",
+                    "whole_engine_requirement_helpers_are_rejected",
+                    "destructured_policy_membership_discard_is_rejected",
+                    "unrelated_same_name_fields_are_accepted",
+                    "adapter_self_and_qualified_impostor_cannot_discard_membership",
+                    "custom_target_and_path_module_are_inventoried",
+                    "closure_membership_parameter_is_rejected",
+                    "inferred_closure_membership_is_rejected",
+                    "parent_module_trait_alias_is_inventoried",
+                    "semantic_type_aliases_are_resolved_in_their_declaring_module",
+                    "qualified_local_adapter_root_is_tracked",
+                    "imported_adapter_alias_is_tracked",
+                    "tuple_bound_closure_alias_is_rejected",
+                    "chained_parent_module_trait_alias_is_inventoried",
+                    "nested_inline_path_module_is_inventoried",
+                    "local_same_name_type_shadows_ancestor_adapter_root",
+                    "imported_semantic_membership_alias_is_inventoried",
+                    "referenced_closure_alias_is_rejected",
+                    "generic_type_parameter_shadow_is_accepted",
+                    "unrelated_same_terminal_output_is_accepted",
+                    "glob_requirement_import_is_rejected",
+                    "block_local_requirement_import_is_rejected"
+                ],
+                "requiredTestOwners": [
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture",
+                    "architecture"
+                ],
+                "requiredProductionRoots": [
+                    "aqc-cargo-toml-engine:CargoTomlRequirements:engine",
+                    "aqc-clippy-toml-engine:ClippyTomlRequirements:engine",
+                    "aqc-deny-toml-engine:DenyTomlRequirements:engine",
+                    "aqc-json-file-engine:JsonFileRequirements:engine",
+                    "aqc-package-json-engine:PackageJsonRequirements:engine",
+                    "aqc-pnpm-workspace-yaml-engine:PnpmWorkspaceYamlRequirements:engine",
+                    "aqc-rust-toolchain-toml-engine:RustToolchainTomlRequirements:engine",
+                    "aqc-rustfmt-toml-engine:RustfmtTomlRequirements:engine",
+                    "aqc-text-file-engine:TextFileRequirements:engine",
+                    "aqc-tsconfig-json-engine:TsconfigJsonRequirements:engine"
+                ],
+                "reason": "Plan Permanent Architecture Gate: the permanent Specular verifier tests the checker and scans every declared repository root."
+            }
+        ]
+    }
 }

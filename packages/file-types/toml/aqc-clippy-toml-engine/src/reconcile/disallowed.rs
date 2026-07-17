@@ -29,6 +29,7 @@ pub(crate) fn apply(
 ) {
     if merged.required.is_empty()
         && merged.forbidden.is_empty()
+        && merged.allowed.is_none()
         && merged.exact.is_none()
         && globs.globs.is_empty()
     {

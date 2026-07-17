@@ -9,6 +9,7 @@ pub struct KeyedItem<T>(pub T);
 pub struct ItemRequirements<T> {
     pub required: Vec<T>,
     pub forbidden: Vec<T>,
+    pub allowed: Option<Vec<T>>,
     pub exact: Option<Vec<T>>,
 }
 
@@ -17,6 +18,7 @@ impl<T> Default for ItemRequirements<T> {
         Self {
             required: Vec::new(),
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         }
     }
@@ -27,6 +29,9 @@ impl<T> ItemRequirements<T> {
         ItemRequirements {
             required: self.required.into_iter().map(&transform).collect(),
             forbidden: self.forbidden.into_iter().map(&transform).collect(),
+            allowed: self
+                .allowed
+                .map(|items| items.into_iter().map(&transform).collect()),
             exact: self
                 .exact
                 .map(|items| items.into_iter().map(transform).collect()),

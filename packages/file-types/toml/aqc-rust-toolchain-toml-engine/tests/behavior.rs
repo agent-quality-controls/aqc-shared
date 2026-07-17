@@ -245,6 +245,7 @@ fn explicit_membership_reports_and_removes_unknown_toolchain_fields() {
                 "channel".to_owned(),
             )),
             toolchain_keys: ItemRequirements {
+                allowed: None,
                 exact: Some((
                     vec![KeyedItem {
                         file_key: "channel".to_owned(),
@@ -456,12 +457,131 @@ fn exact_toolchain_keys<const N: usize>(
     message: &str,
 ) -> ItemRequirements<KeyedItem<()>> {
     ItemRequirements {
+        allowed: None,
         exact: Some((
             keys.into_iter().map(toolchain_key).collect(),
             message.to_owned(),
         )),
         ..ItemRequirements::default()
     }
+}
+
+#[test]
+fn allowed_only_toolchain_keys_leave_an_absent_table_absent() {
+    let requirement = RustToolchainTomlRequirements {
+        toolchain_keys: ItemRequirements {
+            allowed: Some((
+                vec![toolchain_key("channel")],
+                "channel is allowed".to_owned(),
+            )),
+            ..ItemRequirements::default()
+        },
+        ..RustToolchainTomlRequirements::default()
+    };
+    let resolved = RustToolchainTomlRequirements::merge(vec![(prov("policy"), requirement)])
+        .expect("allowed-only keys must resolve");
+    let output = <RustToolchainTomlEngine as FileEngine<_>>::reconcile(Some(b""), &resolved);
+
+    assert!(output.findings.is_empty());
+    assert!(output.expected_bytes.is_empty());
+}
+
+#[test]
+fn nonconstructive_toolchain_key_membership_leaves_an_absent_table_absent() {
+    for toolchain_keys in [
+        ItemRequirements {
+            forbidden: vec![(toolchain_key("path"), "path is forbidden".to_owned())],
+            ..ItemRequirements::default()
+        },
+        ItemRequirements {
+            forbidden: vec![(toolchain_key("path"), "path is forbidden".to_owned())],
+            allowed: Some((
+                vec![toolchain_key("channel")],
+                "channel is allowed".to_owned(),
+            )),
+            ..ItemRequirements::default()
+        },
+    ] {
+        let resolved = RustToolchainTomlRequirements::merge(vec![(
+            prov("policy"),
+            RustToolchainTomlRequirements {
+                toolchain_keys,
+                ..RustToolchainTomlRequirements::default()
+            },
+        )])
+        .expect("nonconstructive key membership must resolve");
+        let output = <RustToolchainTomlEngine as FileEngine<_>>::reconcile(Some(b""), &resolved);
+
+        assert!(output.findings.is_empty());
+        assert!(output.expected_bytes.is_empty());
+    }
+}
+
+#[test]
+fn exclusion_only_toolchain_lists_leave_an_absent_table_absent() {
+    for requirement in [
+        RustToolchainTomlRequirements {
+            components: ListRequirements {
+                excludes: [("rustfmt".to_owned(), "exclude rustfmt".to_owned())].into(),
+                ..ListRequirements::default()
+            },
+            ..RustToolchainTomlRequirements::default()
+        },
+        RustToolchainTomlRequirements {
+            targets: ListRequirements {
+                excludes: [(
+                    "wasm32-unknown-unknown".to_owned(),
+                    "exclude target".to_owned(),
+                )]
+                .into(),
+                ..ListRequirements::default()
+            },
+            ..RustToolchainTomlRequirements::default()
+        },
+    ] {
+        let resolved = RustToolchainTomlRequirements::merge(vec![(prov("policy"), requirement)])
+            .expect("exclusion-only lists must resolve");
+        let output = <RustToolchainTomlEngine as FileEngine<_>>::reconcile(Some(b""), &resolved);
+
+        assert!(output.findings.is_empty());
+        assert!(output.expected_bytes.is_empty());
+    }
+}
+
+#[test]
+fn path_is_compatible_with_nonconstructive_channel_requirements() {
+    let requirement = req_path_with(|requirement| {
+        requirement.channel = Some(ScalarAssertion::Absent("no channel".to_owned()));
+        requirement.profile = Some(ScalarAssertion::Absent("no profile".to_owned()));
+        requirement.components = ListRequirements {
+            excludes: [("rustfmt".to_owned(), "exclude rustfmt".to_owned())].into(),
+            ..ListRequirements::default()
+        };
+        requirement.targets = ListRequirements {
+            excludes: [(
+                "wasm32-unknown-unknown".to_owned(),
+                "exclude target".to_owned(),
+            )]
+            .into(),
+            ..ListRequirements::default()
+        };
+    });
+    let output = reconcile(
+        "[toolchain]\npath = \"/opt/rust\"\nchannel = \"stable\"\nprofile = \"default\"\ncomponents = [\"rustfmt\", \"other\"]\ntargets = [\"wasm32-unknown-unknown\", \"other-target\"]\n",
+        requirement.clone(),
+    );
+    let rendered = String::from_utf8(output.expected_bytes.clone())
+        .expect("engine output should remain UTF-8 TOML");
+
+    assert!(rendered.contains("path = \"/opt/rust\""));
+    assert!(!rendered.contains("channel ="));
+    assert!(!rendered.contains("profile ="));
+    assert!(!rendered.contains("rustfmt"));
+    assert!(!rendered.contains("wasm32-unknown-unknown"));
+    assert!(rendered.contains("other"));
+    let fixed = reconcile_bytes(Some(&output.expected_bytes), requirement);
+    assert!(fixed.findings.is_empty());
+    assert_eq!(fixed.expected_bytes, output.expected_bytes);
 }
 
 fn baseline_req() -> RustToolchainTomlRequirements {

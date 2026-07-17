@@ -1,7 +1,8 @@
 //! Reconcile identities of dynamic `[lints.<tool>]` tables.
 
 use aqc_file_engine_core::{
-    Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity, item_presence_difference,
+    FileItemRequirement, Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity,
+    item_presence_difference,
 };
 use aqc_toml_engine_core::{ensure_table, table_ref};
 use toml_edit::{DocumentMut, Item};
@@ -51,24 +52,25 @@ pub(crate) fn apply(
             attribution: entry.attribution(),
         });
     }
-    if let Some(exact) = &requirements.exact {
+    if let Some(membership) = requirements.membership() {
         for tool in difference.unexpected {
             remove_table(doc, tool);
             findings.push(Finding::Mismatch {
                 key: format!("[lints.{tool}]"),
                 selector: None,
                 current: Some("table present".to_owned()),
-                expected: "absent (exact collection)".to_owned(),
-                message: exact
-                    .collected
-                    .first()
-                    .map_or_else(String::new, |(_, (_, message))| message.clone()),
+                expected: if membership.is_exact() {
+                    "absent (exact collection)"
+                } else {
+                    "absent (not allowed)"
+                }
+                .to_owned(),
+                message: membership
+                    .message_for_rejected(|item| item.merge_identity() == *tool)
+                    .to_owned(),
                 severity: Severity::Error,
-                attribution: exact
-                    .collected
-                    .iter()
-                    .map(|(provenance, _)| provenance.clone())
-                    .collect(),
+                attribution: membership
+                    .attribution_for_rejected(|item| item.merge_identity() == *tool),
             });
         }
     }

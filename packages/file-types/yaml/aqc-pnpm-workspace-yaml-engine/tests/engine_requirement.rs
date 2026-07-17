@@ -41,6 +41,7 @@ fn exact_root_keys<const N: usize>(
     message: &str,
 ) -> ItemRequirements<KeyedItem<()>> {
     ItemRequirements {
+        allowed: None,
         exact: Some((
             keys.into_iter()
                 .map(|file_key| KeyedItem {
@@ -606,9 +607,43 @@ fn false_allow_build_entry_does_not_conflict_but_true_entry_does() {
 }
 
 #[test]
+fn allowed_only_allow_builds_removes_extras_without_creating_optional_entries() {
+    let requirement = PnpmWorkspaceYamlRequirements {
+        allow_builds: ItemRequirements {
+            allowed: Some((
+                vec![KeyedItem {
+                    file_key: "esbuild".to_owned(),
+                    value: true,
+                }],
+                "only esbuild is allowed".to_owned(),
+            )),
+            ..ItemRequirements::default()
+        },
+        ..PnpmWorkspaceYamlRequirements::default()
+    };
+    let resolved = PnpmWorkspaceYamlRequirements::merge(vec![(provenance("policy"), requirement)])
+        .expect("Allowed build identities must merge.");
+    let output = <PnpmWorkspaceYamlEngine as FileEngine<_>>::reconcile(
+        Some(b"allowBuilds: {esbuild: true, extra: false}\n"),
+        &resolved,
+    );
+    let rendered = String::from_utf8(output.expected_bytes).expect("YAML must be UTF-8.");
+
+    assert!(rendered.contains("esbuild"));
+    assert!(!rendered.contains("extra"));
+    assert_eq!(output.findings.len(), 1);
+    assert!(output.findings.iter().any(|finding| matches!(
+        finding,
+        Finding::Mismatch { selector: Some(selector), attribution, .. }
+            if selector == "extra" && attribution == &[provenance("policy")]
+    )));
+}
+
+#[test]
 fn exact_true_allow_build_conflict_preserves_key_reason_and_contributors() {
     let exact = PnpmWorkspaceYamlRequirements {
         allow_builds: ItemRequirements {
+            allowed: None,
             exact: Some((
                 vec![KeyedItem {
                     file_key: "esbuild".to_owned(),

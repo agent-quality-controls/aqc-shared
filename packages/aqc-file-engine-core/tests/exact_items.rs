@@ -28,6 +28,7 @@ const fn requirements(
     ItemRequirements {
         required,
         forbidden,
+        allowed: None,
         exact,
     }
 }
@@ -65,6 +66,212 @@ fn forbidden_items_allow_other_identities() {
     assert!(conflicts.is_empty());
     assert_eq!(resolved.forbidden.len(), 1);
     assert!(resolved.exact.is_none());
+}
+
+#[test]
+fn allowed_items_intersect_without_becoming_required() {
+    let (resolved, conflicts) = resolve(vec![
+        (
+            prov("broad"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 1), item("b", 2)], "allow a or b".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("narrow"),
+            ItemRequirements {
+                allowed: Some((vec![item("b", 9)], "allow b".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+    ]);
+
+    assert!(conflicts.is_empty());
+    assert!(resolved.required.is_empty());
+    let allowed = resolved.allowed.expect("allowed identities must resolve");
+    assert_eq!(
+        allowed.identities.into_iter().collect::<Vec<_>>(),
+        vec!["b"]
+    );
+    assert_eq!(allowed.collected.len(), 2);
+}
+
+#[test]
+fn rejected_identity_uses_only_the_allowed_contributors_that_exclude_it() {
+    let (resolved, conflicts) = resolve(vec![
+        (
+            prov("broad"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 1), item("b", 2)], "broad".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("narrow"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 1)], "narrow".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+    ]);
+
+    assert!(conflicts.is_empty());
+    let membership = resolved
+        .membership()
+        .expect("allowed membership must resolve");
+    assert_eq!(
+        membership.message_for_rejected(|candidate| candidate.file_key == "b"),
+        "narrow"
+    );
+    assert_eq!(
+        membership.attribution_for_rejected(|candidate| candidate.file_key == "b"),
+        vec![prov("narrow")]
+    );
+}
+
+#[test]
+fn allowed_conflict_survives_failed_required_value_composition() {
+    let (_, conflicts) = resolve(vec![
+        (
+            prov("allowed"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 1)], "only a".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("required-one"),
+            requirements(vec![(item("b", 1), "one".to_owned())], Vec::new(), None),
+        ),
+        (
+            prov("required-two"),
+            requirements(vec![(item("b", 2), "two".to_owned())], Vec::new(), None),
+        ),
+    ]);
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "items.b" && conflict.reason == "allowed-items-reject-required-item"
+    }));
+}
+
+#[test]
+fn required_item_outside_allowed_conflicts() {
+    let (_, conflicts) = resolve(vec![
+        (
+            prov("allowed"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 0)], "only a is allowed".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("required"),
+            requirements(vec![(item("b", 2), "need b".to_owned())], Vec::new(), None),
+        ),
+    ]);
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "items.b"
+            && conflict.reason == "allowed-items-reject-required-item"
+            && conflict.contributors
+                == vec![
+                    (prov("allowed"), "only a is allowed".to_owned()),
+                    (prov("required"), "required".to_owned()),
+                ]
+    }));
+}
+
+#[test]
+fn exact_item_outside_allowed_conflicts() {
+    let (_, conflicts) = resolve(vec![
+        (
+            prov("allowed"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 0)], "only a is allowed".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("exact"),
+            requirements(
+                Vec::new(),
+                Vec::new(),
+                Some((vec![item("b", 2)], "exact b".to_owned())),
+            ),
+        ),
+    ]);
+
+    assert!(conflicts.iter().any(|conflict| {
+        conflict.key == "items.b"
+            && conflict.reason == "allowed-items-reject-required-item"
+            && conflict.contributors
+                == vec![
+                    (prov("allowed"), "only a is allowed".to_owned()),
+                    (prov("exact"), "exact b".to_owned()),
+                ]
+    }));
+}
+
+#[test]
+fn required_and_exact_item_outside_allowed_produce_one_conflict() {
+    let (_, conflicts) = resolve(vec![
+        (
+            prov("allowed"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 0)], "only a is allowed".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("exact"),
+            requirements(
+                Vec::new(),
+                Vec::new(),
+                Some((vec![item("b", 2)], "exact b".to_owned())),
+            ),
+        ),
+        (
+            prov("required"),
+            requirements(vec![(item("b", 2), "need b".to_owned())], Vec::new(), None),
+        ),
+    ]);
+
+    let matching = conflicts
+        .iter()
+        .filter(|conflict| {
+            conflict.key == "items.b" && conflict.reason == "allowed-items-reject-required-item"
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(matching.len(), 1);
+    assert_eq!(
+        matching
+            .first()
+            .expect("one allowed-membership conflict")
+            .contributors
+            .len(),
+        3
+    );
+}
+
+#[test]
+fn forbidden_item_inside_allowed_is_compatible() {
+    let (resolved, conflicts) = resolve(vec![
+        (
+            prov("allowed"),
+            ItemRequirements {
+                allowed: Some((vec![item("a", 0)], "a may exist".to_owned())),
+                ..ItemRequirements::default()
+            },
+        ),
+        (
+            prov("forbidden"),
+            requirements(Vec::new(), vec![(item("a", 0), "no a".to_owned())], None),
+        ),
+    ]);
+
+    assert!(conflicts.is_empty());
+    assert!(resolved.forbidden.contains_key("a"));
 }
 
 #[test]
@@ -255,6 +462,7 @@ fn scalar_value_constraints_participate_in_key_membership_merge() {
     let mut membership = ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((Vec::new(), "no keys".to_owned())),
     };
     ScalarAssertion::Equals(1_u8, "value required".to_owned())
@@ -284,6 +492,7 @@ fn absent_scalar_becomes_forbidden_key_membership() {
             "value required".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     };
     ScalarAssertion::<u8>::Absent("value absent".to_owned())
@@ -323,6 +532,7 @@ fn derived_key_constraints_do_not_become_reconciliation_membership() {
 #[test]
 fn derived_key_constraints_are_checked_against_explicit_membership() {
     let explicit = ItemRequirements {
+        allowed: None,
         exact: Some((Vec::new(), "no settings".to_owned())),
         ..ItemRequirements::default()
     };

@@ -66,6 +66,7 @@ fn item_requirements_map_preserves_every_collection_and_message() {
     let requirements = ItemRequirements {
         required: vec![(1_u8, "required".to_owned())],
         forbidden: vec![(2_u8, "forbidden".to_owned())],
+        allowed: Some((vec![5_u8], "allowed".to_owned())),
         exact: Some((vec![3_u8, 4_u8], "exact".to_owned())),
     };
 
@@ -76,10 +77,16 @@ fn item_requirements_map_preserves_every_collection_and_message() {
 
     let required = mapped.required.first().expect("one mapped required item");
     let forbidden = mapped.forbidden.first().expect("one mapped forbidden item");
+    let (allowed, allowed_message) = mapped.allowed.expect("mapped allowed collection");
     assert_eq!(required.0.file_key, "key-1");
     assert_eq!(required.1, "required");
     assert_eq!(forbidden.0.file_key, "key-2");
     assert_eq!(forbidden.1, "forbidden");
+    assert_eq!(
+        allowed.first().expect("one mapped allowed item").file_key,
+        "key-5"
+    );
+    assert_eq!(allowed_message, "allowed");
     let (exact, message) = mapped.exact.expect("mapped exact collection");
     assert_eq!(
         exact
@@ -96,6 +103,7 @@ fn item_requirements_map_preserves_an_absent_exact_collection() {
     let mapped = ItemRequirements {
         required: vec![(1_u8, "required".to_owned())],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     }
     .map(u16::from);
@@ -111,6 +119,7 @@ fn presence_difference_reports_missing_for_required_and_exact_once() {
         ItemRequirements {
             required: vec![(TestItem::new("shared", 1), "required".to_owned())],
             forbidden: Vec::new(),
+            allowed: None,
             exact: Some((
                 vec![TestItem::new("shared", 1), TestItem::new("exact", 2)],
                 "exact".to_owned(),
@@ -130,6 +139,24 @@ fn presence_difference_reports_missing_for_required_and_exact_once() {
     assert_eq!(missing, vec!["exact", "shared"]);
     assert!(difference.forbidden.is_empty());
     assert!(difference.unexpected.is_empty());
+}
+
+#[test]
+fn allowed_items_reject_extras_without_requiring_allowed_members() {
+    let requirements = resolve(vec![(
+        provenance("policy"),
+        ItemRequirements {
+            allowed: Some((vec![TestItem::new("optional", 1)], "closed".to_owned())),
+            ..ItemRequirements::default()
+        },
+    )])
+    .expect("an allowed collection must resolve");
+
+    let current = BTreeSet::from(["extra".to_owned()]);
+    let difference = item_presence_difference(&current, &requirements);
+
+    assert!(difference.missing.is_empty());
+    assert_eq!(difference.unexpected, vec![&"extra".to_owned()]);
 }
 
 #[test]
@@ -173,6 +200,7 @@ fn exact_and_forbidden_membership_report_one_rejection_per_identity() {
         ItemRequirements {
             required: Vec::new(),
             forbidden: vec![(TestItem::new("a", 1), "forbidden".to_owned())],
+            allowed: None,
             exact: Some((Vec::new(), "exact".to_owned())),
         },
     )])
@@ -190,6 +218,7 @@ fn presence_difference_reports_unexpected_exact_members_in_identity_order() {
     let requirements = resolve(vec![(
         provenance("policy"),
         ItemRequirements {
+            allowed: None,
             exact: Some((vec![TestItem::new("allowed", 1)], "exact".to_owned())),
             ..ItemRequirements::default()
         },
@@ -218,6 +247,7 @@ fn exact_empty_reports_every_present_identity_as_unexpected() {
     let requirements = resolve(vec![(
         provenance("policy"),
         ItemRequirements {
+            allowed: None,
             exact: Some((Vec::new(), "exact empty".to_owned())),
             ..ItemRequirements::default()
         },
@@ -236,6 +266,7 @@ fn duplicate_exact_identities_are_returned_once() {
     let requirements = resolve(vec![(
         provenance("policy"),
         ItemRequirements {
+            allowed: None,
             exact: Some((
                 vec![TestItem::new("same", 1), TestItem::new("same", 1)],
                 "duplicates".to_owned(),
@@ -262,6 +293,7 @@ fn duplicate_exact_identities_are_returned_once() {
 #[test]
 fn compatible_exact_sets_compose_and_incompatible_sets_conflict() {
     let exact = |items: Vec<TestItem>| ItemRequirements {
+        allowed: None,
         exact: Some((items, "exact".to_owned())),
         ..ItemRequirements::default()
     };
@@ -295,6 +327,7 @@ fn required_outside_exact_and_forbidden_inside_exact_conflict() {
         (
             provenance("exact"),
             ItemRequirements {
+                allowed: None,
                 exact: Some((vec![TestItem::new("inside", 1)], "exact".to_owned())),
                 ..ItemRequirements::default()
             },

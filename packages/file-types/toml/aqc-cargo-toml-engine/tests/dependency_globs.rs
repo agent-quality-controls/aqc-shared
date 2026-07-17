@@ -138,6 +138,7 @@ fn dependency_package_identity_forbid_catches_subtable() {
             package_requirement("openssl-sys", None),
             "no openssl".to_owned(),
         )],
+        allowed: None,
         exact: None,
     });
     let out = cargo_output(
@@ -161,6 +162,7 @@ fn required_package_matching_glob_forbid_conflicts() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
@@ -192,6 +194,7 @@ fn exact_only_package_matching_glob_forbid_conflicts() {
     let exact = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((
             vec![package_requirement("openssl-sys", Some("0.9"))],
             "only openssl".to_owned(),
@@ -229,6 +232,7 @@ fn required_package_matching_glob_forbid_does_not_write_dependency() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
@@ -247,6 +251,7 @@ fn required_local_key_matching_glob_forbid_does_not_remove_dependency() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let glob = dep_glob_req(vec![("openssl-*", "no openssl")]);
@@ -272,6 +277,7 @@ fn required_exact_dependency_matching_glob_forbid_does_not_remove_dependency() {
             "need openssl".to_owned(),
         )],
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((
             vec![local_dependency_requirement(
                 "ssl",
@@ -331,6 +337,7 @@ fn exact_forbidden_dependency_and_forbidden_glob_remove_dependency_once() {
             package_requirement("openssl-sys", None),
             "exact no openssl".to_owned(),
         )],
+        allowed: None,
         exact: None,
     });
     let _ = req.forbidden_dependency_package_globs.insert(
@@ -361,6 +368,7 @@ fn exact_collection_and_forbidden_glob_remove_dependency_once() {
     let mut req = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
+        allowed: None,
         exact: Some((Vec::new(), "exact".to_owned())),
     });
     let _ = req.forbidden_dependency_package_globs.insert(
@@ -405,6 +413,7 @@ fn patch_package_identity_init_reports_unwritable_required_key() {
                 "serde".to_owned(),
             )],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         },
     );
@@ -431,6 +440,7 @@ fn patch_requirement_with_file_key_writes_patch_entry() {
                 "patch serde".to_owned(),
             )],
             forbidden: Vec::new(),
+            allowed: None,
             exact: None,
         },
     );

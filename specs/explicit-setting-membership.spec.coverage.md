@@ -4,10 +4,37 @@ Sources:
 
 - `.plans/2026-07-16-144118-explicit-setting-membership.md`
 - `.plans/2026-07-16-205526-fast-local-gates.md`
+- `.plans/2026-07-17-051043-allowed-item-membership.md`
 
 ## Explicit Setting Membership
 
 - `not-applicable`: document title; requirements are mapped by the headings below.
+
+## Allowed Item Membership
+
+- `content`: public allowed input/resolved types and identity-specific rejection attribution.
+- `custom:core-item-presence-semantics`: intersection, constructive conflicts, mapping, and attribution.
+
+## Architecture
+
+- `content`: canonical `allowed` field and resolved membership API.
+- `dependencies`: keeps allowed membership format- and product-independent.
+
+## Merge Rules
+
+- `custom:core-item-presence-semantics`: intersections, required/exact conflicts, forbidden compatibility, and failed value composition.
+
+## Reconciliation
+
+- `custom:format-membership-reconciliation`, `custom:migrated-engine-behavior`: optional absence, unexpected removal, one classification, and per-item attribution.
+
+## Consumers
+
+- `tree`, `content`, `custom:format-membership-reconciliation`, `custom:migrated-engine-behavior`: every affected engine path and literal uses the canonical shape.
+
+## Architecture Gate
+
+- `custom:architecture-checker-semantics`: policy construction and adapter transfer/map acceptance, plus adapter-authored membership rejection.
 
 ## Goal
 
@@ -26,7 +53,7 @@ Sources:
 
 - `content`: forbids `exact_settings` and `closed_settings` throughout engine source.
 - `custom:core-item-presence-semantics`: proves constructive exact membership and required/forbidden conflict behavior.
-- Optional allowlists remain outside the contract because the plan explicitly declines to add that primitive.
+- `allowed` permits optional identities, intersects across policies, and reports only contributors that exclude each rejected identity.
 
 ## Core compares item presence
 

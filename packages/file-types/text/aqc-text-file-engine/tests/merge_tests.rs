@@ -72,6 +72,7 @@ fn required_contents(value: &str) -> Result<ItemRequirements<TextFileContents>, 
     Ok(ItemRequirements {
         required: vec![(contents(value)?, "contents".to_owned())],
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     })
 }

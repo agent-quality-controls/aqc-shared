@@ -20,6 +20,7 @@ pub fn reconcile_array_items<ItemType>(
 {
     if requirements.required.is_empty()
         && requirements.forbidden.is_empty()
+        && requirements.allowed.is_none()
         && requirements.exact.is_none()
     {
         return;
@@ -48,7 +49,7 @@ pub fn reconcile_array_items<ItemType>(
     }
     apply_forbidden_array_items(array, field, requirements, findings);
     if !current.duplicate {
-        apply_exact_array_items(array, field, requirements, findings);
+        apply_closed_membership_array_items(array, field, requirements, findings);
     }
 }
 
@@ -183,7 +184,7 @@ fn apply_forbidden_array_items<ItemType>(
     }
 }
 
-fn apply_exact_array_items<ItemType>(
+fn apply_closed_membership_array_items<ItemType>(
     array: &mut Array,
     field: TomlItemField<'_>,
     requirements: &ResolvedItemRequirements<ItemType>,
@@ -192,10 +193,10 @@ fn apply_exact_array_items<ItemType>(
     ItemType: TomlArrayItem,
     ItemType::Identity: ToString,
 {
-    let Some(exact) = &requirements.exact else {
+    let Some(membership) = requirements.membership() else {
         return;
     };
-    let allowed = &exact.identities;
+    let allowed = membership.identities();
     for (_, identity) in support::remove_array_items(array, |value| {
         ItemType::read_value(value)
             .ok()
@@ -206,10 +207,18 @@ fn apply_exact_array_items<ItemType>(
             key: support::item_key::<ItemType>(field, &identity),
             selector: None,
             current: Some(identity.to_string()),
-            expected: "absent (exact collection)".to_owned(),
-            message: support::first_exact_message(requirements),
+            expected: if membership.is_exact() {
+                "absent (exact collection)"
+            } else {
+                "absent (not allowed)"
+            }
+            .to_owned(),
+            message: membership
+                .message_for_rejected(|item| item.merge_identity() == identity)
+                .to_owned(),
             severity: Severity::Error,
-            attribution: support::exact_attribution(requirements),
+            attribution: membership
+                .attribution_for_rejected(|item| item.merge_identity() == identity),
         });
     }
 }

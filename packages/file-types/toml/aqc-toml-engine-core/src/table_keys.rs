@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use aqc_file_engine_core::{
-    Finding, KeyedItem, Provenance, ResolvedExactItems, ResolvedItemRequirements, Severity,
+    FileItemRequirement, Finding, KeyedItem, ResolvedItemRequirements, Severity,
     item_presence_difference,
 };
 use toml_edit::TableLike;
@@ -37,7 +37,7 @@ pub fn remove_rejected_table_keys(
             attribution: resolved.attribution(),
         });
     }
-    if let Some(exact) = &requirements.exact {
+    if let Some(membership) = requirements.membership() {
         for key in difference.unexpected {
             let current_value = table.get(key).map(ToString::to_string);
             let _ = table.remove(key);
@@ -45,10 +45,18 @@ pub fn remove_rejected_table_keys(
                 key: child_key(display_key, key),
                 selector: None,
                 current: current_value,
-                expected: "absent (exact keys)".to_owned(),
-                message: exact_message(exact),
+                expected: if membership.is_exact() {
+                    "absent (exact keys)"
+                } else {
+                    "absent (not allowed)"
+                }
+                .to_owned(),
+                message: membership
+                    .message_for_rejected(|item| item.merge_identity() == *key)
+                    .to_owned(),
                 severity: Severity::Error,
-                attribution: exact_attribution(exact),
+                attribution: membership
+                    .attribution_for_rejected(|item| item.merge_identity() == *key),
             });
         }
     }
@@ -81,19 +89,4 @@ fn child_key(display_key: &str, key: &str) -> String {
     } else {
         format!("{display_key}.{key}")
     }
-}
-
-fn exact_message(exact: &ResolvedExactItems<KeyedItem<()>>) -> String {
-    exact
-        .collected
-        .first()
-        .map_or_else(String::new, |(_, (_, message))| message.clone())
-}
-
-fn exact_attribution(exact: &ResolvedExactItems<KeyedItem<()>>) -> Vec<Provenance> {
-    exact
-        .collected
-        .iter()
-        .map(|(provenance, _)| provenance.clone())
-        .collect()
 }

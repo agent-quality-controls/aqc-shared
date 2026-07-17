@@ -4,6 +4,10 @@
 //! code composes those plain requirements into resolved values, while keeping
 //! the collected assertions needed for precise findings.
 
+/// Forbidden-glob merge implementation.
+mod forbidden_globs;
+/// Resolved item membership data model.
+mod item_model;
 /// Item collection merge implementation.
 mod items;
 /// List-field merge implementation.
@@ -15,9 +19,14 @@ mod scalar;
 /// Generic scalar assertion merge implementation.
 mod scalar_assertion;
 
+pub use forbidden_globs::resolve_forbidden_globs;
+pub use item_model::{
+    FileItemRequirement, ItemPresenceDifference, ResolvedAllowedItems, ResolvedExactItems,
+    ResolvedItemMembership, ResolvedItemRequirements,
+};
 pub use items::{
-    asserted_items, compose_item_by, item_presence_difference, resolve_forbidden_globs,
-    resolve_items, resolve_key_membership,
+    asserted_items, compose_item_by, item_presence_difference, resolve_items,
+    resolve_key_membership,
 };
 pub use lists::{
     apply_list_requirements, exact_list_difference, render_list_requirement, resolve_exact_list,
@@ -25,16 +34,15 @@ pub use lists::{
 };
 pub(crate) use model::sort_provenanced;
 pub use model::{
-    Collected, ConflictEntry, Contributor, Contributors, ExactInput, ExactItems, ExactItemsInput,
-    ExactListDifference, FileItemRequirement, FileKeyRequirement, ForbiddenGlobRequirement,
-    ForbiddenGlobRequirements, ForbiddenItemMap, ForbiddenItemResolution, GlobAssertion,
-    GlobAssertionGroups, GlobAssertionInput, GlobInput, GlobResolutionMap, GroupedAssertions,
-    ItemAssertion, ItemAssertionGroups, ItemAssertionInput, ItemInput, ItemPresenceDifference,
+    AllowedItems, AllowedItemsInput, Collected, ConflictEntry, Contributor, Contributors,
+    ExactInput, ExactItems, ExactItemsInput, ExactListDifference, FileKeyRequirement,
+    ForbiddenGlobRequirement, ForbiddenGlobRequirements, ForbiddenItemMap, ForbiddenItemResolution,
+    GlobAssertion, GlobAssertionGroups, GlobAssertionInput, GlobInput, GlobResolutionMap,
+    GroupedAssertions, ItemAssertion, ItemAssertionGroups, ItemAssertionInput, ItemInput,
     ItemRequirementMap, ItemRequirements, KeyedItem, KeyedValueMap, ListExact, ListInput,
     ListRequirements, MapInput, MapInputs, MemberInputs, MessagePair, OptionalInput, Provenanced,
-    RequiredItemResolution, Resolve, ResolvedAssertion, ResolvedAssertionOption,
-    ResolvedExactItems, ResolvedExactList, ResolvedForbiddenGlobRequirements,
-    ResolvedItemRequirements, ResolvedListRequirements, ResolvedMap, ResolvedRequirement,
+    RequiredItemResolution, Resolve, ResolvedAssertion, ResolvedAssertionOption, ResolvedExactList,
+    ResolvedForbiddenGlobRequirements, ResolvedListRequirements, ResolvedMap, ResolvedRequirement,
     ResolvedSame, ResolvedSameOption, ResolvedStringMembers, ScalarAssertion, ScalarOperation,
     ScalarValue, VersionFloor, resolved_map_attribution,
 };

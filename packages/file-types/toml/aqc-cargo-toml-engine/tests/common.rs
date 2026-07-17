@@ -159,6 +159,7 @@ pub(crate) fn dep_items(
                 )
             })
             .collect(),
+        allowed: None,
         exact,
     }
 }
@@ -198,6 +199,7 @@ pub(crate) fn keyed_items<Entry: Default + Clone>(
                 )
             })
             .collect(),
+        allowed: None,
         exact,
     }
 }
@@ -268,6 +270,7 @@ fn common_helpers_compile() {
     let _ = dep_item_req(engine_core::ItemRequirements {
         required: Vec::new(),
         forbidden: Vec::new(),
+        allowed: None,
         exact: None,
     });
     let _ = dependency_package_glob("*");

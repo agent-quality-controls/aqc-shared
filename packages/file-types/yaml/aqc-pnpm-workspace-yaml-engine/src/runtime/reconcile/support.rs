@@ -168,6 +168,12 @@ pub(super) fn item_attribution(
             .values()
             .flat_map(ResolvedRequirement::attribution),
     );
+    out.extend(requirement.allowed.iter().flat_map(|allowed| {
+        allowed
+            .collected
+            .iter()
+            .map(|(provenance, _)| provenance.clone())
+    }));
     out.extend(
         globs
             .globs

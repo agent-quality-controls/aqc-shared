@@ -66,6 +66,7 @@ fn keyed_items<Entry: Default + Clone>(
                 )
             })
             .collect(),
+        allowed: None,
         exact,
     }
 }
@@ -326,6 +327,25 @@ fn inline_lint_table_writes_one_lint() {
         String::from_utf8(first_bytes(&out)).expect("engine output should be valid UTF-8 TOML");
     assert!(text.contains("[lints.clippy]"));
     assert!(text.contains("unwrap_used = \"deny\""));
+}
+
+#[test]
+fn cargo_lint_helper_preserves_allowed_only_tables() {
+    let table = engine_core::ItemRequirements {
+        allowed: Some((
+            vec![engine_core::KeyedItem {
+                file_key: "unsafe_code".to_owned(),
+                value: cargo::LintSetting {
+                    level: "forbid".to_owned(),
+                    priority: None,
+                },
+            }],
+            "only unsafe_code is allowed".to_owned(),
+        )),
+        ..engine_core::ItemRequirements::default()
+    };
+
+    assert!(cargo::cargo_lint_table_requirements("rust", Some(table), None).is_some());
 }
 
 #[test]

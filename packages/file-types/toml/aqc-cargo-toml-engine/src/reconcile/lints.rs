@@ -15,7 +15,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use aqc_file_engine_core::{Finding, KeyedItem, Provenance, ResolvedItemRequirements, Severity};
+use aqc_file_engine_core::{
+    FileItemRequirement, Finding, KeyedItem, Provenance, ResolvedItemMembership,
+    ResolvedItemRequirements, Severity,
+};
 use aqc_toml_engine_core::{ensure_nested, ensure_table, table_ref};
 use toml_edit::{DocumentMut, InlineTable, Item, Table, TableLike, Value, value};
 
@@ -122,19 +125,8 @@ fn apply_tool(
             .unwrap_or_default();
         apply_forbidden(doc, root, tool, lint, &message, &attribution, findings);
     }
-    if let Some(exact) = &merged.exact {
-        let allowed = exact.identities.clone();
-        let attribution = exact
-            .collected
-            .iter()
-            .map(|(provenance, _)| provenance.clone())
-            .collect::<Vec<_>>();
-        let message = exact
-            .collected
-            .first()
-            .map(|(_, (_, message))| message.as_str())
-            .unwrap_or_default();
-        apply_exact_extras(doc, root, tool, &allowed, message, &attribution, findings);
+    if let Some(membership) = merged.membership() {
+        apply_membership_extras(doc, root, tool, &membership, findings);
     }
 }
 
@@ -198,13 +190,11 @@ fn apply_forbidden(
     }
 }
 
-fn apply_exact_extras(
+fn apply_membership_extras(
     doc: &mut DocumentMut,
     root: LintRoot,
     tool: &str,
-    allowed: &BTreeSet<String>,
-    message: &str,
-    attribution: &[Provenance],
+    membership: &ResolvedItemMembership<'_, KeyedItem<RequiredLintSetting>>,
     findings: &mut Vec<Finding>,
 ) {
     let Some(table) = tool_ref(doc, root, tool) else {
@@ -214,7 +204,10 @@ fn apply_exact_extras(
         .iter()
         .map(|(key, _)| key.to_owned())
         .collect::<BTreeSet<_>>();
-    let extras = on_disk.difference(allowed).cloned().collect::<Vec<_>>();
+    let extras = on_disk
+        .difference(membership.identities())
+        .cloned()
+        .collect::<Vec<_>>();
     for extra in &extras {
         let current = tool_ref(doc, root, tool)
             .and_then(|current_table| read_entry(current_table, extra))
@@ -223,10 +216,18 @@ fn apply_exact_extras(
             key: format!("[{}.{tool}].{extra}", root.prefix()),
             selector: None,
             current,
-            expected: "absent (exact collection)".to_owned(),
-            message: message.to_owned(),
+            expected: if membership.is_exact() {
+                "absent (exact collection)"
+            } else {
+                "absent (not allowed)"
+            }
+            .to_owned(),
+            message: membership
+                .message_for_rejected(|item| item.merge_identity() == *extra)
+                .to_owned(),
             severity: Severity::Error,
-            attribution: attribution.to_vec(),
+            attribution: membership
+                .attribution_for_rejected(|item| item.merge_identity() == *extra),
         });
         if let Some(current_table) = tool_mut_existing(doc, root, tool) {
             let _ = current_table.remove(extra);

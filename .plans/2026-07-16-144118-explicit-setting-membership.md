@@ -34,9 +34,9 @@ pub struct ItemRequirements<Item> {
 }
 ```
 
-- No allowlist, closure flag, marker message, alias, or compatibility field is added.
-- Optional-but-allowed membership is not preserved by pretending it is exact.
-- A future optional-allowlist requirement would require a separate reviewed architecture decision.
+- `exact` remains constructive and is never used as an optional allowlist.
+- Optional-but-allowed membership is modeled by the identity-only `allowed` collection specified in `2026-07-17-051043-allowed-item-membership.md`.
+- No closure flag, alias, or compatibility field is added.
 
 ### Core compares item presence
 
@@ -147,7 +147,7 @@ The checker is universal: it knows requirement traits and core collection shapes
 
 ## Files
 
-- `packages/aqc-file-engine-core/src/merge/{model,items}.rs`, exports, and tests.
+- `packages/aqc-file-engine-core/src/merge/{model,item_model,items,forbidden_globs}.rs`, exports, and tests.
 - `packages/file-types/json/aqc-json-file-engine/src/runtime/reconcile/document.rs` and tests.
 - `packages/file-types/toml/aqc-toml-engine-core` table-key API and tests.
 - Cargo lint-table reconciliation and tests.

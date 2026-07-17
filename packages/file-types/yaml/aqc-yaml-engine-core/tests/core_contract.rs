@@ -418,6 +418,7 @@ fn parent_removal_precedes_child_reconciliation() {
     let requirements = resolved_root_keys(ItemRequirements {
         required: vec![(root_key("missing"), "missing key".to_owned())],
         forbidden: vec![(root_key("forbidden"), "forbidden key".to_owned())],
+        allowed: None,
         exact: Some((
             vec![root_key("allowed"), root_key("missing")],
             "exact keys".to_owned(),
@@ -466,6 +467,7 @@ fn inherited_extra_is_reported_without_rewriting_anchor_sources() {
     let bytes = b"defaults: &defaults\n  inherited: true\n<<: *defaults\n";
     let document = parse_yaml_mapping(Some(bytes), "test.yaml").expect("YAML must parse.");
     let requirements = resolved_root_keys(ItemRequirements {
+        allowed: None,
         exact: Some((Vec::new(), "no effective keys".to_owned())),
         ..ItemRequirements::default()
     });

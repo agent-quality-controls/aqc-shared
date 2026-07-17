@@ -12,7 +12,7 @@ use aqc_file_engine_core::{Finding, ResolvedForbiddenGlobRequirements, ResolvedI
 use toml_edit::DocumentMut;
 
 use super::removals::{
-    apply_package_glob_forbids, queue_exact_extras, queue_forbidden_matches,
+    apply_package_glob_forbids, queue_forbidden_matches, queue_membership_extras,
     remove_dependency_entries_once,
 };
 use super::required::{apply_required, required_file_keys};
@@ -130,29 +130,8 @@ pub(crate) fn apply_set(
         globs,
         findings,
     );
-    if let Some(exact) = &merged.exact {
-        let allowed = exact
-            .items
-            .values()
-            .map(|entry| entry.merged.clone())
-            .collect::<Vec<_>>();
-        let attribution = exact
-            .collected
-            .iter()
-            .map(|(provenance, _)| provenance.clone())
-            .collect::<Vec<_>>();
-        let message = exact
-            .collected
-            .first()
-            .map(|(_, (_, message))| message.as_str())
-            .unwrap_or_default();
-        queue_exact_extras(
-            &mut removals,
-            table_at(doc, path),
-            &allowed,
-            message,
-            &attribution,
-        );
+    if let Some(membership) = merged.membership() {
+        queue_membership_extras(&mut removals, table_at(doc, path), &membership);
     }
     remove_dependency_entries_once(doc, path, display_path, removals, findings);
 }
