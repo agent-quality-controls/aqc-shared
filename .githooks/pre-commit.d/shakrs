@@ -4,7 +4,20 @@ repo="$(git rev-parse --show-toplevel)"
 staged_paths="$(mktemp)"
 workspaces="$(mktemp)"
 sorted_workspaces="$(mktemp)"
-trap 'rm -f "$staged_paths" "$workspaces" "$sorted_workspaces"' EXIT
+snapshot="$(mktemp -d)"
+rmdir "$snapshot"
+snapshot_ready=false
+
+cleanup() {
+  rm -f "$staged_paths" "$workspaces" "$sorted_workspaces"
+  if [ "$snapshot_ready" = true ]; then
+    git -C "$repo" worktree remove --force "$snapshot" >/dev/null 2>&1 || {
+      rm -rf "$snapshot"
+      git -C "$repo" worktree prune
+    }
+  fi
+}
+trap cleanup EXIT
 
 run_check() {
   output="$(mktemp)"
@@ -19,8 +32,17 @@ run_check() {
   fi
 }
 
-run_check 'shakrs' 'validate' repo --path "$repo"
 run_check 'gitleaks' 'git' '--pre-commit' '--staged' '--no-banner' '--log-level' 'error' '--redact=100' '--report-format' 'json' '--report-path' '-' "$repo"
+commit_index="${GIT_INDEX_FILE-}"
+unset GIT_DIR GIT_INDEX_FILE GIT_PREFIX GIT_WORK_TREE
+
+index_git() {
+  if [ -n "$commit_index" ]; then
+    GIT_INDEX_FILE="$commit_index" git -C "$repo" "$@"
+  else
+    git -C "$repo" "$@"
+  fi
+}
 
 is_workspace_file() {
   case "$(basename "$1")" in
@@ -45,9 +67,25 @@ else
   fi
 fi
 
+if index_tree="$(index_git write-tree)"; then
+  :
+else
+  status=$?
+  echo "Shackles could not materialize the staged tree" >&2
+  exit "$status"
+fi
+if [ "$has_head" = true ]; then
+  snapshot_commit="$(printf 'Shackles staged validation\n' | GIT_AUTHOR_NAME=Shackles GIT_AUTHOR_EMAIL=shackles@invalid GIT_AUTHOR_DATE='1970-01-01T00:00:00Z' GIT_COMMITTER_NAME=Shackles GIT_COMMITTER_EMAIL=shackles@invalid GIT_COMMITTER_DATE='1970-01-01T00:00:00Z' git -C "$repo" commit-tree "$index_tree" -p HEAD)"
+else
+  snapshot_commit="$(printf 'Shackles staged validation\n' | GIT_AUTHOR_NAME=Shackles GIT_AUTHOR_EMAIL=shackles@invalid GIT_AUTHOR_DATE='1970-01-01T00:00:00Z' GIT_COMMITTER_NAME=Shackles GIT_COMMITTER_EMAIL=shackles@invalid GIT_COMMITTER_DATE='1970-01-01T00:00:00Z' git -C "$repo" commit-tree "$index_tree")"
+fi
+git -C "$repo" worktree add --quiet --detach "$snapshot" "$snapshot_commit"
+snapshot_ready=true
+run_check 'shakrs' 'validate' repo --path "$snapshot"
+
 probe_index_path() {
   probe_path="$1"
-  if git -C "$repo" ls-files --cached --error-unmatch -- "$probe_path" >/dev/null 2>&1; then
+  if index_git ls-files --cached --error-unmatch -- "$probe_path" >/dev/null 2>&1; then
     return 0
   else
     status=$?
@@ -168,7 +206,7 @@ record_workspace_for_path() {
   done
 }
 
-if git -C "$repo" -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=ACDM > "$staged_paths"; then
+if index_git -c core.quotePath=false diff --cached --name-only --no-renames --diff-filter=ACDM > "$staged_paths"; then
   :
 else
   status=$?
@@ -197,5 +235,10 @@ else
 fi
 
 while IFS= read -r workspace; do
-  run_check 'shakrs' 'validate' workspace --path "$workspace"
+  if [ "$workspace" = "$repo" ]; then
+    snapshot_workspace="$snapshot"
+  else
+    snapshot_workspace="$snapshot/${workspace#"$repo"/}"
+  fi
+  run_check 'shakrs' 'validate' workspace --path "$snapshot_workspace"
 done < "$sorted_workspaces"

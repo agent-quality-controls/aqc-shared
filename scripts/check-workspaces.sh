@@ -123,6 +123,7 @@ main() {
     fi
 
     "${repo_root}/scripts/test-check-workspaces-failures.sh"
+    python3 "${repo_root}/scripts/test-local-cargo-source.py"
 
     if specular lint "${repo_root}/specs/explicit-setting-membership.spec.json" \
         >"${logs}/specular-lint.log" 2>&1; then

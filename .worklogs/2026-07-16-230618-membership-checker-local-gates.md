@@ -17,6 +17,9 @@ Hardened the permanent requirement-architecture checker, completed explicit memb
 - One repository-local command wrapper supplies that Cargo environment to G3RS and Shakrs without changing either generated fragment or hiding the dispatcher contract from source validation.
 - Architecture-checker fixture workspaces run static G3RS rules only; the parent checker workspace test gate owns their compilation and behavior, avoiding duplicate MSRV builds of deliberately minimal fixtures.
 - Local Cargo patches are generated only for registry dependencies; explicit path dependencies keep their own lock-file identity.
+- Staged G3RS checks materialize one content-addressed index snapshot and derive direct and transitive local patches from it, so package metadata, source bytes, and dependency selection cannot mix staged and unstaged state.
+- Manifest discovery excludes generated/support roots precisely; production crates cannot hide below generic directory names such as `tests` or `specs`.
+- Executable local-source tests cover concurrent atomic writes, unchanged metadata, explicit path dependencies, and staged-index selection.
 - Deny's exhaustive schema-shaped merge mapping uses the standardized effective-line waiver; splitting it would hide completeness across partial field inventories.
 - Pre-push accepts only checked-out `HEAD` from a clean repository; the Shakrs pre-commit fragment validates staged bytes.
 - Pre-push runs the gate from a detached worktree at pushed `HEAD`; repository-relative identities reuse the repository's Cargo and Fixture3 caches.

@@ -9,17 +9,31 @@ case "$command_name" in
   *) echo "Unsupported local Cargo command: $command_name" >&2; exit 2 ;;
 esac
 workspace=""
+staged=false
 previous=""
 for argument in "$@"; do
+  if [ "$argument" = "--staged" ]; then
+    staged=true
+  fi
   if [ "$previous" = "--path" ]; then
     workspace="$argument"
-    break
   fi
   previous="$argument"
 done
 
 if [ "${1:-}" = "validate" ] && [ "${2:-}" = "workspace" ] && [ -n "$workspace" ]; then
   workspace_path="$(cd "$workspace" && pwd -P)"
+  source_root="$repo_root"
+  if [ "$command_name" = "shakrs" ]; then
+    source_root="$(git -C "$workspace_path" rev-parse --show-toplevel)"
+  fi
+  source_manifest="$workspace_path/Cargo.toml"
+  staged_root=""
+  if [ "$command_name" = "g3rs" ] && [ "$staged" = true ]; then
+    tree="$(git -C "$source_root" write-tree)"
+    snapshots="$repo_root/.cargo-target/pre-commit/staged-sources"
+    staged_root="$snapshots/$tree"
+  fi
   case "$workspace_path" in
     "$repo_root/tools/aqc-requirement-architecture/tests/fixtures/"*)
       set -- "$@" --rules-only
@@ -31,10 +45,15 @@ if [ "${1:-}" = "validate" ] && [ "${2:-}" = "workspace" ] && [ -n "$workspace" 
   mkdir -p "$cargo_home" "$cargo_cache/registry" "$cargo_cache/git"
   ln -sfn "$cargo_cache/registry" "$cargo_home/registry"
   ln -sfn "$cargo_cache/git" "$cargo_home/git"
-  python3 "$repo_root/scripts/local_cargo_source.py" \
-    --root "$repo_root" \
-    --config "$cargo_home/config.toml" \
-    --manifest "$workspace/Cargo.toml"
+  source_args=(
+    --root "$source_root"
+    --config "$cargo_home/config.toml"
+    --manifest "$source_manifest"
+  )
+  if [ -n "$staged_root" ]; then
+    source_args+=(--staged-root "$staged_root" --staged-tree "$tree")
+  fi
+  python3 "$repo_root/scripts/local_cargo_source.py" "${source_args[@]}"
   CARGO_HOME="$cargo_home" "$command_binary" "$@"
   exit
 fi

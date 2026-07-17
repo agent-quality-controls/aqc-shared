@@ -1,11 +1,44 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 import tomllib
 from pathlib import Path
+
+
+def materialize_git_tree(root: Path, tree: str, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = destination.with_suffix(".lock")
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        marker = destination / ".aqc-complete"
+        if marker.is_file():
+            return
+        shutil.rmtree(destination, ignore_errors=True)
+        temporary = Path(tempfile.mkdtemp(dir=destination.parent, prefix="source."))
+        index = destination.parent / f"index.{os.getpid()}"
+        try:
+            environment = {**os.environ, "GIT_INDEX_FILE": str(index)}
+            subprocess.run(
+                ["git", "-C", str(root), "read-tree", tree],
+                check=True,
+                env=environment,
+            )
+            subprocess.run(
+                ["git", "-C", str(root), "checkout-index", "--all", f"--prefix={temporary}/"],
+                check=True,
+                env=environment,
+            )
+            (temporary / ".aqc-complete").touch()
+            os.replace(temporary, destination)
+        finally:
+            index.unlink(missing_ok=True)
+            shutil.rmtree(temporary, ignore_errors=True)
 
 
 def local_packages(root: Path) -> dict[str, Path]:
@@ -38,7 +71,8 @@ def manifest_registry_dependencies(manifest: Path) -> set[str]:
 
 
 def transitive_local_packages(
-    packages: dict[str, Path], manifests: tuple[Path, ...]
+    packages: dict[str, Path],
+    manifests: tuple[Path, ...],
 ) -> dict[str, Path]:
     selected: dict[str, Path] = {}
     pending = set().union(
@@ -54,7 +88,11 @@ def transitive_local_packages(
     return selected
 
 
-def write_patch_config(root: Path, config: Path, manifests: tuple[Path, ...] = ()) -> None:
+def write_patch_config(
+    root: Path,
+    config: Path,
+    manifests: tuple[Path, ...] = (),
+) -> None:
     packages = local_packages(root)
     if manifests:
         packages = transitive_local_packages(packages, manifests)
@@ -90,11 +128,22 @@ def main() -> int:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--manifest", action="append", default=[], type=Path)
+    parser.add_argument("--staged-root", type=Path)
+    parser.add_argument("--staged-tree")
     args = parser.parse_args()
+    root = args.root.resolve()
+    manifests = tuple(manifest.resolve() for manifest in args.manifest)
+    if args.staged_root is not None:
+        if args.staged_tree is None:
+            parser.error("--staged-root requires --staged-tree")
+        staged_root = args.staged_root.resolve()
+        materialize_git_tree(root, args.staged_tree, staged_root)
+        manifests = tuple(staged_root / manifest.relative_to(root) for manifest in manifests)
+        root = staged_root
     write_patch_config(
-        args.root.resolve(),
+        root,
         args.config.resolve(),
-        tuple(manifest.resolve() for manifest in args.manifest),
+        manifests,
     )
     return 0
 

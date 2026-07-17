@@ -81,6 +81,7 @@
         "tools/aqc-requirement-architecture/tests/fixtures/accepted/policy/guardrail3-rs.toml",
         "scripts/check-workspaces.sh",
         "scripts/test-check-workspaces-failures.sh",
+        "scripts/test-local-cargo-source.py",
         "scripts/local_cargo_source.py",
         ".githooks/pre-commit",
         ".githooks/bin/g3rs",
@@ -217,7 +218,7 @@
       {
         "verifier": ["builtin:content"],
         "files": ["scripts/check-workspaces.sh"],
-        "required": ["specular lint", "specular verify", "explicit-setting-membership.spec.json", "shackles|shakrs|shakts", "cargo metadata", "find_workspaces", "cargo deny check", "cargo clippy", "cargo test", "fixture3 check --suite", ".cargo-target/gate", "AQC_GATE_CONFIG_SCOPE", "test-check-workspaces-failures.sh", "|| return"],
+        "required": ["specular lint", "specular verify", "explicit-setting-membership.spec.json", "shackles|shakrs|shakts", "cargo metadata", "find_workspaces", "cargo deny check", "cargo clippy", "cargo test", "fixture3 check --suite", ".cargo-target/gate", "AQC_GATE_CONFIG_SCOPE", "test-check-workspaces-failures.sh", "test-local-cargo-source.py", "|| return"],
         "reason": "Fast Local Gates: AQC pre-push checks every production workspace, fixture suite, and permanent Specular contract with persistent isolated targets."
       },
       {
@@ -229,14 +230,28 @@
       {
         "verifier": ["builtin:content"],
         "files": ["scripts/local_cargo_source.py"],
-        "required": ["tempfile.mkstemp", "os.replace", "transitive_local_packages", "FIXTURE3_CARGO_CONFIG_SCOPE", "config.read_text() == rendered"],
+        "required": ["tempfile.mkstemp", "os.replace", "transitive_local_packages", "FIXTURE3_CARGO_CONFIG_SCOPE", "config.read_text() == rendered", "materialize_git_tree", "read-tree", "checkout-index", "staged-root", "staged-tree"],
         "forbidden": ["config.write_text"],
         "reason": "Fast Local Gates: concurrent checks receive complete atomic Cargo patch configuration, while unchanged configuration retains stable metadata for Cargo fingerprint reuse."
       },
       {
         "verifier": ["builtin:content"],
+        "files": ["scripts/test-local-cargo-source.py"],
+        "required": ["test_unchanged_configuration_keeps_the_same_file", "test_concurrent_generation_never_exposes_partial_toml", "test_explicit_path_dependency_is_not_patched", "test_wrapper_honors_staged_after_path_and_uses_workspace_repository", "test_materialization_reads_the_named_tree_not_the_mutable_index", "staged-only", "cargo", "check", "--offline"],
+        "reason": "Fast Local Gates: executable regressions prove atomic, stable, path-aware Cargo configuration, immutable tree extraction, and compilation of staged-only source."
+      },
+      {
+        "verifier": ["builtin:content"],
+        "files": ["tools/aqc-requirement-architecture/src/fs.rs"],
+        "required": ["EXCLUDED_ANYWHERE", "EXCLUDED_ROOT_DIRECTORIES", "production_crates_cannot_hide_below_generic_support_names", "repository_outputs_and_checker_fixtures_are_excluded"],
+        "forbidden": ["\"tests\",\n    \"vendor\""],
+        "reason": "Permanent Architecture Gate: generic directory names cannot hide production requirement crates from manifest discovery."
+      },
+      {
+        "verifier": ["builtin:content"],
         "files": [".githooks/pre-push"],
         "required": ["scripts/check-workspaces.sh", "rev-parse HEAD", "local_sha", "diff --cached", "ls-files --others", "worktree add --quiet --detach", "AQC_GATE_CACHE_DIR", "AQC_GATE_CONFIG_SCOPE", "FIXTURE3_CARGO_CACHE_ROOT", "FIXTURE3_CARGO_CONFIG_SCOPE"],
+        "forbidden": ["cargo-homes/$cache_scope"],
         "reason": "Plan Permanent Architecture Gate: the repository-owned pre-push hook runs the complete local architecture gate."
       },
       {
@@ -248,8 +263,8 @@
       {
         "verifier": ["builtin:content"],
         "files": [".githooks/bin/g3rs"],
-        "required": ["local_cargo_source.py", "--manifest \"$workspace/Cargo.toml\"", "CARGO_HOME", "AQC_G3RS_BINARY"],
-        "reason": "Fast Local Gates: each staged G3RS workspace check receives only its transitive local published-crate patches."
+        "required": ["local_cargo_source.py", "--manifest \"$source_manifest\"", "--staged", "--staged-root", "--staged-tree", "write-tree", "CARGO_HOME", "AQC_G3RS_BINARY"],
+        "reason": "Fast Local Gates: each staged G3RS workspace check receives transitive local patches whose metadata and source come from one content-addressed index snapshot."
       },
       {
         "verifier": ["builtin:content"],
