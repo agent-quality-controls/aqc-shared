@@ -4,10 +4,11 @@
 )]
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use crate::model::ArchitectureError;
 
-const EXCLUDED_ANYWHERE: &[&str] = &["fixtures", "target"];
+const EXCLUDED_ANYWHERE: &[&str] = &["target"];
 
 const EXCLUDED_ROOT_DIRECTORIES: &[&str] = &[
     ".fixture3",
@@ -34,9 +35,33 @@ pub(crate) fn canonicalize(path: &Path) -> Result<PathBuf, ArchitectureError> {
 pub(crate) fn cargo_manifests(root: &Path) -> Result<Vec<PathBuf>, ArchitectureError> {
     let mut manifests = Vec::new();
     walk_manifests(root, root, &mut manifests)?;
+    add_tracked_target_manifests(root, &mut manifests);
     manifests.sort();
     manifests.dedup();
     Ok(manifests)
+}
+
+fn add_tracked_target_manifests(root: &Path, manifests: &mut Vec<PathBuf>) {
+    let Ok(output) = Command::new("git")
+        .args(["ls-files", "--cached", "--", ":(glob)**/Cargo.toml"])
+        .current_dir(root)
+        .output()
+    else {
+        return;
+    };
+    if !output.status.success() {
+        return;
+    }
+    for relative in String::from_utf8_lossy(&output.stdout).lines() {
+        let path = Path::new(relative);
+        if path
+            .components()
+            .any(|component| component.as_os_str() == "target")
+            && !is_checker_fixture_path(path)
+        {
+            manifests.push(root.join(path));
+        }
+    }
 }
 
 fn walk_manifests(
@@ -76,17 +101,24 @@ fn is_excluded(root: &Path, path: &Path) -> bool {
     let first_is_root_exclusion = components
         .first()
         .is_some_and(|name| EXCLUDED_ROOT_DIRECTORIES.contains(&name.as_ref()));
-    let is_checker_fixture = components.windows(4).any(|parts| {
-        parts[0] == "tools"
-            && parts[1] == "aqc-requirement-architecture"
-            && parts[2] == "tests"
-            && parts[3] == "fixtures"
-    });
+    let is_checker_fixture = is_checker_fixture_path(relative);
     first_is_root_exclusion
         || is_checker_fixture
         || components
             .iter()
             .any(|name| EXCLUDED_ANYWHERE.contains(&name.as_ref()))
+}
+
+fn is_checker_fixture_path(path: &Path) -> bool {
+    let components = path
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>();
+    components.len() >= 4
+        && components[0] == "tools"
+        && components[1] == "aqc-requirement-architecture"
+        && components[2] == "tests"
+        && components[3] == "fixtures"
 }
 
 pub(crate) fn read_source(path: &Path) -> Result<String, ArchitectureError> {
@@ -109,6 +141,14 @@ mod tests {
         assert!(!is_excluded(root, Path::new("/repo/packages/specs/hidden")));
         assert!(!is_excluded(
             root,
+            Path::new("/repo/packages/fixtures/hidden")
+        ));
+        assert!(!is_excluded(
+            root,
+            Path::new("/repo/packages/tools/aqc-requirement-architecture/tests/fixtures/hidden")
+        ));
+        assert!(!is_excluded(
+            root,
             Path::new("/repo/packages/vendor/hidden")
         ));
         assert!(!is_excluded(
@@ -128,7 +168,7 @@ mod tests {
         assert!(is_excluded(root, Path::new("/repo/specs")));
         assert!(is_excluded(
             root,
-            Path::new("/repo/tools/aqc-requirement-architecture/tests/fixtures/case")
+            Path::new("/repo/tools/aqc-requirement-architecture/tests/fixtures/case/target/hidden")
         ));
     }
 }

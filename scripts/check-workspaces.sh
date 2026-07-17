@@ -12,7 +12,19 @@ mkdir -p "$logs"
 rm -f "${logs}"/*.log
 
 find_workspaces() {
-    find "$1" -name Cargo.toml -not -path '*/target/*' -not -path '*/fixtures/*' -exec dirname {} \; | sort
+    local root="$1"
+    local relative_root="${root#${repo_root}/}"
+    find "$root" -name Cargo.toml \
+        -not -path '*/target/*' \
+        -not -path "${repo_root}/tools/aqc-requirement-architecture/tests/fixtures/*" \
+        -exec dirname {} \;
+    git -C "$repo_root" ls-files --cached -- ":(glob)${relative_root}/**/Cargo.toml" \
+        | while IFS= read -r manifest; do
+            case "$manifest" in
+                tools/aqc-requirement-architecture/tests/fixtures/*) continue ;;
+                */target/*) dirname "${repo_root}/${manifest}" ;;
+            esac
+        done
 }
 
 identity_for() {
@@ -146,7 +158,7 @@ main() {
     (
         find_workspaces "${repo_root}/packages"
         find_workspaces "${repo_root}/tools"
-    ) | tr '\n' '\0' \
+    ) | sort -u | tr '\n' '\0' \
         | xargs -0 -n 1 -P "$jobs" bash -c 'run_rust_workspace_logged "$1"' _
 
     (cd "$repo_root" && fixture3 doctor)

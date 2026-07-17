@@ -243,7 +243,7 @@
       {
         "verifier": ["builtin:content"],
         "files": ["tools/aqc-requirement-architecture/src/fs.rs"],
-        "required": ["EXCLUDED_ANYWHERE", "EXCLUDED_ROOT_DIRECTORIES", "production_crates_cannot_hide_below_generic_support_names", "repository_outputs_and_checker_fixtures_are_excluded"],
+        "required": ["EXCLUDED_ANYWHERE", "EXCLUDED_ROOT_DIRECTORIES", "add_tracked_target_manifests", "ls-files", "--cached", "production_crates_cannot_hide_below_generic_support_names", "repository_outputs_and_checker_fixtures_are_excluded"],
         "forbidden": ["\"tests\",\n    \"vendor\""],
         "reason": "Permanent Architecture Gate: generic directory names cannot hide production requirement crates from manifest discovery."
       },
