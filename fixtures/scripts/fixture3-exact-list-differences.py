@@ -5,16 +5,17 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from local_cargo_source import fixture_cargo_home
 
 
-ROOT = Path(__file__).resolve().parents[2]
 PROBE = ROOT / "fixtures/probes/exact-list-differences/Cargo.toml"
+CACHE_ROOT = Path(os.environ.get("FIXTURE3_CARGO_CACHE_ROOT", ROOT / ".cargo-target/fixtures"))
 
 
 def main() -> int:
@@ -23,9 +24,7 @@ def main() -> int:
         raise SystemExit("fixture paths are required")
     env = os.environ.copy()
     env["CARGO_HOME"] = str(fixture_cargo_home(ROOT, PROBE, "exact-list-differences"))
-    env["CARGO_TARGET_DIR"] = str(
-        Path(tempfile.gettempdir()) / "exact-list-differences-fixture-target"
-    )
+    env["CARGO_TARGET_DIR"] = str(CACHE_ROOT / "exact-list-differences/target")
     outputs = []
     for fixture in fixtures:
         result = subprocess.run(

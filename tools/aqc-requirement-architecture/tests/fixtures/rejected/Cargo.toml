@@ -6,3 +6,7 @@ publish = false
 
 [workspace]
 resolver = "3"
+
+[dependencies]
+aqc-file-engine-core = { path = "../accepted/core" }
+external-membership = { path = "../accepted/external-membership" }

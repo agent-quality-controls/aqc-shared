@@ -353,9 +353,12 @@ fn reject_object_duplicates(
         let name = property.name.as_str();
         if !names.insert(name) {
             let (diagnostic_text, end) = original
-                .map_or((text, property.name.end()), |(source, source_map)| {
-                    (source, original_offset(property.name.end(), source_map))
-                });
+                .map_or_else(
+                    || (text, property.name.end()),
+                    |(source, source_map)| {
+                        (source, original_offset(property.name.end(), source_map))
+                    },
+                );
             let (line, column) = line_and_column(diagnostic_text, end);
             return Err(format!(
                 "duplicate object member `{name}` at line {line} column {column}"

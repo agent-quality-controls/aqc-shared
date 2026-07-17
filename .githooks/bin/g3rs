@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+command_name="$(basename "$0")"
+case "$command_name" in
+  g3rs) command_binary="$AQC_G3RS_BINARY" ;;
+  shakrs) command_binary="$AQC_SHAKRS_BINARY" ;;
+  *) echo "Unsupported local Cargo command: $command_name" >&2; exit 2 ;;
+esac
+workspace=""
+previous=""
+for argument in "$@"; do
+  if [ "$previous" = "--path" ]; then
+    workspace="$argument"
+    break
+  fi
+  previous="$argument"
+done
+
+if [ "${1:-}" = "validate" ] && [ "${2:-}" = "workspace" ] && [ -n "$workspace" ]; then
+  workspace_path="$(cd "$workspace" && pwd -P)"
+  case "$workspace_path" in
+    "$repo_root/tools/aqc-requirement-architecture/tests/fixtures/"*)
+      set -- "$@" --rules-only
+      ;;
+  esac
+  identity="$(printf '%s' "$workspace" | shasum -a 256 | cut -c1-16)"
+  cargo_home="$repo_root/.cargo-target/pre-commit/cargo-homes/$identity"
+  cargo_cache="$repo_root/.cargo-target/gate/cargo-cache"
+  mkdir -p "$cargo_home" "$cargo_cache/registry" "$cargo_cache/git"
+  ln -sfn "$cargo_cache/registry" "$cargo_home/registry"
+  ln -sfn "$cargo_cache/git" "$cargo_home/git"
+  python3 "$repo_root/scripts/local_cargo_source.py" \
+    --root "$repo_root" \
+    --config "$cargo_home/config.toml" \
+    --manifest "$workspace/Cargo.toml"
+  CARGO_HOME="$cargo_home" "$command_binary" "$@"
+  exit
+fi
+
+"$command_binary" "$@"

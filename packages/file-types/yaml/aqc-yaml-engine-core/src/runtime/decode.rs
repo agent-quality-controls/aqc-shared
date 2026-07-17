@@ -33,7 +33,7 @@ pub(crate) fn all_aliases_resolve(document: &Document) -> bool {
     let registry = document.build_anchor_registry();
     document.as_node().is_none_or(|root| {
         root.descendants_with_tokens()
-            .filter_map(|element| element.into_token())
+            .filter_map(|element| element.as_token().cloned())
             .filter(|token| token.kind() == SyntaxKind::REFERENCE)
             .all(|token| {
                 token

@@ -73,36 +73,6 @@ fn is_excluded(root: &Path, path: &Path) -> bool {
     })
 }
 
-pub(crate) fn rust_sources(directory: &Path) -> Result<Vec<PathBuf>, ArchitectureError> {
-    let mut sources = Vec::new();
-    walk_rust_sources(directory, &mut sources)?;
-    sources.sort();
-    Ok(sources)
-}
-
-fn walk_rust_sources(
-    directory: &Path,
-    sources: &mut Vec<PathBuf>,
-) -> Result<(), ArchitectureError> {
-    let entries = std::fs::read_dir(directory).map_err(|source| ArchitectureError::Io {
-        path: directory.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
-        let entry = entry.map_err(|source| ArchitectureError::Io {
-            path: directory.to_path_buf(),
-            source,
-        })?;
-        let path = entry.path();
-        if path.is_dir() {
-            walk_rust_sources(&path, sources)?;
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            sources.push(path);
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn read_source(path: &Path) -> Result<String, ArchitectureError> {
     std::fs::read_to_string(path).map_err(|source| ArchitectureError::Io {
         path: path.to_path_buf(),

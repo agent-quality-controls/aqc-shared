@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "aqc-file-engine-core"
+version = "0.0.0"
+
+[[package]]
 name = "architecture-accepted-policy-fixture"
 version = "0.1.0"
+dependencies = [
+ "aqc-file-engine-core",
+]

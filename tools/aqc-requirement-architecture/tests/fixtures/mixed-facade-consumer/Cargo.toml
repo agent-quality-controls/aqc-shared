@@ -1,0 +1,11 @@
+[package]
+name = "architecture-mixed-facade-consumer-fixture"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+mixed-facade = { package = "architecture-mixed-facade-fixture", path = "../mixed-facade" }

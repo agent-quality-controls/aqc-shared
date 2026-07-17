@@ -108,7 +108,7 @@ Add an independent Rust checker under `tools/aqc-requirement-architecture` using
 - Accept only direct `ItemRequirements<KeyedItem<()>>` membership fields or `BTreeMap<Scope, ItemRequirements<KeyedItem<()>>>`; arbitrary wrappers and nested item types do not count.
 - Require public fields named `*_keys` to use that canonical membership shape, which catches imported aliases and named wrappers that syntax-only alias resolution cannot inspect.
 - Reject adapter destructuring of `required`, `forbidden`, or `exact`.
-- Accept ordinary imported renames of canonical core membership types.
+- Reject imported renames of canonical core membership types; requirement vocabulary uses the established core names without aliases.
 - Reject replacement of policy-supplied membership through default construction, membership hidden behind noncanonical public field names, and local macro aliases.
 - Restrict mutation checks to membership-shaped receivers so unrelated fields named `required`, `forbidden`, or `exact` remain valid.
 - Track membership values through local bindings and `ItemRequirements::map`, independent of variable names.
@@ -118,16 +118,17 @@ Add an independent Rust checker under `tools/aqc-requirement-architecture` using
 - Inspect private and public fields of public requirement roots so private closure markers cannot hide semantics.
 - External macros and token words unrelated to membership remain allowed; local macro checks resolve canonical membership aliases instead of treating `required`, `forbidden`, and `exact` words alone as membership. Adapter reconciliation tests provide the output-level transfer proof that source-only macro inspection cannot provide.
 - Emit a machine-readable inventory of checked requirement roots and membership fields.
+- Resolve requirement traits through canonical cross-crate public re-exports, and require the permanent spec to enumerate every production requirement root so an empty or partial scan fails.
 - Include adversarial checker fixtures proving each renamed flag, alias, wrapper, tuple root, nested expression, macro, and inferred or method-mutated collection produces its own expected failure while policy construction, lossless mapping, and a direct neutral engine-field default pass.
-- Run the checker's cargo-deny, strict Clippy, tests, and AQC scan from the AQC gate. Run the checker against both AQC and Shackles from the downstream Shackles gate; AQC must not depend on or assume a Shackles checkout.
-- Run the same scans on every pull request and push. The AQC workflow scans AQC alone; the Shackles workflow checks out AQC as upstream tooling and scans both repositories.
+- Run the checker's cargo-deny, strict Clippy, tests, and AQC scan from the AQC local gate. Run the checker against both AQC and Shackles from the downstream Shackles local gate; AQC must not depend on or assume a Shackles checkout.
+- The checked-in AQC pre-push hook invokes the complete AQC local gate. Pre-commit remains change-scoped. There is no architecture-only CI workflow.
 
 The checker is universal: it knows requirement traits and core collection shapes, not Shackles products, tools, policies, or file formats.
 
 - AQC manifests, deny files, source, and tool code must not name downstream Shackles products. The AQC gate scans these surfaces so reverse vocabulary coupling fails before commit.
 - YAML key removal must preserve every alias used by retained document content. A key that owns a referenced anchor remains in expected bytes and receives the membership finding instead of producing broken YAML.
-- The Specular architecture contract is permanent. Its custom verifier runs checker tests and repository scans; repository scripts and CI invoke Specular rather than invoking the checker as a separate architecture gate.
-- CI runs cargo-deny, strict Clippy, and the permanent Specular architecture contract. Shackles pins the AQC checker commit used by its workflow.
+- The Specular architecture contract is permanent. Its custom verifier runs checker tests and repository scans; repository local scripts and checked-in pre-push hooks invoke Specular rather than invoking the checker as a separate architecture gate.
+- The AQC local gate runs cargo-deny, strict Clippy, and the permanent Specular architecture contract. Shackles pins the AQC checker revision used by its local cross-repository gate.
 
 ## Behavior Proof
 
@@ -156,7 +157,7 @@ The checker is universal: it knows requirement traits and core collection shapes
 - `packages/file-types/yaml/aqc-yaml-engine-core` root-key API and tests.
 - pnpm requirement, merge, reconcile, exports, and tests.
 - `tools/aqc-requirement-architecture` package and checker fixtures.
-- Repository requirement-architecture workflows in AQC and Shackles.
+- Repository local requirement-architecture gates and checked-in pre-push hooks in AQC and Shackles.
 - AQC workspace/check scripts, Specular files, Fixture3 files, plan, and worklog.
 
 ## Verification
@@ -164,5 +165,5 @@ The checker is universal: it knows requirement traits and core collection shapes
 - Specular lint and pre-implementation failure, then passing verification.
 - Every affected workspace: format, test, strict Clippy, cargo-deny, package dry-run, and MSRV gates.
 - AQC Fixture3 doctor and all suites.
-- Permanent Specular architecture contracts against AQC and Shackles source.
+- Permanent Specular architecture contracts and local live scans against AQC and Shackles source.
 - Adversarial review against this plan, spec, public surfaces, behavior, and checker bypasses.

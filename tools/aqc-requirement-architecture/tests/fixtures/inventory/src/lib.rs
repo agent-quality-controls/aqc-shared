@@ -9,10 +9,8 @@ pub struct InventoryEngineRequirement {
 
 impl EngineRequirement for InventoryEngineRequirement {}
 
-pub type ExplicitKeys = ItemRequirements<KeyedItem<()>>;
-
 pub struct InventoryAdapterRequirement {
-    pub setting_keys: ExplicitKeys,
+    pub setting_keys: ItemRequirements<KeyedItem<()>>,
 }
 
 impl AdapterRequirement for InventoryAdapterRequirement {}

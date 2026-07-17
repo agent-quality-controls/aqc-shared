@@ -1,6 +1,9 @@
 # Explicit Setting Membership Coverage
 
-Source: `.plans/2026-07-16-144118-explicit-setting-membership.md`
+Sources:
+
+- `.plans/2026-07-16-144118-explicit-setting-membership.md`
+- `.plans/2026-07-16-205526-fast-local-gates.md`
 
 ## Explicit Setting Membership
 
@@ -51,8 +54,8 @@ Source: `.plans/2026-07-16-144118-explicit-setting-membership.md`
 
 ## Permanent Architecture Gate
 
-- `tree`, `dependencies`, `content`: requires the independent checker, `syn`, `cargo_metadata`, universal vocabulary, inventory output surface, workspace-gate invocation, and pull-request/push CI execution.
-- `custom:architecture-checker-semantics`: executes adversarial checker tests for renamed traits, key-field wrappers and aliases, private closure fields, local core-type copies, module-level macros, tuple roots, direct/default construction, renamed local bindings, helper parameters, method mutation, mutable borrowing, and destructuring. It also proves canonical imported aliases, unrelated similarly named fields, and unrelated external macros are accepted.
+- `tree`, `dependencies`, `content`: requires the independent checker, `syn`, `cargo_metadata`, universal vocabulary, inventory output surface, local workspace-gate invocation, and checked-in pre-push hook execution.
+- `custom:architecture-checker-semantics`: executes exact named adversarial checker tests for local and cross-crate helper production, direct and multi-hop canonical requirement-trait re-exports, helper-parameter laundering, policy-membership discard, same-name destructuring, typed membership locals, canonical core origin through public re-exports, nested and terminal-name counterfeits, unrelated `*_keys` fields, direct transfer, and `ItemRequirements::map`, plus the established renamed-trait, wrapper, macro, mutation, borrowing, and inventory cases. It compares the live production inventory with the complete expected requirement-root set.
 
 ## Behavior Proof
 
@@ -70,4 +73,13 @@ Source: `.plans/2026-07-16-144118-explicit-setting-membership.md`
 
 - `specular lint` and the required pre-implementation `specular verify` failure are execution steps reported when this contract is created, not self-referential contract items.
 - The four custom checks execute relevant Cargo test suites before returning pass evidence.
-- Format, package dry-run, MSRV, Fixture3, and adversarial review remain mandatory plan acceptance gates outside this contract. The permanent Specular verifier owns the AQC self-scan; the Shackles contract owns the cross-repository scan.
+- Format, package dry-run, MSRV, Fixture3, and adversarial review remain mandatory plan acceptance gates outside this contract. The permanent Specular verifier owns the AQC self-scan; the Shackles local contract owns the cross-repository scan.
+
+## Fast Local Gates
+
+- `tree`, `content`: stable repository-owned Cargo targets, isolated Cargo configuration, run-scoped logs, staged-index pre-commit snapshots, immutable detached pre-push snapshots, and local hook wiring.
+- `custom:architecture-checker-semantics`: manifest-identity origin tracking, custom Cargo targets and nested `#[path]` modules, helper-return and direct, destructured, or referenced closure-alias flows, adapter `self`, imported and qualified local roots, imported semantic aliases, generic and same-terminal local shadows, chained module-scoped aliases, rejected glob or block-local imports, and macro-only requirement roots.
+- `custom:format-membership-reconciliation`, `custom:migrated-engine-behavior`: locked tests and strict Clippy for every discovered workspace.
+- `.github/workflows/requirement-architecture.yml` is forbidden by the tree requirement; architecture verification is local.
+- Atomic Cargo patch generation and clone-local fixture Cargo state are enforced by the gate scripts.
+- Acceptance is completed by two Specular runs, all Fixture3 suites, the full local gate, and converged adversarial review.

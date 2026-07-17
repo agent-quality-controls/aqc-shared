@@ -1,0 +1,11 @@
+[package]
+name = "architecture-mixed-facade-fixture"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+aqc-file-engine-core = { path = "../accepted/core" }

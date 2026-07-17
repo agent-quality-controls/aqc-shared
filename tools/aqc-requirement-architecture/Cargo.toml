@@ -8,6 +8,9 @@ repository = "https://github.com/agent-quality-controls/aqc-shared"
 description = "Permanent architecture checks for explicit requirement membership."
 publish = false
 
+[lib]
+doctest = false
+
 [workspace]
 resolver = "3"
 

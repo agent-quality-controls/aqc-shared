@@ -6,3 +6,6 @@ publish = false
 
 [workspace]
 resolver = "3"
+
+[dependencies]
+fixture-engine = { package = "architecture-fixture-engine", path = "../engine" }

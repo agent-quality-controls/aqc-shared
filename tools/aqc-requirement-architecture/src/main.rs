@@ -6,15 +6,21 @@ use aqc_requirement_architecture::check_repository_roots;
 mod output;
 
 fn main() -> ExitCode {
-    let roots = std::env::args_os()
-        .skip(1)
-        .map(PathBuf::from)
-        .collect::<Vec<_>>();
+    let mut arguments = std::env::args_os().skip(1);
+    let Some(core_manifest) = arguments.next().map(PathBuf::from) else {
+        let _ = output::stderr(
+            "usage: aqc-requirement-architecture <core-manifest> <repository-root>...\n",
+        );
+        return ExitCode::from(2);
+    };
+    let roots = arguments.map(PathBuf::from).collect::<Vec<_>>();
     if roots.is_empty() {
-        let _ = output::stderr("usage: aqc-requirement-architecture <repository-root>...\n");
+        let _ = output::stderr(
+            "usage: aqc-requirement-architecture <core-manifest> <repository-root>...\n",
+        );
         return ExitCode::from(2);
     }
-    match check_repository_roots(&roots) {
+    match check_repository_roots(&core_manifest, &roots) {
         Ok(report) => {
             match serde_json::to_string_pretty(&report) {
                 Ok(serialized) => {

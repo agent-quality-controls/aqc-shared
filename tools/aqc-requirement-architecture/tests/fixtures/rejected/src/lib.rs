@@ -1,13 +1,20 @@
 pub trait EngineRequirement {}
 pub trait AdapterRequirement {}
 
-pub struct KeyedItem<T>(T);
+use aqc_file_engine_core::{ItemRequirements, KeyedItem};
+use aqc_file_engine_core::ItemRequirements as RenamedItemRequirements;
 
-pub struct ItemRequirements<T> {
-    pub required: Vec<T>,
-    pub forbidden: Vec<T>,
-    pub exact: Option<Vec<T>>,
+mod counterfeit {
+    pub struct KeyedItem<T>(pub T);
+
+    pub struct ItemRequirements<T>(pub T);
 }
+
+pub struct CounterfeitEngine {
+    pub setting_keys: counterfeit::ItemRequirements<counterfeit::KeyedItem<()>>,
+}
+
+impl EngineRequirement for CounterfeitEngine {}
 
 pub struct ExactFlagEngine {
     pub exact_settings: Option<String>,
@@ -34,6 +41,12 @@ pub struct RejectedAdapterRequirement {
 }
 
 pub struct EngineRequirements {
+    pub setting_keys: ItemRequirements<KeyedItem<()>>,
+}
+
+impl EngineRequirement for EngineRequirements {}
+
+pub struct MembershipSmuggler {
     pub setting_keys: ItemRequirements<KeyedItem<()>>,
 }
 
@@ -186,8 +199,268 @@ pub fn cross_crate_engine_membership_helper() -> EngineRequirements {
     }
 }
 
+pub fn local_engine_membership_helper() -> EngineRequirements {
+    EngineRequirements {
+        setting_keys: direct_exact(),
+    }
+}
+
+pub fn type_annotated_membership_local_is_tracked() -> EngineRequirements {
+    let mut setting_keys: Membership = external_membership::make();
+    setting_keys.exact = None;
+    EngineRequirements { setting_keys }
+}
+
+pub fn shadowed_membership_transfer(requirement: RejectedAdapterRequirement) -> EngineRequirements {
+    let setting_keys = requirement.setting_keys;
+    let setting_keys = external_membership::make();
+    EngineRequirements { setting_keys }
+}
+
+pub fn tuple_shadowed_membership_transfer(
+    requirement: RejectedAdapterRequirement,
+) -> EngineRequirements {
+    let setting_keys = requirement.setting_keys;
+    let (setting_keys,) = (external_membership::make(),);
+    EngineRequirements { setting_keys }
+}
+
 pub fn rewrite_membership_parameter(value: &mut Membership) {
     value.exact = None;
+}
+
+pub fn membership_helper_parameter(value: Membership) -> EngineRequirements {
+    EngineRequirements { setting_keys: value }
+}
+
+pub fn discard_policy_membership(
+    _requirement: RejectedAdapterRequirement,
+) -> EngineRequirements {
+    EngineRequirements {
+        setting_keys: ItemRequirements::default(),
+    }
+}
+
+pub fn same_name_destructuring_smuggle(value: MembershipSmuggler) -> EngineRequirements {
+    let MembershipSmuggler { setting_keys } = value;
+    EngineRequirements { setting_keys }
+}
+
+pub fn local_whole_engine_helper() -> EngineRequirements {
+    make_engine()
+}
+
+pub fn cross_crate_whole_engine_helper() -> external_membership::ExternalEngineRequirements {
+    external_membership::make_engine()
+}
+
+pub fn local_bound_whole_engine_helper() -> EngineRequirements {
+    let result = make_engine();
+    result
+}
+
+pub fn conditional_whole_engine_helper(flag: bool) -> EngineRequirements {
+    if flag { make_engine() } else { make_engine() }
+}
+
+pub fn tuple_whole_engine_helper() -> EngineRequirements {
+    let (result,) = (make_engine(),);
+    result
+}
+
+pub fn reassigned_whole_engine_helper(
+    requirement: RejectedAdapterRequirement,
+) -> EngineRequirements {
+    let mut result = EngineRequirements {
+        setting_keys: requirement.setting_keys,
+    };
+    result = make_engine();
+    result
+}
+
+pub fn closure_membership_parameter(requirement: RejectedAdapterRequirement) -> EngineRequirements {
+    let mutate = |value: &mut Membership| {
+        value.exact = None;
+    };
+    let _ = mutate;
+    EngineRequirements {
+        setting_keys: requirement.setting_keys,
+    }
+}
+
+pub fn inferred_closure_membership(requirement: RejectedAdapterRequirement) -> EngineRequirements {
+    let consume = |value| drop(value);
+    let alias = consume;
+    alias(requirement.setting_keys.clone());
+    EngineRequirements {
+        setting_keys: requirement.setting_keys,
+    }
+}
+
+pub fn tuple_closure_alias_membership(
+    requirement: RejectedAdapterRequirement,
+) -> EngineRequirements {
+    let take = |value| drop(value);
+    let (alias,) = (take,);
+    alias(requirement.setting_keys.clone());
+    EngineRequirements {
+        setting_keys: requirement.setting_keys,
+    }
+}
+
+pub fn referenced_closure_alias_membership(
+    requirement: RejectedAdapterRequirement,
+) -> EngineRequirements {
+    let take = |value| drop(value);
+    let alias = &take;
+    alias(requirement.setting_keys.clone());
+    EngineRequirements {
+        setting_keys: requirement.setting_keys,
+    }
+}
+
+mod qualified_local_root {
+    use super::{AdapterRequirement, ItemRequirements, KeyedItem};
+
+    pub struct NestedAdapterRequirement {
+        pub setting_keys: ItemRequirements<KeyedItem<()>>,
+    }
+
+    impl AdapterRequirement for NestedAdapterRequirement {}
+}
+
+mod glob_adapter_root {
+    use super::{AdapterRequirement, ItemRequirements, KeyedItem};
+
+    pub struct GlobAdapterRequirement {
+        pub setting_keys: ItemRequirements<KeyedItem<()>>,
+    }
+
+    impl AdapterRequirement for GlobAdapterRequirement {}
+}
+
+mod glob_import_consumer {
+    use super::glob_adapter_root::*;
+    use super::{EngineRequirements, ItemRequirements};
+
+    pub fn glob_import_discard(_requirement: GlobAdapterRequirement) -> EngineRequirements {
+        EngineRequirements {
+            setting_keys: ItemRequirements::default(),
+        }
+    }
+}
+
+mod block_import_consumer {
+    use super::qualified_local_root::NestedAdapterRequirement as Input;
+    use super::{EngineRequirements, ItemRequirements};
+
+    pub fn block_import_noise() {
+        use super::super::impostor::RejectedAdapterRequirement as Input;
+        let _ = std::mem::size_of::<Input>();
+    }
+
+    pub fn block_import_discard(_requirement: Input) -> EngineRequirements {
+        EngineRequirements {
+            setting_keys: ItemRequirements::default(),
+        }
+    }
+}
+
+use qualified_local_root::NestedAdapterRequirement as ImportedAdapterInput;
+
+pub fn imported_adapter_alias_discard(_requirement: ImportedAdapterInput) -> EngineRequirements {
+    EngineRequirements {
+        setting_keys: ItemRequirements::default(),
+    }
+}
+
+pub fn qualified_local_adapter_discard(
+    _requirement: qualified_local_root::NestedAdapterRequirement,
+) -> EngineRequirements {
+    EngineRequirements {
+        setting_keys: ItemRequirements::default(),
+    }
+}
+
+struct One(EngineRequirements);
+
+pub fn tuple_struct_whole_engine_helper() -> EngineRequirements {
+    let One(result) = One(make_engine());
+    result
+}
+
+mod parent_trait_alias {
+    use super::{EngineRequirement, ItemRequirements, KeyedItem};
+    use EngineRequirement as Contract;
+
+    pub mod nested {
+        use super::{ItemRequirements, KeyedItem};
+        use super::Contract as NestedContract;
+
+        pub struct ParentAliasedEngine {
+            pub setting_keys: ItemRequirements<KeyedItem<()>>,
+        }
+
+        impl super::Contract for ParentAliasedEngine {}
+
+        pub struct ChainedAliasedEngine {
+            pub setting_keys: ItemRequirements<KeyedItem<()>>,
+        }
+
+        impl NestedContract for ChainedAliasedEngine {}
+    }
+}
+
+pub fn destructured_policy_membership_discard(
+    RejectedAdapterRequirement { setting_keys: _ }: RejectedAdapterRequirement,
+) -> EngineRequirements {
+    EngineRequirements {
+        setting_keys: ItemRequirements::default(),
+    }
+}
+
+fn make_engine() -> EngineRequirements {
+    EngineRequirements {
+        setting_keys: ItemRequirements::default(),
+    }
+}
+
+impl RejectedAdapterRequirement {
+    pub fn discard_through_self(self) -> EngineRequirements {
+        EngineRequirements {
+            setting_keys: ItemRequirements::default(),
+        }
+    }
+}
+
+mod impostor {
+    use super::{ItemRequirements, KeyedItem};
+
+    pub struct RejectedAdapterRequirement {
+        pub setting_keys: ItemRequirements<KeyedItem<()>>,
+    }
+}
+
+pub fn qualified_same_name_destructuring(
+    value: impostor::RejectedAdapterRequirement,
+) -> EngineRequirements {
+    let impostor::RejectedAdapterRequirement { setting_keys } = value;
+    EngineRequirements { setting_keys }
+}
+
+mod alias_one {
+    use super::EngineRequirement as RequirementContract;
+
+    pub struct AliasedEngine;
+    impl RequirementContract for AliasedEngine {}
+}
+
+mod alias_two {
+    pub trait OtherRequirement {}
+    use OtherRequirement as RequirementContract;
+
+    pub struct Other;
+    impl RequirementContract for Other {}
 }
 
 pub fn replace_whole_membership(requirement: &mut RejectedAdapterRequirement) {
@@ -282,14 +555,4 @@ hidden_requirement_root!();
 
 pub fn local_macro_alias() -> Membership {
     membership_default!()
-}
-
-impl<T> Default for ItemRequirements<T> {
-    fn default() -> Self {
-        Self {
-            required: Vec::new(),
-            forbidden: Vec::new(),
-            exact: None,
-        }
-    }
 }

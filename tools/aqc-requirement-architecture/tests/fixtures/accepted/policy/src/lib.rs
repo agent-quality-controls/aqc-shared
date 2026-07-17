@@ -1,10 +1,4 @@
-pub struct KeyedItem<T>(T);
-
-pub struct ItemRequirements<T> {
-    pub required: Vec<T>,
-    pub forbidden: Vec<T>,
-    pub exact: Option<Vec<T>>,
-}
+use aqc_file_engine_core::{ItemRequirements, KeyedItem};
 
 pub fn policy_constructs_exact() -> ItemRequirements<KeyedItem<()>> {
     ItemRequirements {

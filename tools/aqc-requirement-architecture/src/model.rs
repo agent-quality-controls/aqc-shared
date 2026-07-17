@@ -17,6 +17,7 @@ pub enum ViolationCode {
     AdapterMembershipConstruction,
     NonCanonicalRequirementRoot,
     ReimplementedCoreVocabulary,
+    UninspectableRequirementImport,
     UninspectableRequirementMacro,
 }
 

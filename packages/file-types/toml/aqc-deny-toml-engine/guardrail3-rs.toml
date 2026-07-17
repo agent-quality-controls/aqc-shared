@@ -93,3 +93,9 @@ rule = "g3rs-code/large-type-inventory"
 subject = "src/requirement/model.rs"
 selector = "struct:ResolvedDenyTomlRequirements"
 reason = "Resolved deny requirement root mirrors the supported cargo-deny schema as a field-per-setting data contract."
+
+[[waivers]]
+rule = "g3rs-code/too-many-effective-code-lines"
+subject = "src/requirement/merge.rs"
+selector = "effective-code-lines"
+reason = "Deny merge and table-key constraint coverage exhaustively mirrors every supported deny.toml field in one auditable mapping."

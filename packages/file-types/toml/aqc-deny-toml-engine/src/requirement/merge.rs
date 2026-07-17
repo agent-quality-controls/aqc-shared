@@ -35,7 +35,7 @@ impl DenyTomlRequirements {
             .map(|(provenance, requirement)| {
                 (
                     provenance.clone(),
-                    with_table_key_constraints(requirement.clone()),
+                    with_table_key_constraints(requirement),
                 )
             })
             .collect::<Vec<_>>();
@@ -554,7 +554,7 @@ impl DenyTomlRequirements {
     clippy::too_many_lines,
     reason = "This exhaustive field-to-file-key inventory is kept together so new Deny fields cannot be hidden across partial helpers."
 )]
-fn with_table_key_constraints(source: DenyTomlRequirements) -> DenyTomlRequirements {
+fn with_table_key_constraints(source: &DenyTomlRequirements) -> DenyTomlRequirements {
     let mut requirement = DenyTomlRequirements::default();
     macro_rules! field {
         ($table:ident, $key:literal, $field:ident) => {{

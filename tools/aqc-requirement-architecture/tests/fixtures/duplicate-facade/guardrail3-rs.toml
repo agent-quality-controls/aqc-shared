@@ -1,0 +1,12 @@
+[rules]
+allow = []
+
+[checks]
+arch = false
+cargo = false
+clippy = false
+code = false
+deny = false
+fmt = false
+release = false
+toolchain = false

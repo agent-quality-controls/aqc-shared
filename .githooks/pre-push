@@ -1,0 +1,55 @@
+#!/bin/sh
+set -eu
+
+repo="$(git rev-parse --show-toplevel)"
+head="$(git -C "$repo" rev-parse HEAD)"
+saw_ref=false
+needs_gate=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+  saw_ref=true
+  case "$local_sha" in
+    0000000000000000000000000000000000000000)
+      continue
+      ;;
+  esac
+  needs_gate=true
+  if [ "$local_sha" != "$head" ]; then
+    echo "Local checks require every pushed ref to point at the checked-out HEAD: $local_ref" >&2
+    exit 1
+  fi
+done
+
+if [ "$saw_ref" = true ] && [ "$needs_gate" = false ]; then
+  exit 0
+fi
+if ! git -C "$repo" diff --quiet || ! git -C "$repo" diff --cached --quiet; then
+  echo "Local checks require a clean index and working tree before push" >&2
+  exit 1
+fi
+if [ -n "$(git -C "$repo" ls-files --others --exclude-standard)" ]; then
+  echo "Local checks require no untracked files before push" >&2
+  exit 1
+fi
+
+snapshot="${repo}.pre-push-worktree"
+lock="${repo}.pre-push-lock"
+cache_scope="pre-push"
+if ! mkdir "$lock"; then
+  echo "AQC pre-push checks are already running" >&2
+  exit 1
+fi
+cleanup() {
+  git -C "$repo" worktree remove --force "$snapshot" >/dev/null 2>&1 || rm -rf "$snapshot"
+  rm -rf "$repo/.cargo-target/gate/cargo-homes/$cache_scope"
+  rm -rf "$repo/.cargo-target/gate/runs/$cache_scope"
+  rm -rf "$repo/.cargo-target/fixtures/cargo-homes/$cache_scope"
+  rmdir "$lock"
+}
+trap cleanup EXIT HUP INT TERM
+git -C "$repo" worktree add --quiet --detach "$snapshot" "$head"
+AQC_GATE_CACHE_DIR="$repo/.cargo-target/gate" \
+  AQC_GATE_CONFIG_SCOPE="$cache_scope" \
+  AQC_GATE_RUN_SCOPE="$cache_scope" \
+  FIXTURE3_CARGO_CACHE_ROOT="$repo/.cargo-target/fixtures" \
+  FIXTURE3_CARGO_CONFIG_SCOPE="$cache_scope" \
+  "$snapshot/scripts/check-workspaces.sh"

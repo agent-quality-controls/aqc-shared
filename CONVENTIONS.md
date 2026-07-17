@@ -76,6 +76,9 @@ implementation will not commit.
 
 - File-key membership uses `ItemRequirements<KeyedItem<()>>`. Do not add
   semantic closure flags such as `exact_settings` or `closed_settings`.
+- Requirement crates use core vocabulary names unchanged. Do not rename
+  `ItemRequirements` or `KeyedItem` through imports. Domain aliases may name
+  a distinct composed requirement shape.
 - `exact` contains only keys required to be present. A value assertion does
   not make its key required; absence assertions are omitted from `exact`.
 - Engines use `FileKeyRequirement` and `resolve_key_membership` to detect
@@ -92,8 +95,9 @@ implementation will not commit.
   custom verifier are permanent architecture controls. Do not delete them as
   completed feature artifacts.
 - The permanent Specular verifier owns requirement-architecture checker
-  execution. Repository scripts and CI run `specular lint` and
-  `specular verify`; they do not duplicate the checker invocation.
+  execution. The repository local script and checked-in pre-push hook
+  run `specular lint` and `specular verify`. Repository gates do not duplicate the checker invocation.
+  Architecture-only CI is not part of this contract.
 - Every case declared by the permanent custom verifier must be consumed by
   verifier logic and evidenced in source or adversarial fixtures.
 

@@ -1,0 +1,15 @@
+profile = "library"
+
+allowed_deps = []
+
+[checks]
+arch = false
+cargo = false
+code = false
+deny = false
+toolchain = false
+fmt = false
+clippy = false
+deps = false
+test = false
+release = false
